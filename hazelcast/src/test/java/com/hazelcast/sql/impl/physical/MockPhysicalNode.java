@@ -62,6 +62,11 @@ public class MockPhysicalNode implements PhysicalNode {
     }
 
     @Override
+    public int getInputCount() {
+        return 0;
+    }
+
+    @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         out.writeInt(id);
         SerializationUtil.writeList(schema, out);

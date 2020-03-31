@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.exec;
+package com.hazelcast.sql.impl.compiler.emitter;
 
 /**
- * Interface to get a value from key-value row.
+ * An element which may emit some code.
  */
-public interface KeyValueRowExtractor {
-    /**
-     * Extract value from the key or value.
-     */
-    Object extract(Object key, Object val, String path);
+public interface Emitable {
+    void emit(Emitter emitter);
 }

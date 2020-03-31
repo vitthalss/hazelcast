@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.impl.calcite.schema;
 
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -49,6 +50,12 @@ public class HazelcastTable extends AbstractTable {
     /** Table statistic. */
     private final Statistic statistic;
 
+    /** Key descriptor. */
+    private final SqlTopObjectDescriptor keyDescriptor;
+
+    /** Value descriptor. */
+    private final SqlTopObjectDescriptor valueDescriptor;
+
     /** Field types. */
     private final Map<String, QueryDataType> fieldTypes;
 
@@ -65,6 +72,8 @@ public class HazelcastTable extends AbstractTable {
         boolean partitioned,
         String distributionField,
         List<HazelcastTableIndex> indexes,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         Map<String, QueryDataType> fieldTypes,
         Map<String, String> fieldPaths,
         Statistic statistic
@@ -73,6 +82,8 @@ public class HazelcastTable extends AbstractTable {
         this.name = name;
         this.partitioned = partitioned;
         this.distributionField = distributionField;
+        this.keyDescriptor = keyDescriptor;
+        this.valueDescriptor = valueDescriptor;
         this.fieldTypes = fieldTypes != null ? fieldTypes : Collections.emptyMap();
         this.fieldPaths = fieldPaths != null ? fieldPaths : Collections.emptyMap();
         this.indexes = indexes != null ? indexes : Collections.emptyList();
@@ -121,6 +132,14 @@ public class HazelcastTable extends AbstractTable {
 
     public List<RelDataTypeField> getFieldList() {
         return fields.getFieldList();
+    }
+
+    public SqlTopObjectDescriptor getKeyDescriptor() {
+        return keyDescriptor;
+    }
+
+    public SqlTopObjectDescriptor getValueDescriptor() {
+        return valueDescriptor;
     }
 
     @Override

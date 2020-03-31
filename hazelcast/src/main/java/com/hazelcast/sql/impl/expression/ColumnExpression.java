@@ -61,6 +61,15 @@ public class ColumnExpression<T> implements Expression<T> {
         return type;
     }
 
+    public int getIndex() {
+        return index;
+    }
+
+    @Override
+    public <V> V visit(ExpressionVisitor<V> visitor) {
+        return visitor.visitColumn(this);
+    }
+
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         out.writeInt(index);

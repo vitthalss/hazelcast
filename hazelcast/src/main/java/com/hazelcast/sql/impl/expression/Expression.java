@@ -45,4 +45,14 @@ public interface Expression<T> extends DataSerializable, Serializable {
      */
     QueryDataType getType();
 
+    /**
+     * Visit the expression tree.
+     *
+     * @param visitor Visitor.
+     * @return Result
+     */
+    default <V> V visit(ExpressionVisitor<V> visitor) {
+        // TODO: Make sure to implement the method in all expressions.
+        throw new UnsupportedOperationException();
+    }
 }

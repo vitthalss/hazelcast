@@ -18,6 +18,9 @@ package com.hazelcast.sql.impl.optimizer;
 
 import com.hazelcast.sql.impl.QueryPlan;
 
+import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.physical.PhysicalNode;
+
 /**
  * Optimizer responsible for conversion of SQL string to executable plan.
  */
@@ -30,4 +33,17 @@ public interface SqlOptimizer {
      * @return Executable plan.
      */
     QueryPlan prepare(String sql, int paramsCount);
+
+    /**
+     * @return {@code True} if compilation is supported by the engine.
+     */
+    boolean canCompile();
+
+    /**
+     * Compile the physical node.
+     *
+     * @param node Physical node
+     * @return Compiled executor class.
+     */
+    CompiledFragmentTemplate compile(PhysicalNode node);
 }

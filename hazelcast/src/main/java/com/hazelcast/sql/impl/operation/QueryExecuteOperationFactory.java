@@ -107,7 +107,7 @@ public class QueryExecuteOperationFactory {
             // Do not send node to a member which will not execute it.
             PhysicalNode node = fragmentMemberIds.contains(targetMemberId) ? fragment.getNode() : null;
 
-            descriptors.add(new QueryExecuteOperationFragment(node, fragmentMemberIds));
+            descriptors.add(new QueryExecuteOperationFragment(fragment.getId(), node, fragmentMemberIds));
         }
 
         return new QueryExecuteOperation(

@@ -43,6 +43,11 @@ public abstract class UniInputPhysicalNode extends AbstractPhysicalNode {
     }
 
     @Override
+    public int getInputCount() {
+        return 1;
+    }
+
+    @Override
     protected PhysicalNodeSchema getSchema0() {
         return upstream.getSchema();
     }

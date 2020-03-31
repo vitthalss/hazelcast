@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
 
+import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.QueryMetadata;
@@ -81,6 +82,7 @@ import com.hazelcast.sql.impl.physical.io.ReceiveSortMergePhysicalNode;
 import com.hazelcast.sql.impl.physical.io.UnicastSendPhysicalNode;
 import com.hazelcast.sql.impl.physical.join.HashJoinPhysicalNode;
 import com.hazelcast.sql.impl.physical.join.NestedLoopJoinPhysicalNode;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -229,6 +231,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         MapScanPhysicalNode scanNode = new MapScanPhysicalNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
+            scanKeyDescriptor(rel),
+            scanValueDescriptor(rel),
             fieldPaths,
             schemaBefore.getTypes(),
             rel.getProjects(),
@@ -247,6 +251,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         MapIndexScanPhysicalNode scanNode = new MapIndexScanPhysicalNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
+            scanKeyDescriptor(rel),
+            scanValueDescriptor(rel),
             fieldPaths,
             schemaBefore.getTypes(),
             rel.getProjects(),
@@ -267,6 +273,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         ReplicatedMapScanPhysicalNode scanNode = new ReplicatedMapScanPhysicalNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
+            scanKeyDescriptor(rel),
+            scanValueDescriptor(rel),
             fieldPaths,
             schemaBefore.getTypes(),
             rel.getProjects(),
@@ -652,6 +660,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         List<Integer> inboundEdges = edgeVisitor.getInboundEdges();
 
         QueryFragment fragment = new QueryFragment(
+            UuidUtil.newUnsecureUUID(),
             node,
             outboundEdge,
             inboundEdges,
@@ -712,10 +721,20 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         List<String> paths = new ArrayList<>();
 
-        for (String fieldName : rel.getTable().getRowType().getFieldNames()) {
-            paths.add(table.getFieldPath(fieldName));
-        }
+         for (String fieldName : rel.getTable().getRowType().getFieldNames()) {
+             String fieldPath = table.getFieldPath(fieldName);
+
+             paths.add(fieldPath);
+         }
 
         return paths;
+     }
+
+     private static SqlTopObjectDescriptor scanKeyDescriptor(AbstractScanRel rel) {
+        return rel.getTableUnwrapped().getKeyDescriptor();
+     }
+
+     private static SqlTopObjectDescriptor scanValueDescriptor(AbstractScanRel rel) {
+         return rel.getTableUnwrapped().getValueDescriptor();
      }
 }

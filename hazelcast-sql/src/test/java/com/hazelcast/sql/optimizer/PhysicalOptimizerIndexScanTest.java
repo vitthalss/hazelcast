@@ -46,6 +46,8 @@ public class PhysicalOptimizerIndexScanTest extends PhysicalOptimizerTestSupport
             Collections.singletonList(new HazelcastTableIndex("idx1", IndexType.SORTED, list("f1"))),
             null,
             null,
+            null,
+            null,
             new TableStatistics(100)
         );
 

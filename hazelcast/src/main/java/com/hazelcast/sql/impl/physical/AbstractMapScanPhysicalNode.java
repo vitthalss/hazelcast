@@ -20,6 +20,7 @@ import com.hazelcast.internal.serialization.impl.SerializationUtil;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.io.IOException;
@@ -32,6 +33,12 @@ import java.util.List;
 public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode {
     /** Map name. */
     protected String mapName;
+
+    /** Key descriptor. */
+    protected SqlTopObjectDescriptor keyDescriptor;
+
+    /** Value descriptor. */
+    protected SqlTopObjectDescriptor valueDescriptor;
 
     /** Field names. */
     protected List<String> fieldNames;
@@ -52,6 +59,8 @@ public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode 
     protected AbstractMapScanPhysicalNode(
         int id,
         String mapName,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
@@ -60,6 +69,8 @@ public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode 
         super(id);
 
         this.mapName = mapName;
+        this.keyDescriptor = keyDescriptor;
+        this.valueDescriptor = valueDescriptor;
         this.fieldNames = fieldNames;
         this.fieldTypes = fieldTypes;
         this.projects = projects;
@@ -68,6 +79,14 @@ public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode 
 
     public String getMapName() {
         return mapName;
+    }
+
+    public SqlTopObjectDescriptor getKeyDescriptor() {
+        return keyDescriptor;
+    }
+
+    public SqlTopObjectDescriptor getValueDescriptor() {
+        return valueDescriptor;
     }
 
     public List<String> getFieldNames() {
@@ -100,6 +119,8 @@ public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode 
     @Override
     protected void writeData0(ObjectDataOutput out) throws IOException {
         out.writeUTF(mapName);
+        keyDescriptor.writeData(out);
+        valueDescriptor.writeData(out);
         SerializationUtil.writeList(fieldNames, out);
         SerializationUtil.writeList(fieldTypes, out);
         SerializationUtil.writeList(projects, out);
@@ -109,6 +130,8 @@ public abstract class AbstractMapScanPhysicalNode extends ZeroInputPhysicalNode 
     @Override
     protected void readData0(ObjectDataInput in) throws IOException {
         mapName = in.readUTF();
+        keyDescriptor = SqlTopObjectDescriptor.readData(in);
+        valueDescriptor = SqlTopObjectDescriptor.readData(in);
         fieldNames = SerializationUtil.readList(in);
         fieldTypes = SerializationUtil.readList(in);
         projects = SerializationUtil.readList(in);

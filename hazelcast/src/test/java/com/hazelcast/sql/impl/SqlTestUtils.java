@@ -45,7 +45,7 @@ public final class SqlTestUtils {
             null
         );
 
-        return new QueryFragmentContext(args, NoOpScheduleCallback.INSTANCE, state);
+        return new QueryFragmentContext(args, NoOpScheduleCallback.INSTANCE, state, null);
     }
 
     private static final class NoOpScheduleCallback implements QueryFragmentScheduleCallback {

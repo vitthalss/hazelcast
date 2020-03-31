@@ -16,28 +16,28 @@
 
 package com.hazelcast.sql.impl.exec;
 
-import com.hazelcast.core.HazelcastJsonValue;
-import com.hazelcast.internal.json.Json;
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.sql.impl.fragment.QueryFragmentContext;
-import com.hazelcast.sql.impl.QueryUtils;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.KeyValueRow;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
 
-import static com.hazelcast.query.QueryConstants.KEY_ATTRIBUTE_NAME;
-import static com.hazelcast.query.QueryConstants.THIS_ATTRIBUTE_NAME;
-
 /**
  * Common operator for map scans.
  */
-public abstract class AbstractMapScanExec extends AbstractExec implements KeyValueRowExtractor {
+public abstract class AbstractMapScanExec extends AbstractExec {
     /** Map name. */
     protected final String mapName;
+
+    /** Key descriptor. */
+    protected final SqlTopObjectDescriptor keyDescriptor;
+
+    /** Value descriptor. */
+    protected final SqlTopObjectDescriptor valueDescriptor;
 
     /** Field names. */
     protected final List<String> fieldNames;
@@ -51,19 +51,14 @@ public abstract class AbstractMapScanExec extends AbstractExec implements KeyVal
     /** Filter. */
     protected final Expression<Boolean> filter;
 
-    /** Serialization service. */
-    protected final InternalSerializationService serializationService;
-
-    /** Extractors. */
-    private Extractors extractors;
-
     /** Row to get data with extractors. */
     private KeyValueRow keyValueRow;
 
     protected AbstractMapScanExec(
         int id,
         String mapName,
-        InternalSerializationService serializationService,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
@@ -72,7 +67,8 @@ public abstract class AbstractMapScanExec extends AbstractExec implements KeyVal
         super(id);
 
         this.mapName = mapName;
-        this.serializationService = serializationService;
+        this.keyDescriptor = keyDescriptor;
+        this.valueDescriptor = valueDescriptor;
         this.fieldNames = fieldNames;
         this.fieldTypes = fieldTypes;
         this.projects = projects;
@@ -81,8 +77,20 @@ public abstract class AbstractMapScanExec extends AbstractExec implements KeyVal
 
     @Override
     protected final void setup0(QueryFragmentContext ctx) {
-        extractors = createExtractors();
-        keyValueRow = new KeyValueRow(fieldNames, fieldTypes, this);
+        keyValueRow = KeyValueRow.create(
+            keyDescriptor,
+            valueDescriptor,
+            fieldNames,
+            fieldTypes,
+            createExtractors(),
+            MapScanExecUtils.getSerializationService(ctx)
+        );
+
+        setup1(ctx);
+    }
+
+    protected void setup1(QueryFragmentContext ctx) {
+        // No-op.
     }
 
     @Override
@@ -90,39 +98,8 @@ public abstract class AbstractMapScanExec extends AbstractExec implements KeyVal
         return true;
     }
 
-    @Override
-    public Object extract(Object key, Object val, String path) {
-        Object res;
-
-        if (KEY_ATTRIBUTE_NAME.value().equals(path)) {
-            res = key;
-        } else if (THIS_ATTRIBUTE_NAME.value().equals(path)) {
-            res = val;
-        } else {
-            String keyPath = QueryUtils.extractKeyPath(path);
-
-            Object target;
-
-            if (keyPath != null) {
-                target = key;
-
-                path = keyPath;
-            } else {
-                target = val;
-            }
-
-            res = extractors.extract(target, path, null);
-        }
-
-        if (res instanceof HazelcastJsonValue) {
-            res = Json.parse(res.toString());
-        }
-
-        return res;
-    }
-
-    protected HeapRow prepareRow(Object key, Object val) {
-        keyValueRow.setKeyValue(key, val);
+    protected HeapRow prepareRow(Object rawkey, Object rawValue) {
+        keyValueRow.setKeyValue(rawkey, rawValue);
 
         // Filter.
         if (filter != null && !filter.eval(keyValueRow, ctx)) {
@@ -147,4 +124,28 @@ public abstract class AbstractMapScanExec extends AbstractExec implements KeyVal
      * @return Extractors for map.
      */
     protected abstract Extractors createExtractors();
+
+    public SqlTopObjectDescriptor getKeyDescriptor() {
+        return keyDescriptor;
+    }
+
+    public SqlTopObjectDescriptor getValueDescriptor() {
+        return valueDescriptor;
+    }
+
+    public List<String> getFieldNames() {
+        return fieldNames;
+    }
+
+    public List<QueryDataType> getFieldTypes() {
+        return fieldTypes;
+    }
+
+    public List<Integer> getProjects() {
+        return projects;
+    }
+
+    public Expression<Boolean> getFilter() {
+        return filter;
+    }
 }

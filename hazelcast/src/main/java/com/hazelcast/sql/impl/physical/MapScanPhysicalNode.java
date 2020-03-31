@@ -17,6 +17,7 @@
 package com.hazelcast.sql.impl.physical;
 
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -33,12 +34,14 @@ public class MapScanPhysicalNode extends AbstractMapScanPhysicalNode {
     public MapScanPhysicalNode(
         int id,
         String mapName,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
         Expression<Boolean> filter
     ) {
-        super(id, mapName, fieldNames, fieldTypes, projects, filter);
+        super(id, mapName, keyDescriptor, valueDescriptor, fieldNames, fieldTypes, projects, filter);
     }
 
     @Override

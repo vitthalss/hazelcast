@@ -17,8 +17,8 @@
 package com.hazelcast.sql.impl.worker;
 
 import com.hazelcast.internal.serialization.SerializationService;
-import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 import com.hazelcast.sql.impl.operation.QueryOperation;
+import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 
 import java.util.concurrent.ThreadLocalRandom;
 

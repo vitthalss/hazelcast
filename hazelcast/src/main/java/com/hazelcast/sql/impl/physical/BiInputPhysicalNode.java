@@ -51,6 +51,11 @@ public abstract class BiInputPhysicalNode extends AbstractPhysicalNode {
     }
 
     @Override
+    public int getInputCount() {
+        return 2;
+    }
+
+    @Override
     public final void visit(PhysicalNodeVisitor visitor) {
         right.visit(visitor);
         left.visit(visitor);

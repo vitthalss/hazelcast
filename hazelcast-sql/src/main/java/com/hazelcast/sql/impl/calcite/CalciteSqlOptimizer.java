@@ -36,6 +36,13 @@ import com.hazelcast.sql.impl.schema.ChainedSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.PartitionedMapSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.ReplicatedMapSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.SqlSchemaResolver;
+import com.hazelcast.sql.impl.compiler.CodeGeneratorPhysicalNodeVisitor;
+import com.hazelcast.sql.impl.compiler.CompiledExec;
+import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.compiler.CompilerResult;
+import com.hazelcast.sql.impl.compiler.SqlCompiler;
+import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
+import com.hazelcast.sql.impl.physical.PhysicalNode;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.SqlNode;
 
@@ -49,7 +56,7 @@ import java.util.UUID;
 /**
  * Calcite-based SQL optimizer.
  */
-@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
+@SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "unused"})
 public class CalciteSqlOptimizer implements SqlOptimizer {
     /** Node engine. */
     private final NodeEngine nodeEngine;
@@ -159,5 +166,33 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
         rel.visit(visitor);
 
         return visitor.getPlan();
+    }
+
+    @Override
+    public boolean canCompile() {
+        return true;
+    }
+
+    @Override
+    public CompiledFragmentTemplate compile(PhysicalNode node) {
+        CodeGeneratorPhysicalNodeVisitor visitor = new CodeGeneratorPhysicalNodeVisitor();
+
+        node.visit(visitor);
+
+        List<CodeGenerator<?>> fragments = visitor.done();
+
+        if (fragments.isEmpty()) {
+            return null;
+        }
+
+        List<Class<? extends CompiledExec>> classes = new ArrayList<>(fragments.size());
+
+        for (CodeGenerator<?> fragment : fragments) {
+            CompilerResult res = new SqlCompiler(fragment).compile();
+
+            classes.add(res.getClazz());
+        }
+
+        return new CompiledFragmentTemplate(classes);
     }
 }

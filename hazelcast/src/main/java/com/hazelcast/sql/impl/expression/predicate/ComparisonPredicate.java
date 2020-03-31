@@ -25,6 +25,7 @@ import com.hazelcast.sql.impl.type.SqlYearMonthInterval;
 import com.hazelcast.sql.impl.expression.BiExpression;
 import com.hazelcast.sql.impl.expression.CastExpression;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionVisitor;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
@@ -83,6 +84,18 @@ public class ComparisonPredicate extends BiExpression<Boolean> {
         }
 
         return doCompare(comparisonMode, operand1Value, operand1.getType(), operand2Value, operand2.getType(), type);
+    }
+
+    @Override
+    public <V> V visit(ExpressionVisitor<V> visitor) {
+        V left = operand1.visit(visitor);
+        V right = operand2.visit(visitor);
+
+        return visitor.visitComparisonPredicate(this, left, right);
+    }
+
+    public ComparisonMode getComparisonMode() {
+        return comparisonMode;
     }
 
     @SuppressWarnings({"checkstyle:MethodLength", "checkstyle:CyclomaticComplexity", "checkstyle:ReturnCount",

@@ -33,6 +33,8 @@ import com.hazelcast.sql.SqlCursor;
 import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlService;
 import com.hazelcast.sql.impl.QueryId;
+import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.physical.PhysicalNode;
 import com.hazelcast.sql.impl.row.Row;
 
 import java.util.ArrayList;
@@ -101,6 +103,11 @@ public class SqlClientService implements SqlService {
         QueryId queryId = toObject(response.getQueryId());
 
         return new SqlClientCursorImpl(this, connection, queryId, response.getColumnCount(), query.getPageSize());
+    }
+
+    @Override
+    public CompiledFragmentTemplate getCompiledFragment(PhysicalNode node) {
+        throw new UnsupportedOperationException("Should not be called.");
     }
 
     /**

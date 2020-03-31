@@ -16,11 +16,11 @@
 
 package com.hazelcast.sql.impl.exec;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
 import com.hazelcast.replicatedmap.impl.ReplicatedMapProxy;
 import com.hazelcast.spi.impl.NodeEngine;
+import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.exec.agg.AggregateExec;
 import com.hazelcast.sql.impl.exec.fetch.FetchExec;
 import com.hazelcast.sql.impl.exec.index.MapIndexScanExec;
@@ -86,6 +86,9 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
     /** Partition map. */
     private final Map<UUID, PartitionIdSet> partitionMap;
 
+    /** Compiled fragment. */
+    private final CompiledFragment compiledFragment;
+
     /** Stack of elements to be merged. */
     private final ArrayList<Exec> stack = new ArrayList<>(1);
 
@@ -102,23 +105,25 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
         NodeEngine nodeEngine,
         QueryExecuteOperation operation,
         PartitionIdSet localParts,
-        Map<UUID, PartitionIdSet> partitionMap
+        Map<UUID, PartitionIdSet> partitionMap,
+        CompiledFragment compiledFragment
     ) {
         this.nodeEngine = nodeEngine;
         this.operation = operation;
         this.localParts = localParts;
         this.partitionMap = partitionMap;
+        this.compiledFragment = compiledFragment;
     }
 
     @Override
     public void onRootNode(RootPhysicalNode node) {
         assert stack.size() == 1;
 
-        exec = new RootExec(
+        exec = topNode(new RootExec(
             node.getId(),
             pop(),
             operation.getRootConsumer()
-        );
+        ));
     }
 
     @Override
@@ -200,24 +205,24 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
             partitions.forEach((part) -> partitionOutboxIndexes[part] = outboxIndex0);
         }
 
-        exec = new UnicastSendExec(
+        exec = topNode(new UnicastSendExec(
             node.getId(),
             pop(),
             outboxes,
             node.getHashFunction(),
             partitionOutboxIndexes
-        );
+        ));
     }
 
     @Override
     public void onBroadcastSendNode(BroadcastSendPhysicalNode node) {
         Outbox[] outboxes = prepareOutboxes(node);
 
-        exec = new BroadcastSendExec(
+        exec = topNode(new BroadcastSendExec(
             node.getId(),
             pop(),
             outboxes
-        );
+        ));
     }
 
      /**
@@ -260,7 +265,6 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
          return res;
      }
 
-    @SuppressWarnings("rawtypes")
     @Override
     public void onMapScanNode(MapScanPhysicalNode node) {
         Exec res;
@@ -270,13 +274,14 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
         } else {
             String mapName = node.getMapName();
 
-            MapProxyImpl map = (MapProxyImpl) nodeEngine.getHazelcastInstance().getMap(mapName);
+            MapProxyImpl<?, ?> map = (MapProxyImpl<?, ?>) nodeEngine.getHazelcastInstance().getMap(mapName);
 
             res = new MapScanExec(
                 node.getId(),
                 map,
-                (InternalSerializationService) nodeEngine.getSerializationService(),
                 localParts,
+                node.getKeyDescriptor(),
+                node.getValueDescriptor(),
                 node.getFieldNames(),
                 node.getFieldTypes(),
                 node.getProjects(),
@@ -301,8 +306,9 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
              res = new MapIndexScanExec(
                  node.getId(),
                  map,
-                 (InternalSerializationService) nodeEngine.getSerializationService(),
                  localParts,
+                 node.getKeyDescriptor(),
+                 node.getValueDescriptor(),
                  node.getFieldNames(),
                  node.getFieldTypes(),
                  node.getProjects(),
@@ -324,7 +330,8 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
         Exec res = new ReplicatedMapScanExec(
             node.getId(),
             map,
-            (InternalSerializationService) nodeEngine.getSerializationService(),
+            node.getKeyDescriptor(),
+            node.getValueDescriptor(),
             node.getFieldNames(),
             node.getFieldTypes(),
             node.getProjects(),
@@ -473,14 +480,44 @@ public class CreateExecVisitor implements PhysicalNodeVisitor {
     }
 
     private Exec pop() {
-        return stack.remove(stack.size() - 1);
+        Exec exec = stack.remove(stack.size() - 1);
+
+        if (compiledFragment != null) {
+            // Replace current executor with compiled one if needed.
+            Exec compiledExec = compiledFragment.getExecutor(exec.getId());
+
+            if (compiledExec != null) {
+                exec = compiledExec;
+            }
+        }
+
+        return exec;
     }
 
     private void push(Exec exec) {
+        if (compiledFragment != null) {
+            compiledFragment.prepare(exec);
+        }
+
         stack.add(exec);
     }
 
     private QueryOperationHandler getOperationHandler() {
          return nodeEngine.getSqlService().getInternalService().getOperationHandler();
     }
+
+     /**
+      * Get the top-level node. In order to ensure that compiled fragments are counted appropriately, we perform push-pop
+      * sequence which in turn ensures proper initialization and replacement of compiled fragments if needed.
+      *
+      * @param exec Original executor.
+      * @return Same executor or it's compiled counterpart.
+      */
+     private Exec topNode(Exec exec) {
+         assert stack.isEmpty();
+
+         push(exec);
+
+         return pop();
+     }
 }

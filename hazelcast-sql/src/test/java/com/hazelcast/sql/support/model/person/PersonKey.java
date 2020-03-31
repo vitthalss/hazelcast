@@ -40,4 +40,9 @@ public class PersonKey implements Serializable {
     public long getDeptId() {
         return deptId;
     }
+
+    @Override
+    public String toString() {
+        return "PersonKey{id=" + id + ", deptId=" + deptId + '}';
+    }
 }

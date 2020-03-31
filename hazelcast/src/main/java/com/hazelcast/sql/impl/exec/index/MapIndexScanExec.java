@@ -16,8 +16,6 @@
 
 package com.hazelcast.sql.impl.exec.index;
 
-import com.hazelcast.internal.serialization.Data;
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.MapContainer;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
@@ -32,6 +30,7 @@ import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.ArrayList;
@@ -67,11 +66,13 @@ public class MapIndexScanExec extends AbstractMapScanExec {
     /** Current row. */
     private Row currentRow;
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public MapIndexScanExec(
         int id,
         MapProxyImpl map,
-        InternalSerializationService serializationService,
         PartitionIdSet parts,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
@@ -79,7 +80,7 @@ public class MapIndexScanExec extends AbstractMapScanExec {
         String indexName,
         IndexFilter indexFilter
     ) {
-        super(id, map.getName(), serializationService, fieldNames, fieldTypes, projects, filter);
+        super(id, map.getName(), keyDescriptor, valueDescriptor, fieldNames, fieldTypes, projects, filter);
 
         this.map = map;
         this.parts = parts;
@@ -98,13 +99,7 @@ public class MapIndexScanExec extends AbstractMapScanExec {
             for (QueryableEntry entry : entries) {
                 Record record = entry.getRecord();
 
-                Data keyData =  entry.getKeyData();
-                Object valData = record.getValue();
-
-                Object key = serializationService.toObject(keyData);
-                Object val = valData instanceof Data ? serializationService.toObject(valData) : valData;
-
-                HeapRow row = prepareRow(key, val);
+                HeapRow row = prepareRow(entry.getKeyData(), record.getValue());
 
                 if (row != null) {
                     rows.add(row);

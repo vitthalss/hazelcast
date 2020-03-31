@@ -22,6 +22,7 @@ import com.hazelcast.sql.impl.type.SqlDaySecondInterval;
 import com.hazelcast.sql.impl.type.SqlYearMonthInterval;
 import com.hazelcast.sql.impl.expression.BiExpressionWithType;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionVisitor;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
@@ -72,6 +73,14 @@ public class PlusFunction<T> extends BiExpressionWithType<T> {
         }
 
         return (T) doPlus(operand1Value, operand1.getType(), operand2Value, operand2.getType(), resultType);
+    }
+
+    @Override
+    public <V> V visit(ExpressionVisitor<V> visitor) {
+        V operand1Res = operand1.visit(visitor);
+        V operand2Res = operand2.visit(visitor);
+
+        return visitor.visitPlusFunction(this, operand1Res, operand2Res);
     }
 
     private static Object doPlus(

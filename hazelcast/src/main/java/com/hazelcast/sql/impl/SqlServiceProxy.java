@@ -24,8 +24,11 @@ import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlCursor;
 import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlService;
+import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.optimizer.NoOpSqlOptimizer;
 import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
+import com.hazelcast.sql.impl.physical.PhysicalNode;
 import com.hazelcast.sql.impl.state.QueryState;
 
 import java.lang.reflect.Constructor;
@@ -45,6 +48,9 @@ public class SqlServiceProxy implements SqlService {
     private final SqlOptimizer optimizer;
     private final boolean liteMember;
 
+    /** Compiler manager. */
+    private final CompilerManager compilerManager;
+
     public SqlServiceProxy(NodeEngineImpl nodeEngine) {
         SqlConfig config = nodeEngine.getConfig().getSqlConfig();
 
@@ -59,6 +65,8 @@ public class SqlServiceProxy implements SqlService {
         internalService = createInternalService(nodeEngine);
         optimizer = createOptimizer(nodeEngine);
         liteMember = nodeEngine.getConfig().isLiteMember();
+
+        compilerManager = new CompilerManager(optimizer);
     }
 
     public void start() {
@@ -94,6 +102,11 @@ public class SqlServiceProxy implements SqlService {
         } catch (Exception e) {
             throw HazelcastSqlException.error("SQL query failed: " + e.getMessage(), e);
         }
+    }
+
+    @Override
+    public CompiledFragmentTemplate getCompiledFragment(PhysicalNode node) {
+        return compilerManager.getTemplate(node);
     }
 
     private SqlCursor query0(String sql, List<Object> params, long timeout, int pageSize) {

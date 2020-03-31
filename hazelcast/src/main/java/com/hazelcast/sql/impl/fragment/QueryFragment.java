@@ -21,12 +21,16 @@ import com.hazelcast.sql.impl.physical.PhysicalNode;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Single query fragment. Represents a node to be executed, its inbound and outbound edges, members where it is
  * to be executed.
  */
 public class QueryFragment {
+    /** This should be a signature instead. */
+    private final UUID id;
+
     /** Node to be executed (null for root fragment). */
     private final PhysicalNode node;
 
@@ -40,15 +44,21 @@ public class QueryFragment {
     private final QueryFragmentMapping mapping;
 
     public QueryFragment(
+        UUID id,
         PhysicalNode node,
         Integer outboundEdge,
         List<Integer> inboundEdges,
         QueryFragmentMapping mapping
     ) {
+        this.id = id;
         this.node = node;
         this.outboundEdge = outboundEdge;
         this.inboundEdges = inboundEdges;
         this.mapping = mapping;
+    }
+
+    public UUID getId() {
+        return id;
     }
 
     public PhysicalNode getNode() {

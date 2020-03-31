@@ -58,4 +58,10 @@ public class Person implements Serializable {
     public String getDeptTitle() {
         return deptTitle;
     }
+
+    @Override
+    public String toString() {
+        return "Person{name=" + name + ", age=" + age + ", salary=" + salary + ", cityId=" + cityId
+            + ", deptTitle=" + deptTitle + '}';
+    }
 }

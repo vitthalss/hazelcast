@@ -24,11 +24,21 @@ import java.util.List;
 public class SqlTableSchema {
     private final String schema;
     private final String name;
+    private final SqlTopObjectDescriptor keyDescriptor;
+    private final SqlTopObjectDescriptor valueDescriptor;
     private final List<SqlTableField> fields;
 
-    public SqlTableSchema(String schema, String name, List<SqlTableField> fields) {
+    public SqlTableSchema(
+        String schema,
+        String name,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
+        List<SqlTableField> fields
+    ) {
         this.schema = schema;
         this.name = name;
+        this.keyDescriptor = keyDescriptor;
+        this.valueDescriptor = valueDescriptor;
         this.fields = fields;
     }
 
@@ -38,6 +48,14 @@ public class SqlTableSchema {
 
     public String getName() {
         return name;
+    }
+
+    public SqlTopObjectDescriptor getKeyDescriptor() {
+        return keyDescriptor;
+    }
+
+    public SqlTopObjectDescriptor getValueDescriptor() {
+        return valueDescriptor;
     }
 
     public List<SqlTableField> getFields() {

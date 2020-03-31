@@ -33,7 +33,8 @@ import java.util.UUID;
  * Query fragment descriptor which is sent over a wire.
  */
 public class QueryExecuteOperationFragment implements IdentifiedDataSerializable {
-
+    // TODO: This should be singature instead.
+    private UUID id;
     private PhysicalNode node;
     private Collection<UUID> memberIds;
 
@@ -41,9 +42,14 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
         // No-op.
     }
 
-    public QueryExecuteOperationFragment(PhysicalNode node, Collection<UUID> memberIds) {
+    public QueryExecuteOperationFragment(UUID id, PhysicalNode node, Collection<UUID> memberIds) {
+        this.id = id;
         this.node = node;
         this.memberIds = memberIds;
+    }
+
+    public UUID getId() {
+        return id;
     }
 
     public PhysicalNode getNode() {
@@ -66,6 +72,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
+        UUIDSerializationUtil.writeUUID(out, id);
         out.writeObject(node);
 
         out.writeInt(memberIds.size());
@@ -77,6 +84,8 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public void readData(ObjectDataInput in) throws IOException {
+        id = UUIDSerializationUtil.readUUID(in);
+
         node = in.readObject();
 
         int mappedMemberIdsSize = in.readInt();
@@ -92,7 +101,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public int hashCode() {
-        return Objects.hash(node, memberIds);
+        return Objects.hash(id, node, memberIds);
     }
 
     @Override
@@ -107,6 +116,6 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
         QueryExecuteOperationFragment fragment = (QueryExecuteOperationFragment) o;
 
-        return Objects.equals(node, fragment.node) && Objects.equals(memberIds, fragment.memberIds);
+        return id.equals(fragment.id) && Objects.equals(node, fragment.node) && Objects.equals(memberIds, fragment.memberIds);
     }
 }

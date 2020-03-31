@@ -16,8 +16,6 @@
 
 package com.hazelcast.sql.impl.exec;
 
-import com.hazelcast.internal.serialization.Data;
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.replicatedmap.impl.ReplicatedMapProxy;
 import com.hazelcast.replicatedmap.impl.ReplicatedMapService;
@@ -27,6 +25,7 @@ import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
+import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.ArrayList;
@@ -54,13 +53,14 @@ public class ReplicatedMapScanExec extends AbstractMapScanExec {
     public ReplicatedMapScanExec(
         int id,
         ReplicatedMapProxy map,
-        InternalSerializationService serializationService,
+        SqlTopObjectDescriptor keyDescriptor,
+        SqlTopObjectDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
         Expression<Boolean> filter
     ) {
-        super(id, map.getName(), serializationService, fieldNames, fieldTypes, projects, filter);
+        super(id, map.getName(), keyDescriptor, valueDescriptor, fieldNames, fieldTypes, projects, filter);
 
         this.map = map;
     }
@@ -81,13 +81,7 @@ public class ReplicatedMapScanExec extends AbstractMapScanExec {
                 while (iter.hasNext()) {
                     ReplicatedRecord record = iter.next();
 
-                    Object keyData = record.getKey();
-                    Object valData = record.getValue();
-
-                    Object key = keyData instanceof Data ? serializationService.toObject(keyData) : keyData;
-                    Object val = valData instanceof Data ? serializationService.toObject(valData) : valData;
-
-                    HeapRow row = prepareRow(key, val);
+                    HeapRow row = prepareRow(record.getKey(), record.getValue());
 
                     if (row != null) {
                         rows.add(row);

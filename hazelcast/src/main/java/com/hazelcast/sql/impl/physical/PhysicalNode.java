@@ -40,4 +40,6 @@ public interface PhysicalNode extends DataSerializable {
      * @return Schema.
      */
     PhysicalNodeSchema getSchema();
+
+    int getInputCount();
 }

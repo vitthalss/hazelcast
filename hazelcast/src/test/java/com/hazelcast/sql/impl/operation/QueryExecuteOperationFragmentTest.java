@@ -43,7 +43,7 @@ public class QueryExecuteOperationFragmentTest {
         PhysicalNode node = MockPhysicalNode.create(1, QueryDataType.INT);
         List<UUID> memberIds = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
 
-        QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(node, memberIds);
+        QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(UUID.randomUUID(), node, memberIds);
 
         assertEquals(node, fragment.getNode());
         assertEquals(memberIds, fragment.getMemberIds());
@@ -52,6 +52,7 @@ public class QueryExecuteOperationFragmentTest {
     @Test
     public void testSerialization() {
         QueryExecuteOperationFragment original = new QueryExecuteOperationFragment(
+            UUID.randomUUID(),
             MockPhysicalNode.create(1, QueryDataType.INT),
             Arrays.asList(UUID.randomUUID(), UUID.randomUUID())
         );
@@ -63,6 +64,7 @@ public class QueryExecuteOperationFragmentTest {
 
         QueryExecuteOperationFragment restored = ss.toObject(ss.toData(original));
 
+        assertEquals(original.getId(), restored.getId());
         assertEquals(original.getNode(), restored.getNode());
         assertEquals(original.getMemberIds(), restored.getMemberIds());
     }

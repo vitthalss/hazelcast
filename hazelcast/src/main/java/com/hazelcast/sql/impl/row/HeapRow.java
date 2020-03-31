@@ -45,6 +45,10 @@ public class HeapRow implements Row, IdentifiedDataSerializable {
         this.values = values;
     }
 
+    public static HeapRow of(Object... values) {
+        return new HeapRow(values);
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public <T> T get(int index) {

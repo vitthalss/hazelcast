@@ -200,9 +200,9 @@ public class QueryOperationsTest {
         partitionMapping.put(randomUUID(), new PartitionIdSet(10));
 
         List<QueryExecuteOperationFragment> fragments = new ArrayList<>();
-        fragments.add(new QueryExecuteOperationFragment(MockPhysicalNode.create(1, QueryDataType.INT),
+        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPhysicalNode.create(1, QueryDataType.INT),
             Arrays.asList(randomUUID(), randomUUID())));
-        fragments.add(new QueryExecuteOperationFragment(MockPhysicalNode.create(2, QueryDataType.INT),
+        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPhysicalNode.create(2, QueryDataType.INT),
             Arrays.asList(randomUUID(), randomUUID())));
 
         Map<Integer, Integer> outboundEdgeMap = new HashMap<>();

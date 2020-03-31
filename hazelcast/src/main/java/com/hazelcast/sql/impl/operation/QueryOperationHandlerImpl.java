@@ -26,10 +26,13 @@ import com.hazelcast.spi.impl.NodeEngineImpl;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.QueryId;
+import com.hazelcast.sql.impl.compiler.CompiledFragment;
+import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.exec.CreateExecVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.mailbox.InboundHandler;
 import com.hazelcast.sql.impl.mailbox.OutboundHandler;
+import com.hazelcast.sql.impl.physical.PhysicalNode;
 import com.hazelcast.sql.impl.state.QueryState;
 import com.hazelcast.sql.impl.state.QueryStateCompletionCallback;
 import com.hazelcast.sql.impl.state.QueryStateRegistry;
@@ -43,6 +46,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -55,6 +59,9 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     private final QueryFragmentWorkerPool fragmentPool;
     private final QueryOperationWorkerPool operationPool;
     private final QueryOperationChannel localOperationChannel;
+
+    // TODO: Cache whole plans instead of compiled fragments because in this case we will have simpler lifecycle.
+    private final ConcurrentHashMap<UUID, CompiledFragmentTemplate> compiledFragments = new ConcurrentHashMap<>();
 
     public QueryOperationHandlerImpl(
         NodeEngineImpl nodeEngine,
@@ -171,12 +178,16 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 continue;
             }
 
+            // Get compiled fragment, if any.
+            CompiledFragment compiledFragment = getCompiledFragment(fragmentDescriptor);
+
             // Create executors and inboxes.
             CreateExecVisitor visitor = new CreateExecVisitor(
                 nodeEngine,
                 operation,
                 operation.getPartitionMapping().get(getLocalMemberId()),
-                operation.getPartitionMapping()
+                operation.getPartitionMapping(),
+                compiledFragment
             );
 
             fragmentDescriptor.getNode().visit(visitor);
@@ -193,7 +204,8 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 exec,
                 inboxes,
                 outboxes,
-                fragmentPool
+                fragmentPool,
+                (InternalSerializationService) nodeEngine.getSerializationService()
             );
 
             fragmentExecutables.add(fragmentExecutable);
@@ -361,5 +373,24 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             throw HazelcastSqlException.error(
                 "Failed to serialize " + operation.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
+    }
+
+    private CompiledFragment getCompiledFragment(QueryExecuteOperationFragment fragmentDescriptor) {
+        UUID key = fragmentDescriptor.getId();
+
+        CompiledFragmentTemplate template = compiledFragments.get(key);
+
+        if (template == null) {
+            PhysicalNode node = fragmentDescriptor.getNode();
+
+            // TODO: Here we need to associate fragment signature (to be impemented) with the compiled fragment template.
+            template = nodeEngine.getSqlService().getCompiledFragment(node);
+
+            if (template != null) {
+                compiledFragments.put(key, template);
+            }
+        }
+
+        return template != null ? template.newFragment() : null;
     }
 }

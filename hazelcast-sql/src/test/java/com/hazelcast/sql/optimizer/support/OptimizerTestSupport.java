@@ -122,6 +122,8 @@ public abstract class OptimizerTestSupport {
             null,
             null,
             null,
+            null,
+            null,
             new TableStatistics(100))
         );
 

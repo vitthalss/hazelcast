@@ -27,4 +27,9 @@ public abstract class ZeroInputPhysicalNode extends AbstractPhysicalNode {
     protected ZeroInputPhysicalNode(int id) {
         super(id);
     }
+
+    @Override
+    public int getInputCount() {
+        return 0;
+    }
 }
