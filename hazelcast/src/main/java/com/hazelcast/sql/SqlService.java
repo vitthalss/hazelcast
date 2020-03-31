@@ -17,7 +17,7 @@
 package com.hazelcast.sql;
 
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 /**
  * Service to query Hazelcast data with SQL.
@@ -59,5 +59,5 @@ public interface SqlService {
      * @param node Node.
      * @return Compiled fragment or {@code null}. if not yet compiled or cannot be compiled.
      */
-    CompiledFragmentTemplate getCompiledFragment(PhysicalNode node);
+    CompiledFragmentTemplate getCompiledFragment(PlanNode node);
 }

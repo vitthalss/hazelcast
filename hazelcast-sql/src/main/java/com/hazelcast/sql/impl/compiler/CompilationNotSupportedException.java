@@ -17,12 +17,12 @@
 package com.hazelcast.sql.impl.compiler;
 
 import com.hazelcast.core.HazelcastException;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 public class CompilationNotSupportedException extends HazelcastException {
-    private final PhysicalNode node;
+    private final PlanNode node;
 
-    public CompilationNotSupportedException(PhysicalNode node) {
+    public CompilationNotSupportedException(PlanNode node) {
         this.node = node;
     }
 
@@ -31,7 +31,7 @@ public class CompilationNotSupportedException extends HazelcastException {
         return "SQL query canont be compiled because the node doesn't support compilation: " + node;
     }
 
-    public PhysicalNode getNode() {
+    public PlanNode getNode() {
         return node;
     }
 }

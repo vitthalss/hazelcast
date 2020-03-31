@@ -32,9 +32,9 @@ import com.hazelcast.sql.impl.exec.MapScanExecIterator;
 import com.hazelcast.sql.impl.exec.MapScanExecUtils;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.fragment.QueryFragmentContext;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
+import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;

@@ -20,15 +20,15 @@ import com.hazelcast.sql.impl.compiler.LocalVariable;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableMethod;
 import com.hazelcast.sql.impl.exec.Exec;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 import java.util.List;
 
 /**
  * Node which cannot be compiled.
  */
-public class UnsupportedCodeGenerator extends CodeGenerator<PhysicalNode> {
-    public UnsupportedCodeGenerator(PhysicalNode node) {
+public class UnsupportedCodeGenerator extends CodeGenerator<PlanNode> {
+    public UnsupportedCodeGenerator(PlanNode node) {
         super(node);
     }
 

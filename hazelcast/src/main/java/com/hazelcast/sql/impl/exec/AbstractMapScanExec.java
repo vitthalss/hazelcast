@@ -17,9 +17,7 @@
 package com.hazelcast.sql.impl.exec;
 
 import com.hazelcast.query.impl.getters.Extractors;
-import com.hazelcast.sql.impl.fragment.QueryFragmentContext;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
-import com.hazelcast.sql.impl.QueryUtils;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.KeyValueRow;

@@ -28,12 +28,11 @@ import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
-import com.hazelcast.sql.impl.exec.CreateExecVisitor;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.mailbox.InboundHandler;
 import com.hazelcast.sql.impl.mailbox.OutboundHandler;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.state.QueryState;
 import com.hazelcast.sql.impl.state.QueryStateCompletionCallback;
 import com.hazelcast.sql.impl.state.QueryStateRegistry;
@@ -391,7 +390,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         CompiledFragmentTemplate template = compiledFragments.get(key);
 
         if (template == null) {
-            PhysicalNode node = fragmentDescriptor.getNode();
+            PlanNode node = fragmentDescriptor.getNode();
 
             // TODO: Here we need to associate fragment signature (to be impemented) with the compiled fragment template.
             template = nodeEngine.getSqlService().getCompiledFragment(node);

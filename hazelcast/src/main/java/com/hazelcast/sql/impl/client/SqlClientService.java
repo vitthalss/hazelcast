@@ -34,7 +34,7 @@ import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlService;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.row.Row;
 
 import java.util.ArrayList;
@@ -106,7 +106,7 @@ public class SqlClientService implements SqlService {
     }
 
     @Override
-    public CompiledFragmentTemplate getCompiledFragment(PhysicalNode node) {
+    public CompiledFragmentTemplate getCompiledFragment(PlanNode node) {
         throw new UnsupportedOperationException("Should not be called.");
     }
 

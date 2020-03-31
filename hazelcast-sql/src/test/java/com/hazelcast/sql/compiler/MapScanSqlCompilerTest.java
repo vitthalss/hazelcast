@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.compiler;
 
-import com.hazelcast.sql.impl.compiler.CodeGeneratorPhysicalNodeVisitor;
+import com.hazelcast.sql.impl.compiler.CodeGeneratorPlanNodeVisitor;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.compiler.CompilerResult;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
@@ -25,8 +25,8 @@ import com.hazelcast.sql.impl.expression.ColumnExpression;
 import com.hazelcast.sql.impl.expression.math.PlusFunction;
 import com.hazelcast.sql.impl.expression.predicate.ComparisonMode;
 import com.hazelcast.sql.impl.expression.predicate.ComparisonPredicate;
-import com.hazelcast.sql.impl.physical.MapScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.RootPhysicalNode;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.RootPlanNode;
 import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.test.HazelcastTestSupport;
@@ -50,7 +50,7 @@ public class MapScanSqlCompilerTest extends HazelcastTestSupport {
 
     @Test
     public void testMapScanCompilation() {
-        MapScanPhysicalNode mapScanNode = new MapScanPhysicalNode(
+        MapScanPlanNode mapScanNode = new MapScanPlanNode(
             1,
             "MyMap",
             SqlTopObjectDescriptor.forJavaClass(CompilerPersonKey.class.getName()),
@@ -65,9 +65,9 @@ public class MapScanSqlCompilerTest extends HazelcastTestSupport {
             )
         );
 
-        RootPhysicalNode rootNode = new RootPhysicalNode(2, mapScanNode);
+        RootPlanNode rootNode = new RootPlanNode(2, mapScanNode);
 
-        CodeGeneratorPhysicalNodeVisitor visitor = new CodeGeneratorPhysicalNodeVisitor();
+        CodeGeneratorPlanNodeVisitor visitor = new CodeGeneratorPlanNodeVisitor();
 
         rootNode.visit(visitor);
 

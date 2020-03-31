@@ -22,27 +22,27 @@ import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.partition.Partition;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.HazelcastSqlException;
-import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.NodeIdVisitor;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PlanCreateVisitor;
 import com.hazelcast.sql.impl.calcite.statistics.DefaultStatisticProvider;
 import com.hazelcast.sql.impl.calcite.statistics.StatisticProvider;
-import com.hazelcast.sql.impl.optimizer.OptimizerRuleCallTracker;
-import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
-import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
-import com.hazelcast.sql.impl.schema.ChainedSqlSchemaResolver;
-import com.hazelcast.sql.impl.schema.PartitionedMapSqlSchemaResolver;
-import com.hazelcast.sql.impl.schema.ReplicatedMapSqlSchemaResolver;
-import com.hazelcast.sql.impl.schema.SqlSchemaResolver;
-import com.hazelcast.sql.impl.compiler.CodeGeneratorPhysicalNodeVisitor;
+import com.hazelcast.sql.impl.compiler.CodeGeneratorPlanNodeVisitor;
 import com.hazelcast.sql.impl.compiler.CompiledExec;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.compiler.CompilerResult;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.optimizer.OptimizerRuleCallTracker;
+import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
+import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
+import com.hazelcast.sql.impl.plan.Plan;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
+import com.hazelcast.sql.impl.schema.ChainedSqlSchemaResolver;
+import com.hazelcast.sql.impl.schema.PartitionedMapSqlSchemaResolver;
+import com.hazelcast.sql.impl.schema.ReplicatedMapSqlSchemaResolver;
+import com.hazelcast.sql.impl.schema.SqlSchemaResolver;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.sql.SqlNode;
 
@@ -174,8 +174,8 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
     }
 
     @Override
-    public CompiledFragmentTemplate compile(PhysicalNode node) {
-        CodeGeneratorPhysicalNodeVisitor visitor = new CodeGeneratorPhysicalNodeVisitor();
+    public CompiledFragmentTemplate compile(PlanNode node) {
+        CodeGeneratorPlanNodeVisitor visitor = new CodeGeneratorPlanNodeVisitor();
 
         node.visit(visitor);
 

@@ -27,7 +27,7 @@ import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
 import com.hazelcast.sql.impl.compiler.exec.PrepareCodeGeneratorVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
-import com.hazelcast.sql.impl.fragment.QueryFragmentContext;
+import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import org.codehaus.commons.compiler.CompileException;
 import org.codehaus.janino.SimpleCompiler;
 

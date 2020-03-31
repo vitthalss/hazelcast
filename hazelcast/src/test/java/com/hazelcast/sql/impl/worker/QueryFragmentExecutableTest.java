@@ -81,7 +81,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             exec,
             Collections.emptyMap(),
             Collections.emptyMap(),
-            pool
+            pool,
+            null
         );
 
         fragmentExecutable.run();
@@ -104,7 +105,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             exec,
             Collections.emptyMap(),
             Collections.emptyMap(),
-            pool
+            pool,
+            null
         );
 
         exec.setPayload(new ResultExecPayload(IterationResult.WAIT));
@@ -138,7 +140,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             exec,
             Collections.emptyMap(),
             Collections.emptyMap(),
-            pool
+            pool,
+            null
         );
 
         // Throw an exception.
@@ -180,7 +183,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             exec,
             Collections.singletonMap(1, inboundHandler),
             Collections.emptyMap(),
-            pool
+            pool,
+            null
         );
 
         CountDownLatch startLatch = new CountDownLatch(1);
@@ -258,7 +262,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
                 exec,
                 Collections.singletonMap(edgeId, inboundHandler),
                 Collections.singletonMap(edgeId, Collections.singletonMap(callerId, outboundHandler)),
-                pool
+                pool,
+                null
             );
 
             assertEquals(1, fragmentExecutable.getInboxEdgeIds().size());
@@ -331,7 +336,8 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             exec,
             Collections.emptyMap(),
             Collections.emptyMap(),
-            pool
+            pool,
+            null
         );
 
         CountDownLatch startLatch = new CountDownLatch(1);

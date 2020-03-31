@@ -20,7 +20,7 @@ import com.hazelcast.sql.impl.compiler.LocalVariable;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableMethod;
 import com.hazelcast.sql.impl.exec.Exec;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 import java.util.Collections;
 import java.util.List;
@@ -45,7 +45,7 @@ import static com.hazelcast.sql.impl.compiler.emitter.EmitterConstants.C_THIS;
  * consumed by downstream nodes.
  * This node is only needed for cases when local parent operator exists, but cannot be compiled.
  */
-public class NonTerminalCodeGenerator extends CodeGenerator<PhysicalNode> {
+public class NonTerminalCodeGenerator extends CodeGenerator<PlanNode> {
     public NonTerminalCodeGenerator(CodeGenerator<?> child) {
         super(child.getNode(), Collections.singletonList(child));
     }

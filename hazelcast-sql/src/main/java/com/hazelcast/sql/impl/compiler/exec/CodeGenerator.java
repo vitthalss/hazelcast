@@ -23,14 +23,14 @@ import com.hazelcast.sql.impl.compiler.LocalVariable;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableMethod;
 import com.hazelcast.sql.impl.exec.Exec;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public abstract class CodeGenerator<T extends PhysicalNode> {
+public abstract class CodeGenerator<T extends PlanNode> {
     /** Current node. */
     protected final T node;
 
@@ -49,7 +49,7 @@ public abstract class CodeGenerator<T extends PhysicalNode> {
         this.children = children != null ? children : Collections.emptyList();
     }
 
-    public PhysicalNode getNode() {
+    public PlanNode getNode() {
         return node;
     }
 

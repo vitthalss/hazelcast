@@ -16,14 +16,14 @@
 
 package com.hazelcast.sql.impl.compiler;
 
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 /**
  * Result of physical node compilation.
  */
 public class CompilerResult {
     /** Node which triggered the compilation. */
-    private final PhysicalNode node;
+    private final PlanNode node;
 
     /** Compiled class. */
     private final Class<? extends CompiledExec> clazz;
@@ -31,13 +31,13 @@ public class CompilerResult {
     /** Compiled class source (for debugging purposes). */
     private final String source;
 
-    public CompilerResult(PhysicalNode node, Class<? extends CompiledExec> clazz, String source) {
+    public CompilerResult(PlanNode node, Class<? extends CompiledExec> clazz, String source) {
         this.node = node;
         this.clazz = clazz;
         this.source = source;
     }
 
-    public PhysicalNode getNode() {
+    public PlanNode getNode() {
         return node;
     }
 

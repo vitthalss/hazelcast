@@ -17,7 +17,7 @@
 package com.hazelcast.sql.impl.compiler;
 
 import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 /**
  * Manager which handles query compilation.
@@ -39,7 +39,7 @@ public class CompilerManager {
         enabled = optimizer.canCompile();
     }
 
-    public CompiledFragmentTemplate getTemplate(PhysicalNode node) {
+    public CompiledFragmentTemplate getTemplate(PlanNode node) {
         if (!enabled) {
             return null;
         }
@@ -47,7 +47,7 @@ public class CompilerManager {
         return getTemplate0(node);
     }
 
-    private CompiledFragmentTemplate getTemplate0(PhysicalNode node) {
+    private CompiledFragmentTemplate getTemplate0(PlanNode node) {
         // TODO:
         //  1. Decide whether to compile or not based on heuristics
         //  2. Start asynchronous compilation.

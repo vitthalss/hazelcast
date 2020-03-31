@@ -26,7 +26,7 @@ import com.hazelcast.sql.impl.compiler.expression.ExpressionCompiler;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.MapScanExec;
 import com.hazelcast.sql.impl.expression.Expression;
-import com.hazelcast.sql.impl.physical.MapScanPhysicalNode;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.row.KeyValueFieldExtractor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
@@ -60,14 +60,14 @@ import static com.hazelcast.sql.impl.compiler.emitter.EmitterConstants.C_SPACE;
 import static com.hazelcast.sql.impl.compiler.emitter.EmitterConstants.C_UNDERSCORE;
 import static com.hazelcast.sql.impl.compiler.emitter.EmitterConstants.C_WHILE;
 
-public class MapScanCodeGenerator extends CodeGenerator<MapScanPhysicalNode> {
+public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
     private ExecVariable varFilter;
     private ExecVariable varRecordIterator;
 
     private LocalVariable keyVar;
     private LocalVariable valueVar;
 
-    public MapScanCodeGenerator(MapScanPhysicalNode node) {
+    public MapScanCodeGenerator(MapScanPlanNode node) {
         super(node);
     }
 

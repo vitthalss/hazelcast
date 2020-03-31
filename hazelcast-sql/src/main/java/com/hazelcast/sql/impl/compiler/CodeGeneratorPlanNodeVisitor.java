@@ -20,26 +20,26 @@ import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
 import com.hazelcast.sql.impl.compiler.exec.MapScanCodeGenerator;
 import com.hazelcast.sql.impl.compiler.exec.NonTerminalCodeGenerator;
 import com.hazelcast.sql.impl.compiler.exec.UnsupportedCodeGenerator;
-import com.hazelcast.sql.impl.physical.AggregatePhysicalNode;
-import com.hazelcast.sql.impl.physical.FetchPhysicalNode;
-import com.hazelcast.sql.impl.physical.FilterPhysicalNode;
-import com.hazelcast.sql.impl.physical.MapIndexScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.MapScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.MaterializedInputPhysicalNode;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
-import com.hazelcast.sql.impl.physical.PhysicalNodeVisitor;
-import com.hazelcast.sql.impl.physical.PhysicalNodeWithVisitorCallback;
-import com.hazelcast.sql.impl.physical.ProjectPhysicalNode;
-import com.hazelcast.sql.impl.physical.ReplicatedMapScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.ReplicatedToPartitionedPhysicalNode;
-import com.hazelcast.sql.impl.physical.RootPhysicalNode;
-import com.hazelcast.sql.impl.physical.SortPhysicalNode;
-import com.hazelcast.sql.impl.physical.io.BroadcastSendPhysicalNode;
-import com.hazelcast.sql.impl.physical.io.ReceivePhysicalNode;
-import com.hazelcast.sql.impl.physical.io.ReceiveSortMergePhysicalNode;
-import com.hazelcast.sql.impl.physical.io.UnicastSendPhysicalNode;
-import com.hazelcast.sql.impl.physical.join.HashJoinPhysicalNode;
-import com.hazelcast.sql.impl.physical.join.NestedLoopJoinPhysicalNode;
+
+import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
+import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
+import com.hazelcast.sql.impl.plan.node.FilterPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.MaterializedInputPlanNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
+import com.hazelcast.sql.impl.plan.node.PlanNodeVisitor;
+import com.hazelcast.sql.impl.plan.node.ProjectPlanNode;
+import com.hazelcast.sql.impl.plan.node.ReplicatedMapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.ReplicatedToPartitionedPlanNode;
+import com.hazelcast.sql.impl.plan.node.RootPlanNode;
+import com.hazelcast.sql.impl.plan.node.SortPlanNode;
+import com.hazelcast.sql.impl.plan.node.io.BroadcastSendPlanNode;
+import com.hazelcast.sql.impl.plan.node.io.ReceivePlanNode;
+import com.hazelcast.sql.impl.plan.node.io.ReceiveSortMergePlanNode;
+import com.hazelcast.sql.impl.plan.node.io.UnicastSendPlanNode;
+import com.hazelcast.sql.impl.plan.node.join.HashJoinPlanNode;
+import com.hazelcast.sql.impl.plan.node.join.NestedLoopJoinPlanNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +47,7 @@ import java.util.List;
 /**
  * Visitor which prepares code generation fragments.
  */
-public class CodeGeneratorPhysicalNodeVisitor implements PhysicalNodeVisitor {
+public class CodeGeneratorPlanNodeVisitor implements PlanNodeVisitor {
     /** Current tree. */
     private List<CodeGenerator<?>> stack = new ArrayList<>();
 
@@ -78,92 +78,92 @@ public class CodeGeneratorPhysicalNodeVisitor implements PhysicalNodeVisitor {
     }
 
     @Override
-    public void onRootNode(RootPhysicalNode node) {
+    public void onRootNode(RootPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onReceiveNode(ReceivePhysicalNode node) {
+    public void onReceiveNode(ReceivePlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onUnicastSendNode(UnicastSendPhysicalNode node) {
+    public void onUnicastSendNode(UnicastSendPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onBroadcastSendNode(BroadcastSendPhysicalNode node) {
+    public void onBroadcastSendNode(BroadcastSendPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onMapScanNode(MapScanPhysicalNode node) {
+    public void onMapScanNode(MapScanPlanNode node) {
         push(new MapScanCodeGenerator(node));
     }
 
     @Override
-    public void onMapIndexScanNode(MapIndexScanPhysicalNode node) {
+    public void onMapIndexScanNode(MapIndexScanPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onReplicatedMapScanNode(ReplicatedMapScanPhysicalNode node) {
+    public void onReplicatedMapScanNode(ReplicatedMapScanPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onSortNode(SortPhysicalNode node) {
+    public void onSortNode(SortPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onReceiveSortMergeNode(ReceiveSortMergePhysicalNode node) {
+    public void onReceiveSortMergeNode(ReceiveSortMergePlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onProjectNode(ProjectPhysicalNode node) {
+    public void onProjectNode(ProjectPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onFilterNode(FilterPhysicalNode node) {
+    public void onFilterNode(FilterPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onAggregateNode(AggregatePhysicalNode node) {
+    public void onAggregateNode(AggregatePlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onNestedLoopJoinNode(NestedLoopJoinPhysicalNode node) {
+    public void onNestedLoopJoinNode(NestedLoopJoinPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onHashJoinNode(HashJoinPhysicalNode node) {
+    public void onHashJoinNode(HashJoinPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onMaterializedInputNode(MaterializedInputPhysicalNode node) {
+    public void onMaterializedInputNode(MaterializedInputPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onReplicatedToPartitionedNode(ReplicatedToPartitionedPhysicalNode node) {
+    public void onReplicatedToPartitionedNode(ReplicatedToPartitionedPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onFetchNode(FetchPhysicalNode node) {
+    public void onFetchNode(FetchPlanNode node) {
         unsupported(node);
     }
 
     @Override
-    public void onCustomNode(PhysicalNodeWithVisitorCallback node) {
+    public void onOtherNode(PlanNode node) {
         unsupported(node);
     }
 
@@ -173,7 +173,7 @@ public class CodeGeneratorPhysicalNodeVisitor implements PhysicalNodeVisitor {
      *
      * @param node Node which doesn't support query compilation.
      */
-    private void unsupported(PhysicalNode node) {
+    private void unsupported(PlanNode node) {
         // TODO: We should not produce fragments if parent requires reset, but children compiled nodes are not resettable!
         //  At the moment this is only the case for NLJ, which we'd better to remove at all.
 
