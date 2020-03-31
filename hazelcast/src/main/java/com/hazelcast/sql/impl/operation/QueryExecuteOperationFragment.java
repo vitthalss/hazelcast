@@ -21,7 +21,7 @@ import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.sql.impl.SqlDataSerializerHook;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,14 +35,14 @@ import java.util.UUID;
 public class QueryExecuteOperationFragment implements IdentifiedDataSerializable {
     // TODO: This should be singature instead.
     private UUID id;
-    private PhysicalNode node;
+    private PlanNode node;
     private Collection<UUID> memberIds;
 
     public QueryExecuteOperationFragment() {
         // No-op.
     }
 
-    public QueryExecuteOperationFragment(UUID id, PhysicalNode node, Collection<UUID> memberIds) {
+    public QueryExecuteOperationFragment(UUID id, PlanNode node, Collection<UUID> memberIds) {
         this.id = id;
         this.node = node;
         this.memberIds = memberIds;
@@ -52,7 +52,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
         return id;
     }
 
-    public PhysicalNode getNode() {
+    public PlanNode getNode() {
         return node;
     }
 

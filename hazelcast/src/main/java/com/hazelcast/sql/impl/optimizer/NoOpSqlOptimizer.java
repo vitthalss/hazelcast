@@ -19,14 +19,14 @@ package com.hazelcast.sql.impl.optimizer;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.QueryPlan;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
 /**
  * No-op optimizer.
  */
 public class NoOpSqlOptimizer implements SqlOptimizer {
     @Override
-    public QueryPlan prepare(String sql, int paramsCount) {
+    public Plan prepare(String sql, int paramsCount) {
         throw HazelcastSqlException.error("Cannot execute SQL query because \"hazelcast-sql\" module is not in the classpath.");
     }
 
@@ -36,7 +36,7 @@ public class NoOpSqlOptimizer implements SqlOptimizer {
     }
 
     @Override
-    public CompiledFragmentTemplate compile(PhysicalNode node) {
+    public CompiledFragmentTemplate compile(PlanNode node) {
         throw HazelcastSqlException.error("Cannot compile SQL query because \"hazelcast-sql\" module is not in the classpath.");
     }
 }

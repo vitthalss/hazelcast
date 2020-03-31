@@ -20,8 +20,8 @@ import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.QueryMetadata;
-import com.hazelcast.sql.impl.QueryPlan;
-import com.hazelcast.sql.impl.calcite.EdgeCollectorPhysicalNodeVisitor;
+import com.hazelcast.sql.impl.plan.Plan;
+import com.hazelcast.sql.impl.calcite.EdgeCollectorPlanNodeVisitor;
 import com.hazelcast.sql.impl.calcite.expression.RexToExpressionVisitor;
 import com.hazelcast.sql.impl.calcite.operators.HazelcastSqlOperatorTable;
 import com.hazelcast.sql.impl.calcite.opt.AbstractScanRel;
@@ -56,33 +56,32 @@ import com.hazelcast.sql.impl.expression.aggregate.MaxAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.MinAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.SingleValueAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.SumAggregateExpression;
-import com.hazelcast.sql.impl.fragment.QueryFragment;
-import com.hazelcast.sql.impl.fragment.QueryFragmentMapping;
+import com.hazelcast.sql.impl.plan.PlanFragment;
+import com.hazelcast.sql.impl.plan.PlanFragmentMapping;
 import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
-import com.hazelcast.sql.impl.physical.AggregatePhysicalNode;
-import com.hazelcast.sql.impl.physical.FetchOffsetFieldTypeProvider;
-import com.hazelcast.sql.impl.physical.FetchPhysicalNode;
-import com.hazelcast.sql.impl.physical.FieldTypeProvider;
-import com.hazelcast.sql.impl.physical.FilterPhysicalNode;
-import com.hazelcast.sql.impl.physical.MapIndexScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.MapScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.MaterializedInputPhysicalNode;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
-import com.hazelcast.sql.impl.physical.PhysicalNodeSchema;
-import com.hazelcast.sql.impl.physical.ProjectPhysicalNode;
-import com.hazelcast.sql.impl.physical.ReplicatedMapScanPhysicalNode;
-import com.hazelcast.sql.impl.physical.ReplicatedToPartitionedPhysicalNode;
-import com.hazelcast.sql.impl.physical.RootPhysicalNode;
-import com.hazelcast.sql.impl.physical.SortPhysicalNode;
-import com.hazelcast.sql.impl.physical.hash.AllFieldsRowHashFunction;
-import com.hazelcast.sql.impl.physical.hash.FieldRowHashFunction;
-import com.hazelcast.sql.impl.physical.io.BroadcastSendPhysicalNode;
-import com.hazelcast.sql.impl.physical.io.ReceivePhysicalNode;
-import com.hazelcast.sql.impl.physical.io.ReceiveSortMergePhysicalNode;
-import com.hazelcast.sql.impl.physical.io.UnicastSendPhysicalNode;
-import com.hazelcast.sql.impl.physical.join.HashJoinPhysicalNode;
-import com.hazelcast.sql.impl.physical.join.NestedLoopJoinPhysicalNode;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
+import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
+import com.hazelcast.sql.impl.plan.node.FetchOffsetPlanNodeFieldTypeProvider;
+import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
+import com.hazelcast.sql.impl.plan.node.PlanNodeFieldTypeProvider;
+import com.hazelcast.sql.impl.plan.node.FilterPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.MaterializedInputPlanNode;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
+import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
+import com.hazelcast.sql.impl.plan.node.ProjectPlanNode;
+import com.hazelcast.sql.impl.plan.node.ReplicatedMapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.ReplicatedToPartitionedPlanNode;
+import com.hazelcast.sql.impl.plan.node.RootPlanNode;
+import com.hazelcast.sql.impl.plan.node.SortPlanNode;
+import com.hazelcast.sql.impl.row.hash.AllFieldsRowHashFunction;
+import com.hazelcast.sql.impl.row.hash.FieldRowHashFunction;
+import com.hazelcast.sql.impl.plan.node.io.BroadcastSendPlanNode;
+import com.hazelcast.sql.impl.plan.node.io.ReceivePlanNode;
+import com.hazelcast.sql.impl.plan.node.io.ReceiveSortMergePlanNode;
+import com.hazelcast.sql.impl.plan.node.io.UnicastSendPlanNode;
+import com.hazelcast.sql.impl.plan.node.join.HashJoinPlanNode;
+import com.hazelcast.sql.impl.plan.node.join.NestedLoopJoinPlanNode;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -130,10 +129,10 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     private final OptimizerStatistics stats;
 
     /** Prepared fragments. */
-    private final List<QueryFragment> fragments = new ArrayList<>();
+    private final List<PlanFragment> fragments = new ArrayList<>();
 
     /** Upstream nodes. Normally it is a one node, except of multi-source operations (e.g. joins, sets, subqueries). */
-    private final Deque<PhysicalNode> upstreamNodes = new ArrayDeque<>();
+    private final Deque<PlanNode> upstreamNodes = new ArrayDeque<>();
 
     /** ID of current edge. */
     private int nextEdgeGenerator;
@@ -164,14 +163,14 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         dataMemberIdsSet = new HashSet<>(dataMemberIds);
     }
 
-    public QueryPlan getPlan() {
+    public Plan getPlan() {
         // Calculate edges.
         Map<Integer, Integer> outboundEdgeMap = new HashMap<>();
         Map<Integer, Integer> inboundEdgeMap = new HashMap<>();
         Map<Integer, Integer> inboundEdgeMemberCountMap = new HashMap<>();
 
         for (int i = 0; i < fragments.size(); i++) {
-            QueryFragment fragment = fragments.get(i);
+            PlanFragment fragment = fragments.get(i);
 
             Integer outboundEdge = fragment.getOutboundEdge();
 
@@ -192,7 +191,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         QueryExplain explain = ExplainCreator.explain(sql, rootPhysicalRel);
 
-        return new QueryPlan(
+        return new Plan(
             partMap,
             dataMemberIds,
             fragments,
@@ -210,25 +209,25 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     public void onRoot(RootPhysicalRel rel) {
         rootPhysicalRel = rel;
 
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
-        RootPhysicalNode rootNode = new RootPhysicalNode(
+        RootPlanNode rootNode = new RootPlanNode(
             pollId(rel),
             upstreamNode
         );
 
         rootMetadata = new QueryMetadata(rootNode.getSchema().getTypes());
 
-        addFragment(rootNode, QueryFragmentMapping.staticMapping(Collections.singleton(localMemberId)));
+        addFragment(rootNode, PlanFragmentMapping.staticMapping(Collections.singleton(localMemberId)));
     }
 
     @Override
     public void onMapScan(MapScanPhysicalRel rel) {
         List<String> fieldPaths = getScanFieldPaths(rel);
 
-        PhysicalNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
+        PlanNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
 
-        MapScanPhysicalNode scanNode = new MapScanPhysicalNode(
+        MapScanPlanNode scanNode = new MapScanPlanNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
             scanKeyDescriptor(rel),
@@ -246,9 +245,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     public void onMapIndexScan(MapIndexScanPhysicalRel rel) {
         List<String> fieldPaths = getScanFieldPaths(rel);
 
-        PhysicalNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
+        PlanNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
 
-        MapIndexScanPhysicalNode scanNode = new MapIndexScanPhysicalNode(
+        MapIndexScanPlanNode scanNode = new MapIndexScanPlanNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
             scanKeyDescriptor(rel),
@@ -268,9 +267,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     public void onReplicatedMapScan(ReplicatedMapScanPhysicalRel rel) {
         List<String> fieldPaths = getScanFieldPaths(rel);
 
-        PhysicalNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
+        PlanNodeSchema schemaBefore = getScanSchemaBeforeProject(rel);
 
-        ReplicatedMapScanPhysicalNode scanNode = new ReplicatedMapScanPhysicalNode(
+        ReplicatedMapScanPlanNode scanNode = new ReplicatedMapScanPlanNode(
             pollId(rel),
             rel.getTableUnwrapped().getName(),
             scanKeyDescriptor(rel),
@@ -286,8 +285,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
     @Override
     public void onSort(SortPhysicalRel rel) {
-        PhysicalNode upstreamNode = pollSingleUpstream();
-        PhysicalNodeSchema upstreamNodeSchema = upstreamNode.getSchema();
+        PlanNode upstreamNode = pollSingleUpstream();
+        PlanNodeSchema upstreamNodeSchema = upstreamNode.getSchema();
 
         List<RelFieldCollation> collations = rel.getCollation().getFieldCollations();
 
@@ -302,10 +301,10 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             ascs.add(!direction.isDescending());
         }
 
-        Expression fetch = convertExpression(FetchOffsetFieldTypeProvider.INSTANCE, rel.fetch);
-        Expression offset = convertExpression(FetchOffsetFieldTypeProvider.INSTANCE, rel.offset);
+        Expression fetch = convertExpression(FetchOffsetPlanNodeFieldTypeProvider.INSTANCE, rel.fetch);
+        Expression offset = convertExpression(FetchOffsetPlanNodeFieldTypeProvider.INSTANCE, rel.offset);
 
-        SortPhysicalNode sortNode = new SortPhysicalNode(
+        SortPlanNode sortNode = new SortPlanNode(
             pollId(rel),
             upstreamNode,
             expressions,
@@ -320,24 +319,24 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     @Override
     public void onUnicastExchange(UnicastExchangePhysicalRel rel) {
         // Get upstream node.
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
         // Create sender and push it as a fragment.
         int edge = nextEdge();
 
         int id = pollId(rel);
 
-        UnicastSendPhysicalNode sendNode = new UnicastSendPhysicalNode(
+        UnicastSendPlanNode sendNode = new UnicastSendPlanNode(
             id,
             upstreamNode,
             edge,
             new FieldRowHashFunction(rel.getHashFields())
         );
 
-        addFragment(sendNode, QueryFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
 
         // Create receiver.
-        ReceivePhysicalNode receiveNode = new ReceivePhysicalNode(
+        ReceivePlanNode receiveNode = new ReceivePlanNode(
             id,
             edge,
             sendNode.getSchema().getTypes()
@@ -349,23 +348,23 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     @Override
     public void onBroadcastExchange(BroadcastExchangePhysicalRel rel) {
         // Get upstream node.
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
         // Create sender and push it as a fragment.
         int edge = nextEdge();
 
         int id = pollId(rel);
 
-        BroadcastSendPhysicalNode sendNode = new BroadcastSendPhysicalNode(
+        BroadcastSendPlanNode sendNode = new BroadcastSendPlanNode(
             id,
             upstreamNode,
             edge
         );
 
-        addFragment(sendNode, QueryFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
 
         // Create receiver.
-        ReceivePhysicalNode receiveNode = new ReceivePhysicalNode(
+        ReceivePlanNode receiveNode = new ReceivePlanNode(
             id,
             edge,
             sendNode.getSchema().getTypes()
@@ -377,28 +376,28 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     @Override
     public void onSortMergeExchange(SortMergeExchangePhysicalRel rel) {
         // Get upstream node. It should be sort node.
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
-        assert upstreamNode instanceof SortPhysicalNode;
+        assert upstreamNode instanceof SortPlanNode;
 
-        SortPhysicalNode sortNode = (SortPhysicalNode) upstreamNode;
+        SortPlanNode sortNode = (SortPlanNode) upstreamNode;
 
         // Create sender and push it as a fragment.
         int edge = nextEdge();
 
         int id = pollId(rel);
 
-        UnicastSendPhysicalNode sendNode = new UnicastSendPhysicalNode(
+        UnicastSendPlanNode sendNode = new UnicastSendPlanNode(
             id,
             sortNode,
             edge,
             AllFieldsRowHashFunction.INSTANCE
         );
 
-        addFragment(sendNode, QueryFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
 
         // Create a receiver and push it to stack.
-        ReceiveSortMergePhysicalNode receiveNode = new ReceiveSortMergePhysicalNode(
+        ReceiveSortMergePlanNode receiveNode = new ReceiveSortMergePlanNode(
             id,
             edge,
             sendNode.getSchema().getTypes(),
@@ -413,9 +412,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
      @Override
      public void onReplicatedToDistributed(ReplicatedToDistributedPhysicalRel rel) {
-         PhysicalNode upstreamNode = pollSingleUpstream();
+         PlanNode upstreamNode = pollSingleUpstream();
 
-         ReplicatedToPartitionedPhysicalNode replicatedToPartitionedNode = new ReplicatedToPartitionedPhysicalNode(
+         ReplicatedToPartitionedPlanNode replicatedToPartitionedNode = new ReplicatedToPartitionedPlanNode(
              pollId(rel),
              upstreamNode,
              new FieldRowHashFunction(rel.getHashFields())
@@ -426,7 +425,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
      @Override
     public void onProject(ProjectPhysicalRel rel) {
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
         List<RexNode> projects = rel.getProjects();
         List<Expression> convertedProjects = new ArrayList<>(projects.size());
@@ -437,7 +436,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             convertedProjects.add(convertedProject);
         }
 
-        ProjectPhysicalNode projectNode = new ProjectPhysicalNode(
+        ProjectPlanNode projectNode = new ProjectPlanNode(
             pollId(rel),
             upstreamNode,
             convertedProjects
@@ -448,11 +447,11 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
     @Override
     public void onFilter(FilterPhysicalRel rel) {
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
         Expression<Boolean> filter = convertFilter(upstreamNode.getSchema(), rel.getCondition());
 
-        FilterPhysicalNode filterNode = new FilterPhysicalNode(
+        FilterPlanNode filterNode = new FilterPlanNode(
             pollId(rel),
             upstreamNode,
             filter
@@ -463,7 +462,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
     @Override
     public void onAggregate(AggregatePhysicalRel rel) {
-        PhysicalNode upstreamNode = pollSingleUpstream();
+        PlanNode upstreamNode = pollSingleUpstream();
 
         List<Integer> groupKey = rel.getGroupSet().toList();
         int sortedGroupKeySize = rel.getSortedGroupSet().toList().size();
@@ -478,7 +477,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             aggAccumulators.add(aggAccumulator);
         }
 
-        AggregatePhysicalNode aggNode = new AggregatePhysicalNode(
+        AggregatePlanNode aggNode = new AggregatePlanNode(
             pollId(rel),
             upstreamNode,
             groupKey,
@@ -492,15 +491,15 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
      @SuppressWarnings("unchecked")
      @Override
      public void onNestedLoopJoin(NestedLoopJoinPhysicalRel rel) {
-         PhysicalNode leftInput = pollSingleUpstream();
-         PhysicalNode rightInput = pollSingleUpstream();
+         PlanNode leftInput = pollSingleUpstream();
+         PlanNode rightInput = pollSingleUpstream();
 
-         PhysicalNodeSchema schema = PhysicalNodeSchema.combine(leftInput.getSchema(), rightInput.getSchema());
+         PlanNodeSchema schema = PlanNodeSchema.combine(leftInput.getSchema(), rightInput.getSchema());
 
          RexNode condition = rel.getCondition();
          Expression convertedCondition = convertExpression(schema, condition);
 
-         NestedLoopJoinPhysicalNode joinNode = new NestedLoopJoinPhysicalNode(
+         NestedLoopJoinPlanNode joinNode = new NestedLoopJoinPlanNode(
              pollId(rel),
              leftInput,
              rightInput,
@@ -516,15 +515,15 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
      @SuppressWarnings("unchecked")
      @Override
      public void onHashJoin(HashJoinPhysicalRel rel) {
-         PhysicalNode leftInput = pollSingleUpstream();
-         PhysicalNode rightInput = pollSingleUpstream();
+         PlanNode leftInput = pollSingleUpstream();
+         PlanNode rightInput = pollSingleUpstream();
 
-         PhysicalNodeSchema schema = PhysicalNodeSchema.combine(leftInput.getSchema(), rightInput.getSchema());
+         PlanNodeSchema schema = PlanNodeSchema.combine(leftInput.getSchema(), rightInput.getSchema());
 
          RexNode condition = rel.getCondition();
          Expression convertedCondition = convertExpression(schema, condition);
 
-         HashJoinPhysicalNode joinNode = new HashJoinPhysicalNode(
+         HashJoinPlanNode joinNode = new HashJoinPlanNode(
              pollId(rel),
              leftInput,
              rightInput,
@@ -541,9 +540,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
      @Override
      public void onMaterializedInput(MaterializedInputPhysicalRel rel) {
-         PhysicalNode input = pollSingleUpstream();
+         PlanNode input = pollSingleUpstream();
 
-         MaterializedInputPhysicalNode node = new MaterializedInputPhysicalNode(
+         MaterializedInputPlanNode node = new MaterializedInputPlanNode(
              pollId(rel),
              input
          );
@@ -553,12 +552,12 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
      @Override
      public void onFetch(FetchPhysicalRel rel) {
-         PhysicalNode input = pollSingleUpstream();
+         PlanNode input = pollSingleUpstream();
 
-         Expression fetch = convertExpression(FetchOffsetFieldTypeProvider.INSTANCE, rel.getFetch());
-         Expression offset = convertExpression(FetchOffsetFieldTypeProvider.INSTANCE, rel.getOffset());
+         Expression fetch = convertExpression(FetchOffsetPlanNodeFieldTypeProvider.INSTANCE, rel.getFetch());
+         Expression offset = convertExpression(FetchOffsetPlanNodeFieldTypeProvider.INSTANCE, rel.getOffset());
 
-         FetchPhysicalNode node = new FetchPhysicalNode(
+         FetchPlanNode node = new FetchPlanNode(
              pollId(rel),
              input,
              fetch,
@@ -568,7 +567,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
          pushUpstream(node);
      }
 
-     public static AggregateExpression convertAggregateCall(AggregateCall aggCall, PhysicalNodeSchema upstreamSchema) {
+     public static AggregateExpression convertAggregateCall(AggregateCall aggCall, PlanNodeSchema upstreamSchema) {
         SqlAggFunction aggFunc = aggCall.getAggregation();
         List<Integer> argList = aggCall.getArgList();
 
@@ -620,7 +619,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         }
     }
 
-     private static ColumnExpression<?> aggregateColumn(List<Integer> argList, int index, PhysicalNodeSchema upstreamSchema) {
+     private static ColumnExpression<?> aggregateColumn(List<Integer> argList, int index, PlanNodeSchema upstreamSchema) {
          Integer columnIndex = argList.get(index);
          QueryDataType columnType = upstreamSchema.getType(columnIndex);
 
@@ -632,7 +631,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
      *
      * @param node Node.
      */
-    private void pushUpstream(PhysicalNode node) {
+    private void pushUpstream(PlanNode node) {
         upstreamNodes.addFirst(node);
     }
 
@@ -641,7 +640,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
      *
      * @return Upstream node.
      */
-    private PhysicalNode pollSingleUpstream() {
+    private PlanNode pollSingleUpstream() {
         return upstreamNodes.pollFirst();
     }
 
@@ -651,15 +650,15 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
      * @param node Node.
      * @param mapping Fragment mapping mode.
      */
-    private void addFragment(PhysicalNode node, QueryFragmentMapping mapping) {
-        EdgeCollectorPhysicalNodeVisitor edgeVisitor = new EdgeCollectorPhysicalNodeVisitor();
+    private void addFragment(PlanNode node, PlanFragmentMapping mapping) {
+        EdgeCollectorPlanNodeVisitor edgeVisitor = new EdgeCollectorPlanNodeVisitor();
 
         node.visit(edgeVisitor);
 
         Integer outboundEdge = edgeVisitor.getOutboundEdge();
         List<Integer> inboundEdges = edgeVisitor.getInboundEdges();
 
-        QueryFragment fragment = new QueryFragment(
+        PlanFragment fragment = new PlanFragment(
             UuidUtil.newUnsecureUUID(),
             node,
             outboundEdge,
@@ -684,7 +683,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     }
 
     @SuppressWarnings("unchecked")
-    private Expression<Boolean> convertFilter(PhysicalNodeSchema schema, RexNode expression) {
+    private Expression<Boolean> convertFilter(PlanNodeSchema schema, RexNode expression) {
         if (expression == null) {
             return null;
         }
@@ -694,7 +693,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         return (Expression<Boolean>) convertedExpression;
     }
 
-    private Expression convertExpression(FieldTypeProvider fieldTypeProvider, RexNode expression) {
+    private Expression convertExpression(PlanNodeFieldTypeProvider fieldTypeProvider, RexNode expression) {
         if (expression == null) {
             return null;
         }
@@ -704,7 +703,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         return expression.accept(converter);
     }
 
-    private static PhysicalNodeSchema getScanSchemaBeforeProject(AbstractScanRel rel) {
+    private static PlanNodeSchema getScanSchemaBeforeProject(AbstractScanRel rel) {
         HazelcastTable table = rel.getTableUnwrapped();
 
         List<QueryDataType> types = new ArrayList<>();
@@ -713,7 +712,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             types.add(table.getFieldType(fieldName));
         }
 
-        return new PhysicalNodeSchema(types);
+        return new PlanNodeSchema(types);
     }
 
     private static List<String> getScanFieldPaths(AbstractScanRel rel) {

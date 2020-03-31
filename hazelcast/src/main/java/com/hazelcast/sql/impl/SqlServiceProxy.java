@@ -28,7 +28,8 @@ import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.optimizer.NoOpSqlOptimizer;
 import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
-import com.hazelcast.sql.impl.physical.PhysicalNode;
+import com.hazelcast.sql.impl.plan.Plan;
+import com.hazelcast.sql.impl.plan.PlanNode;
 import com.hazelcast.sql.impl.state.QueryState;
 
 import java.lang.reflect.Constructor;
@@ -105,7 +106,7 @@ public class SqlServiceProxy implements SqlService {
     }
 
     @Override
-    public CompiledFragmentTemplate getCompiledFragment(PhysicalNode node) {
+    public CompiledFragmentTemplate getCompiledFragment(PlanNode node) {
         return compilerManager.getTemplate(node);
     }
 
@@ -141,11 +142,11 @@ public class SqlServiceProxy implements SqlService {
                 throw HazelcastSqlException.error("SQL statement to be explained cannot be empty");
             }
 
-            QueryPlan plan = optimizer.prepare(unwrappedSql, params0.size());
+            Plan plan = optimizer.prepare(unwrappedSql, params0.size());
 
             state = internalService.executeExplain(plan);
         } else {
-            QueryPlan plan = optimizer.prepare(sql, params0.size());
+            Plan plan = optimizer.prepare(sql, params0.size());
 
             state = internalService.execute(
                 plan,

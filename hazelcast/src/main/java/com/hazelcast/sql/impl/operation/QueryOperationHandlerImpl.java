@@ -29,6 +29,7 @@ import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.exec.CreateExecVisitor;
+import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.mailbox.InboundHandler;
 import com.hazelcast.sql.impl.mailbox.OutboundHandler;
@@ -74,16 +75,25 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
 
         String instanceName = nodeEngine.getHazelcastInstance().getName();
 
-        fragmentPool = new QueryFragmentWorkerPool(instanceName, threadCount);
+        fragmentPool = new QueryFragmentWorkerPool(
+            instanceName,
+            threadCount,
+            nodeEngine.getLogger(QueryFragmentWorkerPool.class)
+        );
 
         operationPool = new QueryOperationWorkerPool(
             instanceName,
             operationThreadCount,
             this,
-            nodeEngine.getSerializationService()
+            nodeEngine.getSerializationService(),
+            nodeEngine.getLogger(QueryOperationWorkerPool.class)
         );
 
         localOperationChannel = new QueryOperationChannelImpl(this, null);
+    }
+
+    public void start(UUID localMemberId) {
+        operationPool.init(localMemberId);
     }
 
     public void stop() {
@@ -182,7 +192,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             CompiledFragment compiledFragment = getCompiledFragment(fragmentDescriptor);
 
             // Create executors and inboxes.
-            CreateExecVisitor visitor = new CreateExecVisitor(
+            CreateExecPlanNodeVisitor visitor = new CreateExecPlanNodeVisitor(
                 nodeEngine,
                 operation,
                 operation.getPartitionMapping().get(getLocalMemberId()),
