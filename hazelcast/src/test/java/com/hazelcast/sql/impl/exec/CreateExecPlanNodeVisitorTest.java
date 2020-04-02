@@ -57,7 +57,7 @@ public class CreateExecPlanNodeVisitorTest {
         RootPlanNode rootNode = new RootPlanNode(rootId, upstreamNode);
 
         CreateExecPlanNodeVisitor visitor =
-            new CreateExecPlanNodeVisitor(null, new QueryExecuteOperation().setRootConsumer(consumer, 1000), null, null);
+            new CreateExecPlanNodeVisitor(null, new QueryExecuteOperation().setRootConsumer(consumer, 1000), null, null, null);
 
         rootNode.visit(visitor);
 
@@ -110,6 +110,11 @@ public class CreateExecPlanNodeVisitorTest {
         @Override
         public PlanNodeSchema getSchema() {
             return null;
+        }
+
+        @Override
+        public int getInputCount() {
+            return 0;
         }
 
         @Override

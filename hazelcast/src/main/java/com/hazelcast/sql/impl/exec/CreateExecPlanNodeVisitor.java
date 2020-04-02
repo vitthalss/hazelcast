@@ -219,13 +219,14 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                 partitions.forEach((part) -> partitionOutboxIndexes[part] = outboxIndex0);
             }
 
-        exec = topNode(new UnicastSendExec(
-            node.getId(),
-            pop(),
-            outboxes,
-            node.getPartitioner(),
-            partitionOutboxIndexes
-        ));
+            exec = topNode(new UnicastSendExec(
+                node.getId(),
+                pop(),
+                outboxes,
+                node.getPartitioner(),
+                partitionOutboxIndexes
+            ));
+        }
     }
 
     @Override
