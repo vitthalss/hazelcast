@@ -172,7 +172,7 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
             }
 
             @Override
-            public void sendFlowControl() {
+            public void onFragmentExecutionCompleted() {
                 flowControlNotified.set(true);
             }
         };
@@ -211,7 +211,7 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
      */
     @Test
     public void testMessages() throws Exception {
-        int repeatCount = 50;
+        int repeatCount = 10;
 
         for (int i = 0; i < repeatCount; i++) {
             // Prepare data structures for messages.
@@ -228,7 +228,7 @@ public class QueryFragmentExecutableTest extends HazelcastTestSupport {
                 }
 
                 @Override
-                public void sendFlowControl() {
+                public void onFragmentExecutionCompleted() {
                     // No-op.
                 }
             };

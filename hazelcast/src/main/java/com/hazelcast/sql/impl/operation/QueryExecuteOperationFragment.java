@@ -36,15 +36,22 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
     // TODO: This should be singature instead.
     private UUID id;
     private PlanNode node;
+    private QueryExecuteOperationFragmentMapping mapping;
     private Collection<UUID> memberIds;
 
     public QueryExecuteOperationFragment() {
         // No-op.
     }
 
-    public QueryExecuteOperationFragment(UUID id, PlanNode node, Collection<UUID> memberIds) {
+    public QueryExecuteOperationFragment(
+        UUID id,
+        PlanNode node,
+        QueryExecuteOperationFragmentMapping mapping,
+        Collection<UUID> memberIds
+    ) {
         this.id = id;
         this.node = node;
+        this.mapping = mapping;
         this.memberIds = memberIds;
     }
 
@@ -54,6 +61,10 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     public PlanNode getNode() {
         return node;
+    }
+
+    public QueryExecuteOperationFragmentMapping getMapping() {
+        return mapping;
     }
 
     public Collection<UUID> getMemberIds() {
@@ -74,11 +85,16 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
     public void writeData(ObjectDataOutput out) throws IOException {
         UUIDSerializationUtil.writeUUID(out, id);
         out.writeObject(node);
+        out.writeInt(mapping.getId());
 
-        out.writeInt(memberIds.size());
+        if (memberIds != null) {
+            out.writeInt(memberIds.size());
 
-        for (UUID mappedMemberId : memberIds) {
-            UUIDSerializationUtil.writeUUID(out, mappedMemberId);
+            for (UUID mappedMemberId : memberIds) {
+                UUIDSerializationUtil.writeUUID(out, mappedMemberId);
+            }
+        } else {
+            out.writeInt(0);
         }
     }
 
@@ -87,6 +103,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
         id = UUIDSerializationUtil.readUUID(in);
 
         node = in.readObject();
+        mapping = QueryExecuteOperationFragmentMapping.getById(in.readInt());
 
         int mappedMemberIdsSize = in.readInt();
 

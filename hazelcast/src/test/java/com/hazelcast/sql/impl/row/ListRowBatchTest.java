@@ -16,9 +16,8 @@
 
 package com.hazelcast.sql.impl.row;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
 import com.hazelcast.sql.impl.SqlDataSerializerHook;
+import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
@@ -33,7 +32,7 @@ import static org.junit.Assert.assertEquals;
 
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class ListRowBatchTest {
+public class ListRowBatchTest extends SqlTestSupport {
     @Test
     public void testListRowBatch() {
         List<Row> rows = new ArrayList<>(2);
@@ -56,13 +55,7 @@ public class ListRowBatchTest {
         rows.add(new HeapRow(2));
 
         ListRowBatch original = new ListRowBatch(rows);
-
-        assertEquals(SqlDataSerializerHook.F_ID, original.getFactoryId());
-        assertEquals(SqlDataSerializerHook.ROW_BATCH_LIST, original.getClassId());
-
-        InternalSerializationService ss = new DefaultSerializationServiceBuilder().build();
-
-        ListRowBatch restored = ss.toObject(ss.toData(original));
+        ListRowBatch restored = serializeAndCheck(original, SqlDataSerializerHook.ROW_BATCH_LIST);
 
         assertEquals(original.getRowCount(), restored.getRowCount());
         assertEquals(original.getRow(0), restored.getRow(0));

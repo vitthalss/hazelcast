@@ -27,6 +27,7 @@ import com.hazelcast.sql.impl.exec.index.MapIndexScanExec;
 import com.hazelcast.sql.impl.exec.io.BroadcastSendExec;
 import com.hazelcast.sql.impl.exec.io.ReceiveExec;
 import com.hazelcast.sql.impl.exec.io.ReceiveSortMergeExec;
+import com.hazelcast.sql.impl.exec.io.SingleSendExec;
 import com.hazelcast.sql.impl.exec.io.UnicastSendExec;
 import com.hazelcast.sql.impl.exec.join.HashJoinExec;
 import com.hazelcast.sql.impl.exec.join.NestedLoopJoinExec;
@@ -36,8 +37,11 @@ import com.hazelcast.sql.impl.mailbox.Inbox;
 import com.hazelcast.sql.impl.mailbox.OutboundHandler;
 import com.hazelcast.sql.impl.mailbox.Outbox;
 import com.hazelcast.sql.impl.mailbox.StripedInbox;
+import com.hazelcast.sql.impl.mailbox.flowcontrol.FlowControl;
+import com.hazelcast.sql.impl.mailbox.flowcontrol.simple.SimpleFlowControl;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
+import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
 import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
@@ -56,6 +60,7 @@ import com.hazelcast.sql.impl.plan.node.io.BroadcastSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.io.EdgeAwarePlanNode;
 import com.hazelcast.sql.impl.plan.node.io.ReceivePlanNode;
 import com.hazelcast.sql.impl.plan.node.io.ReceiveSortMergePlanNode;
+import com.hazelcast.sql.impl.plan.node.io.RootSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.io.UnicastSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.join.HashJoinPlanNode;
 import com.hazelcast.sql.impl.plan.node.join.NestedLoopJoinPlanNode;
@@ -122,7 +127,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         exec = topNode(new RootExec(
             node.getId(),
             pop(),
-            operation.getRootConsumer()
+            operation.getRootConsumer(),
+            operation.getRootBatchSize()
         ));
     }
 
@@ -134,16 +140,16 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         int sendFragmentPos = operation.getOutboundEdgeMap().get(edgeId);
         QueryExecuteOperationFragment sendFragment = operation.getFragments().get(sendFragmentPos);
 
-        int fragmentMemberCount = sendFragment.getMemberIds().size();
+        int fragmentMemberCount = getFragmentMembers(sendFragment).size();
 
         // Create and register inbox.
         Inbox inbox = new Inbox(
             operation.getQueryId(),
             edgeId,
-            sendFragment.getNode().getSchema().getRowWidth(),
+            sendFragment.getNode().getSchema().getEstimatedRowSize(),
             getOperationHandler(),
             fragmentMemberCount,
-            operation.getEdgeCreditMap().get(edgeId)
+            createFlowControl(edgeId)
         );
 
         inboxes.put(edgeId, inbox);
@@ -166,10 +172,10 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         StripedInbox inbox = new StripedInbox(
             operation.getQueryId(),
             edgeId,
-            node.getSchema().getRowWidth(),
+            node.getSchema().getEstimatedRowSize(),
             getOperationHandler(),
-            sendFragment.getMemberIds(),
-            operation.getEdgeCreditMap().get(edgeId)
+            getFragmentMembers(sendFragment),
+            createFlowControl(edgeId)
         );
 
         inboxes.put(edgeId, inbox);
@@ -188,28 +194,36 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     }
 
     @Override
+    public void onRootSendNode(RootSendPlanNode node) {
+        Outbox[] outboxes = prepareOutboxes(node);
+
+        assert outboxes.length == 1;
+
+        exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+    }
+
+    @Override
     public void onUnicastSendNode(UnicastSendPlanNode node) {
         Outbox[] outboxes = prepareOutboxes(node);
 
-        int[] partitionOutboxIndexes = new int[localParts.getPartitionCount()];
+        if (outboxes.length == 1) {
+            exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+        } else {
+            int[] partitionOutboxIndexes = new int[localParts.getPartitionCount()];
 
-        for (int outboxIndex = 0; outboxIndex < outboxes.length; outboxIndex++) {
-            final int outboxIndex0 = outboxIndex;
+            for (int outboxIndex = 0; outboxIndex < outboxes.length; outboxIndex++) {
+                final int outboxIndex0 = outboxIndex;
 
-            Outbox outbox = outboxes[outboxIndex0];
+                PartitionIdSet partitions = partitionMap.get(outboxes[outboxIndex0].getTargetMemberId());
 
-            UUID outboxMemberId = outbox.getTargetMemberId();
-
-            PartitionIdSet partitions = partitionMap.get(outboxMemberId);
-
-            partitions.forEach((part) -> partitionOutboxIndexes[part] = outboxIndex0);
-        }
+                partitions.forEach((part) -> partitionOutboxIndexes[part] = outboxIndex0);
+            }
 
         exec = topNode(new UnicastSendExec(
             node.getId(),
             pop(),
             outboxes,
-            node.getHashFunction(),
+            node.getPartitioner(),
             partitionOutboxIndexes
         ));
     }
@@ -218,52 +232,52 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     public void onBroadcastSendNode(BroadcastSendPlanNode node) {
         Outbox[] outboxes = prepareOutboxes(node);
 
-        exec = topNode(new BroadcastSendExec(
-            node.getId(),
-            pop(),
-            outboxes
-        ));
+        if (outboxes.length == 1) {
+            exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+        } else {
+            exec = topNode(new BroadcastSendExec(node.getId(), pop(), outboxes));
+        }
     }
 
-     /**
-      * Prepare outboxes for the given sender node.
-      *
-      * @param node Node.
-      * @return Outboxes.
-      */
-     private Outbox[] prepareOutboxes(EdgeAwarePlanNode node) {
-         int edgeId = node.getEdgeId();
-         int rowWidth = node.getSchema().getRowWidth();
+    /**
+     * Prepare outboxes for the given sender node.
+     *
+     * @param node Node.
+     * @return Outboxes.
+     */
+    private Outbox[] prepareOutboxes(EdgeAwarePlanNode node) {
+        int edgeId = node.getEdgeId();
+        int rowWidth = node.getSchema().getEstimatedRowSize();
 
-         int receiveFragmentPos = operation.getInboundEdgeMap().get(edgeId);
-         QueryExecuteOperationFragment receiveFragment = operation.getFragments().get(receiveFragmentPos);
-         Collection<UUID> receiveFragmentMemberIds = receiveFragment.getMemberIds();
+        int receiveFragmentPos = operation.getInboundEdgeMap().get(edgeId);
+        QueryExecuteOperationFragment receiveFragment = operation.getFragments().get(receiveFragmentPos);
+        Collection<UUID> receiveFragmentMemberIds = getFragmentMembers(receiveFragment);
 
-         Outbox[] res = new Outbox[receiveFragmentMemberIds.size()];
+        Outbox[] res = new Outbox[receiveFragmentMemberIds.size()];
 
-         int i = 0;
+        int i = 0;
 
-         Map<UUID, OutboundHandler> edgeOutboxes = new HashMap<>();
-         outboxes.put(edgeId, edgeOutboxes);
+        Map<UUID, OutboundHandler> edgeOutboxes = new HashMap<>();
+        outboxes.put(edgeId, edgeOutboxes);
 
-         for (UUID receiveMemberId : receiveFragmentMemberIds) {
-             Outbox outbox = new Outbox(
-                 operation.getQueryId(),
-                 getOperationHandler(),
-                 edgeId,
-                 rowWidth,
-                 receiveMemberId,
-                 OUTBOX_BATCH_SIZE,
-                 operation.getEdgeCreditMap().get(edgeId)
-             );
+        for (UUID receiveMemberId : receiveFragmentMemberIds) {
+            Outbox outbox = new Outbox(
+                operation.getQueryId(),
+                getOperationHandler(),
+                edgeId,
+                rowWidth,
+                receiveMemberId,
+                OUTBOX_BATCH_SIZE,
+                operation.getEdgeCreditMap().get(edgeId)
+            );
 
-             edgeOutboxes.put(receiveMemberId, outbox);
+            edgeOutboxes.put(receiveMemberId, outbox);
 
-             res[i++] = outbox;
-         }
+            res[i++] = outbox;
+        }
 
-         return res;
-     }
+        return res;
+    }
 
     @Override
     public void onMapScanNode(MapScanPlanNode node) {
@@ -441,7 +455,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         ReplicatedToPartitionedExec res = new ReplicatedToPartitionedExec(
             node.getId(),
             upstream,
-            node.getHashFunction(),
+            node.getPartitioner(),
             localParts
         );
 
@@ -483,7 +497,10 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
          return outboxes;
     }
 
-    private Exec pop() {
+    /**
+     * Public for testing purposes only.
+     */
+    public Exec pop() {
         Exec exec = stack.remove(stack.size() - 1);
 
         if (compiledFragment != null) {
@@ -498,7 +515,10 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         return exec;
     }
 
-    private void push(Exec exec) {
+    /**
+     * Public for testing purposes only.
+     */
+    public void push(Exec exec) {
         if (compiledFragment != null) {
             compiledFragment.prepare(exec);
         }
@@ -510,18 +530,34 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
          return nodeEngine.getSqlService().getInternalService().getOperationHandler();
     }
 
-     /**
-      * Get the top-level node. In order to ensure that compiled fragments are counted appropriately, we perform push-pop
-      * sequence which in turn ensures proper initialization and replacement of compiled fragments if needed.
-      *
-      * @param exec Original executor.
-      * @return Same executor or it's compiled counterpart.
-      */
-     private Exec topNode(Exec exec) {
-         assert stack.isEmpty();
+    /**
+     * Get the top-level node. In order to ensure that compiled fragments are counted appropriately, we perform push-pop
+     * sequence which in turn ensures proper initialization and replacement of compiled fragments if needed.
+     *
+     * @param exec Original executor.
+     * @return Same executor or it's compiled counterpart.
+     */
+    private Exec topNode(Exec exec) {
+        assert stack.isEmpty();
 
-         push(exec);
+        push(exec);
 
-         return pop();
-     }
+        return pop();
+    }
+
+    private FlowControl createFlowControl(int edgeId) {
+        long maxMemory = operation.getEdgeCreditMap().get(edgeId);
+
+        return new SimpleFlowControl(maxMemory);
+    }
+
+    private Collection<UUID> getFragmentMembers(QueryExecuteOperationFragment fragment) {
+        if (fragment.getMapping() == QueryExecuteOperationFragmentMapping.EXPLICIT) {
+            return fragment.getMemberIds();
+        }
+
+        assert fragment.getMapping() == QueryExecuteOperationFragmentMapping.DATA_MEMBERS;
+
+        return partitionMap.keySet();
+    }
 }

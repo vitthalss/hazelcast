@@ -19,7 +19,6 @@ package com.hazelcast.sql.impl.exec.io;
 import com.hazelcast.sql.impl.exec.AbstractUpstreamAwareExec;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
-import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.sql.impl.mailbox.Outbox;
 import com.hazelcast.sql.impl.row.RowBatch;
 
@@ -27,23 +26,17 @@ import com.hazelcast.sql.impl.row.RowBatch;
  * Abstract sender
  */
 public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
-    /** Registered outboxes. */
-    protected final Outbox[] outboxes;
-
     /** Done flag. */
     private boolean done;
 
-    public AbstractSendExec(int id, Exec upstream, Outbox[] outboxes) {
+    /** Batch that is pending sending. */
+    private RowBatch pendingBatch;
+
+    /** Whether pending batch is the last one. */
+    private boolean pendingLast;
+
+    public AbstractSendExec(int id, Exec upstream) {
         super(id, upstream);
-
-        this.outboxes = outboxes;
-    }
-
-    @Override
-    protected void setup1(QueryFragmentContext ctx) {
-        for (Outbox outbox : outboxes) {
-            outbox.setup();
-        }
     }
 
     @Override
@@ -99,7 +92,22 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
      *
      * @return {@code True} if there are no more pending batches.
      */
-    protected abstract boolean pushPendingBatch();
+    private boolean pushPendingBatch() {
+        // If there are no pending rows, then all data has been flushed.
+        if (pendingBatch == null) {
+            return true;
+        }
+
+        boolean res = pushPendingBatch(pendingBatch, pendingLast);
+
+        if (res) {
+            pendingBatch = null;
+
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     /**
      * Push the current row batch to the outbox.
@@ -108,7 +116,35 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
      * @param last Whether this is the last batch.
      * @return {@code True} if the batch was accepted by all inboxes.
      */
-    protected abstract boolean pushBatch(RowBatch batch, boolean last);
+    private boolean pushBatch(RowBatch batch, boolean last) {
+        // Pending state must be cleared at this point.
+        assert pendingBatch == null;
+
+        // Let the sender know that the new batch is being processed.
+        setCurrentBatch(batch);
+
+        // Try pushing the batch to as many outboxes as possible, logging the pending state along the way.
+        boolean res = true;
+
+        for (int outboxIndex = 0; outboxIndex < getOutboxCount(); outboxIndex++) {
+            SendQualifier qualifier = getOutboxQualifier(outboxIndex);
+
+            int position = getOutbox(outboxIndex).onRowBatch(batch, last, 0, qualifier);
+
+            if (position < batch.getRowCount()) {
+                if (pendingBatch == null) {
+                    pendingBatch = batch;
+                    pendingLast = last;
+                }
+
+                addPendingPosition(outboxIndex, position);
+
+                res = false;
+            }
+        }
+
+        return res;
+    }
 
     @Override
     public RowBatch currentBatch0() {
@@ -119,4 +155,16 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
     public boolean canReset() {
         return false;
     }
+
+    protected abstract int getOutboxCount();
+
+    protected abstract Outbox getOutbox(int outboxIndex);
+
+    protected abstract void setCurrentBatch(RowBatch batch);
+
+    protected abstract SendQualifier getOutboxQualifier(int outboxIndex);
+
+    protected abstract void addPendingPosition(int outboxIndex, int position);
+
+    protected abstract  boolean pushPendingBatch(RowBatch pendingBatch, boolean pendingLast);
 }

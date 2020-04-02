@@ -16,20 +16,18 @@
 
 package com.hazelcast.sql.impl.operation;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.SqlCustomClass;
 import com.hazelcast.sql.impl.SqlDataSerializerHook;
-import com.hazelcast.sql.impl.physical.MockPlanNode;
+import com.hazelcast.sql.impl.SqlTestSupport;
+import com.hazelcast.sql.impl.plan.node.MockPlanNode;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.ListRowBatch;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.test.HazelcastParallelClassRunner;
-import com.hazelcast.test.HazelcastTestSupport;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.Test;
@@ -44,6 +42,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import static com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping.EXPLICIT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -55,7 +54,7 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class QueryOperationsTest {
+public class QueryOperationsTest extends SqlTestSupport {
     @Test
     public void testExecute() {
         QueryId queryId = randomQueryId();
@@ -178,9 +177,7 @@ public class QueryOperationsTest {
     }
 
     private static <T extends QueryOperation> T serializeDeserialize(T original) {
-        InternalSerializationService ss = new DefaultSerializationServiceBuilder().build();
-
-        T restored = ss.toObject(ss.toData(original));
+        T restored = serialize(original);
 
         assertSame(original.getClass(), restored.getClass());
 
@@ -200,9 +197,9 @@ public class QueryOperationsTest {
         partitionMapping.put(randomUUID(), new PartitionIdSet(10));
 
         List<QueryExecuteOperationFragment> fragments = new ArrayList<>();
-        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(1, QueryDataType.INT),
+        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(1, QueryDataType.INT), EXPLICIT,
             Arrays.asList(randomUUID(), randomUUID())));
-        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(2, QueryDataType.INT),
+        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(2, QueryDataType.INT), EXPLICIT,
             Arrays.asList(randomUUID(), randomUUID())));
 
         Map<Integer, Integer> outboundEdgeMap = new HashMap<>();
@@ -317,10 +314,6 @@ public class QueryOperationsTest {
 
     private static long randomLong() {
         return ThreadLocalRandom.current().nextLong(0, Long.MAX_VALUE);
-    }
-
-    private static String randomString() {
-        return HazelcastTestSupport.randomString();
     }
 
     private static UUID randomUUID() {

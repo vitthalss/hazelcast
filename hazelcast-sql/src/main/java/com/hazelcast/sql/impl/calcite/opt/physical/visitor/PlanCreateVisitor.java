@@ -20,6 +20,7 @@ import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.QueryMetadata;
+import com.hazelcast.sql.impl.calcite.opt.physical.exchange.RootExchangePhysicalRel;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.calcite.EdgeCollectorPlanNodeVisitor;
 import com.hazelcast.sql.impl.calcite.expression.RexToExpressionVisitor;
@@ -74,8 +75,9 @@ import com.hazelcast.sql.impl.plan.node.ReplicatedMapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.ReplicatedToPartitionedPlanNode;
 import com.hazelcast.sql.impl.plan.node.RootPlanNode;
 import com.hazelcast.sql.impl.plan.node.SortPlanNode;
-import com.hazelcast.sql.impl.row.hash.AllFieldsRowHashFunction;
-import com.hazelcast.sql.impl.row.hash.FieldRowHashFunction;
+import com.hazelcast.sql.impl.plan.node.io.RootSendPlanNode;
+import com.hazelcast.sql.impl.row.partitioner.AllFieldsRowPartitioner;
+import com.hazelcast.sql.impl.row.partitioner.FieldsRowPartitioner;
 import com.hazelcast.sql.impl.plan.node.io.BroadcastSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.io.ReceivePlanNode;
 import com.hazelcast.sql.impl.plan.node.io.ReceiveSortMergePlanNode;
@@ -219,7 +221,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         rootMetadata = new QueryMetadata(rootNode.getSchema().getTypes());
 
-        addFragment(rootNode, PlanFragmentMapping.staticMapping(Collections.singleton(localMemberId)));
+        addFragment(rootNode, new PlanFragmentMapping(Collections.singleton(localMemberId), false));
     }
 
     @Override
@@ -318,6 +320,34 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     }
 
     @Override
+    public void onRootExchange(RootExchangePhysicalRel rel) {
+        // Get upstream node.
+        PlanNode upstreamNode = pollSingleUpstream();
+
+        // Create sender and push it as a fragment.
+        int edge = nextEdge();
+
+        int id = pollId(rel);
+
+        RootSendPlanNode sendNode = new RootSendPlanNode(
+            id,
+            upstreamNode,
+            edge
+        );
+
+        addFragment(sendNode, dataMemberMapping());
+
+        // Create receiver.
+        ReceivePlanNode receiveNode = new ReceivePlanNode(
+            id,
+            edge,
+            sendNode.getSchema().getTypes()
+        );
+
+        pushUpstream(receiveNode);
+    }
+
+    @Override
     public void onUnicastExchange(UnicastExchangePhysicalRel rel) {
         // Get upstream node.
         PlanNode upstreamNode = pollSingleUpstream();
@@ -331,10 +361,10 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             id,
             upstreamNode,
             edge,
-            new FieldRowHashFunction(rel.getHashFields())
+            new FieldsRowPartitioner(rel.getHashFields())
         );
 
-        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, dataMemberMapping());
 
         // Create receiver.
         ReceivePlanNode receiveNode = new ReceivePlanNode(
@@ -362,7 +392,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             edge
         );
 
-        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, dataMemberMapping());
 
         // Create receiver.
         ReceivePlanNode receiveNode = new ReceivePlanNode(
@@ -392,10 +422,10 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             id,
             sortNode,
             edge,
-            AllFieldsRowHashFunction.INSTANCE
+            AllFieldsRowPartitioner.INSTANCE
         );
 
-        addFragment(sendNode, PlanFragmentMapping.staticMapping(dataMemberIdsSet));
+        addFragment(sendNode, dataMemberMapping());
 
         // Create a receiver and push it to stack.
         ReceiveSortMergePlanNode receiveNode = new ReceiveSortMergePlanNode(
@@ -418,7 +448,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
          ReplicatedToPartitionedPlanNode replicatedToPartitionedNode = new ReplicatedToPartitionedPlanNode(
              pollId(rel),
              upstreamNode,
-             new FieldRowHashFunction(rel.getHashFields())
+             new FieldsRowPartitioner(rel.getHashFields())
          );
 
          pushUpstream(replicatedToPartitionedNode);
@@ -728,13 +758,18 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
          }
 
         return paths;
-     }
+    }
 
      private static SqlTopObjectDescriptor scanKeyDescriptor(AbstractScanRel rel) {
-        return rel.getTableUnwrapped().getKeyDescriptor();
+         return rel.getTableUnwrapped().getKeyDescriptor();
      }
 
      private static SqlTopObjectDescriptor scanValueDescriptor(AbstractScanRel rel) {
          return rel.getTableUnwrapped().getValueDescriptor();
      }
+
+    // TODO: Data member mapping should be used only for fragments with scans!
+    private PlanFragmentMapping dataMemberMapping() {
+        return new PlanFragmentMapping(dataMemberIdsSet, true);
+    }
 }

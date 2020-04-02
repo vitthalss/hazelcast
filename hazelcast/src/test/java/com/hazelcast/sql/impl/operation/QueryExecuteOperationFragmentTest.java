@@ -16,10 +16,9 @@
 
 package com.hazelcast.sql.impl.operation;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
 import com.hazelcast.sql.impl.SqlDataSerializerHook;
-import com.hazelcast.sql.impl.physical.MockPlanNode;
+import com.hazelcast.sql.impl.SqlTestSupport;
+import com.hazelcast.sql.impl.plan.node.MockPlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.test.HazelcastParallelClassRunner;
@@ -33,17 +32,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import static com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping.EXPLICIT;
 import static org.junit.Assert.assertEquals;
 
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class QueryExecuteOperationFragmentTest {
+public class QueryExecuteOperationFragmentTest extends SqlTestSupport {
     @Test
     public void testFragment() {
         PlanNode node = MockPlanNode.create(1, QueryDataType.INT);
         List<UUID> memberIds = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
 
-        QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(UUID.randomUUID(), node, memberIds);
+        QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(UUID.randomUUID(), node, EXPLICIT, memberIds);
 
         assertEquals(node, fragment.getNode());
         assertEquals(memberIds, fragment.getMemberIds());
@@ -54,18 +54,15 @@ public class QueryExecuteOperationFragmentTest {
         QueryExecuteOperationFragment original = new QueryExecuteOperationFragment(
             UUID.randomUUID(),
             MockPlanNode.create(1, QueryDataType.INT),
+            EXPLICIT,
             Arrays.asList(UUID.randomUUID(), UUID.randomUUID())
         );
 
-        assertEquals(SqlDataSerializerHook.F_ID, original.getFactoryId());
-        assertEquals(SqlDataSerializerHook.OPERATION_EXECUTE_FRAGMENT, original.getClassId());
-
-        InternalSerializationService ss = new DefaultSerializationServiceBuilder().build();
-
-        QueryExecuteOperationFragment restored = ss.toObject(ss.toData(original));
+        QueryExecuteOperationFragment restored = serializeAndCheck(original, SqlDataSerializerHook.OPERATION_EXECUTE_FRAGMENT);
 
         assertEquals(original.getId(), restored.getId());
         assertEquals(original.getNode(), restored.getNode());
+        assertEquals(original.getMapping(), restored.getMapping());
         assertEquals(original.getMemberIds(), restored.getMemberIds());
     }
 }

@@ -14,19 +14,22 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.row.hash;
+package testsubjects;
 
-import com.hazelcast.sql.impl.row.Row;
+import java.io.Serializable;
+import java.util.function.Function;
 
-/**
- * Function which maps rows to integer values.
- */
-public interface RowHashFunction {
-    /**
-     * Get hash of the row.
-     *
-     * @param row Row.
-     * @return Hash.
-     */
-    int getHash(Row row);
+public class StaticSerializableFunction implements Function<String, String>, Serializable {
+
+    private String returnValue;
+
+    public StaticSerializableFunction(String returnValue) {
+        this.returnValue = returnValue;
+    }
+
+    @Override
+    public String apply(String key) {
+        return returnValue;
+    }
+
 }

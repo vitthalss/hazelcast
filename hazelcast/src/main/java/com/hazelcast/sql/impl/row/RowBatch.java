@@ -16,8 +16,6 @@
 
 package com.hazelcast.sql.impl.row;
 
-import java.util.List;
-
 /**
  * Batch of rows.
  */
@@ -29,13 +27,6 @@ public interface RowBatch {
      * @return Row.
      */
     Row getRow(int idx);
-
-    /**
-     * Get all rows as a list.
-     *
-     * @return Rows.
-     */
-    List<Row> getRows();
 
     /**
      * @return Number of rows.
