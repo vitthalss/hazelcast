@@ -323,7 +323,6 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             res = new MapIndexScanExec(
                 node.getId(),
                 map,
-                (InternalSerializationService) nodeEngine.getSerializationService(),
                 localParts,
                 node.getKeyDescriptor(),
                 node.getValueDescriptor(),
