@@ -14,21 +14,15 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.row.partitioner;
-
-import com.hazelcast.nio.serialization.DataSerializable;
-import com.hazelcast.sql.impl.row.Row;
+package com.hazelcast.sql.impl.exec.io;
 
 /**
- * Function which maps rows to partitions.
+ * The interface that defines whether the row at the given index qualifies to be sent through this outbox.
  */
-public interface RowPartitioner extends DataSerializable {
+public interface OutboxSendQualifier {
     /**
-     * Get partition for the row.
-     *
-     * @param row Row.
-     * @param partitionCount Number of partitions.
-     * @return Partition, between 0 (inclusive) and .
+     * @param rowIndex Index of the row in the batch.
+     * @return {@code true} if the row should be sent by this outbox, {@code false} if the row should be skipped.
      */
-    int getPartition(Row row, int partitionCount);
+    boolean shouldSend(int rowIndex);
 }

@@ -18,12 +18,12 @@ package com.hazelcast.sql.impl.exec.io;
 
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
-import com.hazelcast.sql.impl.row.partitioner.RowPartitioner;
+import com.hazelcast.sql.impl.partitioner.RowPartitioner;
 
 /**
  * Send qualifier for unicast sender.
  */
-public class UnicastSendQualifier implements SendQualifier {
+public class UnicastOutboxSendQualifier implements OutboxSendQualifier {
 
     private final RowPartitioner partitioner;
     private final int[] partitionOutboxIndexes;
@@ -34,7 +34,7 @@ public class UnicastSendQualifier implements SendQualifier {
 
     private int outboxIndex;
 
-    public UnicastSendQualifier(RowPartitioner partitioner, int[] partitionOutboxIndexes) {
+    public UnicastOutboxSendQualifier(RowPartitioner partitioner, int[] partitionOutboxIndexes) {
         this.partitioner = partitioner;
         this.partitionOutboxIndexes = partitionOutboxIndexes;
     }

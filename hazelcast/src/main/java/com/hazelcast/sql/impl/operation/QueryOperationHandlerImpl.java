@@ -30,6 +30,8 @@ import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
+import com.hazelcast.sql.impl.exec.io.InboundHandler;
+import com.hazelcast.sql.impl.exec.io.OutboundHandler;
 import com.hazelcast.sql.impl.mailbox.InboundHandler;
 import com.hazelcast.sql.impl.mailbox.OutboundHandler;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
@@ -53,6 +55,9 @@ import java.util.function.Consumer;
  * Executes query operations.
  */
 public class QueryOperationHandlerImpl implements QueryOperationHandler, QueryStateCompletionCallback, Consumer<Packet> {
+
+    // TODO: Understand how to calculate it properly. It should not be hardcoded.
+    private static final int OUTBOX_BATCH_SIZE = 512 * 1024;
 
     private final NodeEngineImpl nodeEngine;
     private final QueryStateRegistry stateRegistry;
@@ -192,10 +197,11 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
 
             // Create executors and inboxes.
             CreateExecPlanNodeVisitor visitor = new CreateExecPlanNodeVisitor(
+                this,
                 nodeEngine,
                 operation,
                 operation.getPartitionMapping().get(getLocalMemberId()),
-                operation.getPartitionMapping(),
+                OUTBOX_BATCH_SIZE,
                 compiledFragment
             );
 

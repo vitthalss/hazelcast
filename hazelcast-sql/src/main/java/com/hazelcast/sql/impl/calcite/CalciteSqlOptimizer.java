@@ -22,6 +22,9 @@ import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.partition.Partition;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryParameterMetadata;
+import com.hazelcast.sql.impl.calcite.opt.physical.visitor.SqlToQueryType;
+import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.NodeIdVisitor;
@@ -43,7 +46,9 @@ import com.hazelcast.sql.impl.schema.ChainedSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.PartitionedMapSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.ReplicatedMapSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.SqlSchemaResolver;
+import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlNode;
 
 import java.util.ArrayList;
@@ -79,12 +84,13 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
     }
 
     @Override
-    public Plan prepare(String sql, int paramsCount) {
+    public Plan prepare(String sql) {
         // 1. Prepare context.
         OptimizerContext context = OptimizerContext.create(nodeEngine, statisticProvider, schemaResolver);
 
         // 2. Parse SQL string and validate it.
         SqlNode node = context.parse(sql);
+        RelDataType parameterRowType = context.getParameterRowType(node);
 
         // 3. Convert to REL.
         RelNode rel = context.convert(node);
@@ -105,7 +111,7 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
 
         OptimizerStatistics stats = statsEnabled ? new OptimizerStatistics(dur, physicalRuleCallTracker) : null;
 
-        return doCreatePlan(sql, paramsCount, context, physicalRel, stats);
+        return doCreatePlan(sql, parameterRowType, context, physicalRel, stats);
     }
 
     /**
@@ -116,7 +122,7 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
      */
     private Plan doCreatePlan(
         String sql,
-        int paramsCount,
+        RelDataType parameterRowType,
         OptimizerContext context,
         PhysicalRel rel,
         OptimizerStatistics stats
@@ -153,13 +159,15 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
         Map<PhysicalRel, List<Integer>> relIdMap = idVisitor.getIdMap();
 
         // Create the plan.
+        QueryDataType[] mappedParameterRowType = SqlToQueryType.mapRowType(parameterRowType);
+        QueryParameterMetadata parameterMetadata = new QueryParameterMetadata(mappedParameterRowType);
         PlanCreateVisitor visitor = new PlanCreateVisitor(
             nodeEngine.getLocalMember().getUuid(),
             partMap,
             dataMemberIds,
             relIdMap,
             sql,
-            paramsCount,
+            parameterMetadata,
             stats
         );
 

@@ -17,16 +17,15 @@
 package com.hazelcast.sql.impl.exec.io;
 
 import com.hazelcast.sql.impl.exec.Exec;
-import com.hazelcast.sql.impl.mailbox.Outbox;
 import com.hazelcast.sql.impl.row.RowBatch;
-import com.hazelcast.sql.impl.row.partitioner.RowPartitioner;
+import com.hazelcast.sql.impl.partitioner.RowPartitioner;
 
 /**
  * Unicast sender.
  */
 public class UnicastSendExec extends AbstractMultiwaySendExec {
 
-    private UnicastSendQualifier qualifier;
+    private UnicastOutboxSendQualifier qualifier;
 
     public UnicastSendExec(
         int id,
@@ -37,7 +36,7 @@ public class UnicastSendExec extends AbstractMultiwaySendExec {
     ) {
         super(id, upstream, outboxes);
 
-        qualifier = new UnicastSendQualifier(rowPartitioner, partitionOutboxIndexes);
+        qualifier = new UnicastOutboxSendQualifier(rowPartitioner, partitionOutboxIndexes);
     }
 
     @Override
@@ -46,7 +45,7 @@ public class UnicastSendExec extends AbstractMultiwaySendExec {
     }
 
     @Override
-    protected SendQualifier getOutboxQualifier(int outboxIndex) {
+    protected OutboxSendQualifier getOutboxQualifier(int outboxIndex) {
         qualifier.setOutboxIndex(outboxIndex);
 
         return qualifier;

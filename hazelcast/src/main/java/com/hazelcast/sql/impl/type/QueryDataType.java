@@ -33,11 +33,11 @@ import com.hazelcast.sql.impl.type.converter.DoubleConverter;
 import com.hazelcast.sql.impl.type.converter.FloatConverter;
 import com.hazelcast.sql.impl.type.converter.InstantConverter;
 import com.hazelcast.sql.impl.type.converter.IntegerConverter;
-import com.hazelcast.sql.impl.type.converter.LateConverter;
 import com.hazelcast.sql.impl.type.converter.LocalDateConverter;
 import com.hazelcast.sql.impl.type.converter.LocalDateTimeConverter;
 import com.hazelcast.sql.impl.type.converter.LocalTimeConverter;
 import com.hazelcast.sql.impl.type.converter.LongConverter;
+import com.hazelcast.sql.impl.type.converter.NullConverter;
 import com.hazelcast.sql.impl.type.converter.ObjectConverter;
 import com.hazelcast.sql.impl.type.converter.OffsetDateTimeConverter;
 import com.hazelcast.sql.impl.type.converter.ShortConverter;
@@ -61,8 +61,6 @@ public class QueryDataType implements IdentifiedDataSerializable, Serializable {
     public static final int PRECISION_INT = 11;
     public static final int PRECISION_BIGINT = 20;
     public static final int PRECISION_UNLIMITED = -1;
-
-    public static final QueryDataType LATE = new QueryDataType(LateConverter.INSTANCE);
 
     public static final QueryDataType VARCHAR = new QueryDataType(StringConverter.INSTANCE);
     public static final QueryDataType VARCHAR_CHARACTER = new QueryDataType(CharacterConverter.INSTANCE);
@@ -89,6 +87,8 @@ public class QueryDataType implements IdentifiedDataSerializable, Serializable {
     public static final QueryDataType INTERVAL_DAY_SECOND = new QueryDataType(SqlDaySecondIntervalConverter.INSTANCE);
 
     public static final QueryDataType OBJECT = new QueryDataType(ObjectConverter.INSTANCE);
+
+    public static final QueryDataType NULL = new QueryDataType(NullConverter.INSTANCE);
 
     private Converter converter;
     private int precision;

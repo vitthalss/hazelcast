@@ -14,21 +14,21 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.row.partitioner;
-
-import com.hazelcast.internal.util.HashUtil;
-import com.hazelcast.sql.impl.row.Row;
+package com.hazelcast.sql.impl.exec.io;
 
 /**
- * Partitioner that calculates row partition based on row field values.
+ * Qualified that sends all rows.
  */
-public abstract class AbstractFieldsRowPartitioner implements RowPartitioner {
-    @Override
-    public final int getPartition(Row row, int partitionCount) {
-        int hash = getHash(row);
+public final class AlwaysTrueOutboxSendQualifier implements OutboxSendQualifier {
 
-        return HashUtil.hashToIndex(hash, partitionCount);
+    public static final AlwaysTrueOutboxSendQualifier INSTANCE = new AlwaysTrueOutboxSendQualifier();
+
+    private AlwaysTrueOutboxSendQualifier() {
+        // No-op.
     }
 
-    protected abstract int getHash(Row row);
+    @Override
+    public boolean shouldSend(int rowIndex) {
+        return true;
+    }
 }

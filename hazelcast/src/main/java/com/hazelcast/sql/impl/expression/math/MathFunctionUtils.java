@@ -23,12 +23,13 @@ import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
 
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.INTERVAL_DAY_SECOND;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.INTERVAL_YEAR_MONTH;
-import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.LATE;
+import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.NULL;
 
 /**
  * Utility methods for math functions.
  */
 public final class MathFunctionUtils {
+
     private MathFunctionUtils() {
         // No-op.
     }
@@ -41,11 +42,8 @@ public final class MathFunctionUtils {
      * @return Result type.
      */
     public static QueryDataType inferPlusMinusResultType(QueryDataType type1, QueryDataType type2, boolean commutative) {
-        // Handle late binding.
-        if (type1.getTypeFamily() == LATE) {
-            return type2;
-        } else if (type2.getTypeFamily() == LATE) {
-            return type1;
+        if (type1.getTypeFamily() == NULL || type2.getTypeFamily() == NULL) {
+            return QueryDataType.NULL;
         }
 
         // Convert strings to decimals.
@@ -111,11 +109,8 @@ public final class MathFunctionUtils {
      * @return Result type.
      */
     public static QueryDataType inferMultiplyResultType(QueryDataType type1, QueryDataType type2) {
-        // Handle late binding.
-        if (type1.getTypeFamily() == LATE) {
-            return type2;
-        } else if (type2.getTypeFamily() == LATE) {
-            return type1;
+        if (type1.getTypeFamily() == NULL || type2.getTypeFamily() == NULL) {
+            return QueryDataType.NULL;
         }
 
         // Convert strings to decimals.
@@ -163,11 +158,8 @@ public final class MathFunctionUtils {
 
     @SuppressWarnings("checkstyle:NPathComplexity")
     public static QueryDataType inferDivideResultType(QueryDataType type1, QueryDataType type2) {
-        // Handle late binding.
-        if (type1.getTypeFamily() == LATE) {
-            return type2;
-        } else if (type2.getTypeFamily() == LATE) {
-            return type1;
+        if (type1.getTypeFamily() == NULL || type2.getTypeFamily() == NULL) {
+            return QueryDataType.NULL;
         }
 
         // Handle interval types.
@@ -204,11 +196,8 @@ public final class MathFunctionUtils {
     }
 
     public static QueryDataType inferRemainderResultType(QueryDataType type1, QueryDataType type2) {
-        // Handle late binding.
-        if (type1.getTypeFamily() == LATE) {
-            return type2;
-        } else if (type2.getTypeFamily() == LATE) {
-            return type1;
+        if (type1.getTypeFamily() == NULL || type2.getTypeFamily() == NULL) {
+            return QueryDataType.NULL;
         }
 
         // Handle numeric types.
@@ -253,6 +242,9 @@ public final class MathFunctionUtils {
             case DOUBLE:
                 return QueryDataType.DOUBLE;
 
+            case NULL:
+                return QueryDataType.NULL;
+
             default:
                 throw new IllegalArgumentException("Type is not numeric: " + type);
         }
@@ -261,4 +253,5 @@ public final class MathFunctionUtils {
     public static boolean canConvertToNumber(QueryDataType type) {
         return type.getConverter().canConvertToDecimal();
     }
+
 }

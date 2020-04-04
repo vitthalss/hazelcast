@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.mailbox;
+package com.hazelcast.sql.impl.exec.io;
 
 import com.hazelcast.sql.impl.QueryId;
-import com.hazelcast.sql.impl.mailbox.flowcontrol.FlowControl;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControl;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 
 import java.util.ArrayDeque;
@@ -59,7 +59,7 @@ public class StripedInbox extends AbstractInbox {
         queues = new ArrayDeque[memberIdx];
 
         for (int i = 0; i < memberIdx; i++) {
-            queues[i] = new ArrayDeque<>(INITIAL_QUEUE_SIZE);
+            queues[i] = new ArrayDeque<>();
         }
     }
 

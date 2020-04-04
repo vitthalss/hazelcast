@@ -14,26 +14,21 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.mailbox;
+package com.hazelcast.sql.impl.partitioner;
 
-import com.hazelcast.sql.impl.QueryId;
+import com.hazelcast.internal.util.HashUtil;
+import com.hazelcast.sql.impl.row.Row;
 
 /**
- * Base class for inboxes and outboxes.
+ * Partitioner that calculates row partition based on row field values.
  */
-public abstract class AbstractMailbox {
-    /** Query ID. */
-    protected final QueryId queryId;
+public abstract class AbstractFieldsRowPartitioner implements RowPartitioner {
+    @Override
+    public final int getPartition(Row row, int partitionCount) {
+        int hash = getHash(row);
 
-    /** Edge ID. */
-    protected final int edgeId;
-
-    /** Width of a single row in bytes. */
-    protected final int rowWidth;
-
-    public AbstractMailbox(QueryId queryId, int edgeId, int rowWidth) {
-        this.queryId = queryId;
-        this.edgeId = edgeId;
-        this.rowWidth = rowWidth;
+        return HashUtil.hashToIndex(hash, partitionCount);
     }
+
+    protected abstract int getHash(Row row);
 }

@@ -14,16 +14,26 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.mailbox;
+package com.hazelcast.sql.impl.exec.io;
+
+import com.hazelcast.sql.impl.QueryId;
 
 /**
- * Core interface for outbound message processing.
+ * Base class for inboxes and outboxes.
  */
-public interface OutboundHandler {
-    /**
-     * Handle flow control response from the remote inbound handler.
-     *
-     * @param remainingMemory The amount of memory that is available on the remote end.
-     */
-    void onFlowControl(long remainingMemory);
+public abstract class AbstractMailbox {
+    /** Query ID. */
+    protected final QueryId queryId;
+
+    /** Edge ID. */
+    protected final int edgeId;
+
+    /** Width of a single row in bytes. */
+    protected final int rowWidth;
+
+    public AbstractMailbox(QueryId queryId, int edgeId, int rowWidth) {
+        this.queryId = queryId;
+        this.edgeId = edgeId;
+        this.rowWidth = rowWidth;
+    }
 }

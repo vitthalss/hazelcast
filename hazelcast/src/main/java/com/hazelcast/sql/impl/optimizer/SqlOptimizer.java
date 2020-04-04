@@ -29,10 +29,9 @@ public interface SqlOptimizer {
      * Prepare SQL query.
      *
      * @param sql SQL.
-     * @param paramsCount Number of parameters.
      * @return Executable plan.
      */
-    Plan prepare(String sql, int paramsCount);
+    Plan prepare(String sql);
 
     /**
      * @return {@code True} if compilation is supported by the engine.

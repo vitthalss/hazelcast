@@ -117,13 +117,18 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
         // TODO: getDeclaredMethods?
         // TODO: Use only public ones
         for (Method method : clazz.getMethods()) {
+            Class<?> returnType = method.getReturnType();
+            if (returnType == void.class || returnType == Void.class) {
+                continue;
+            }
+
             String name = extractAttributeNameFromMethod(method);
 
             if (name == null) {
                 continue;
             }
 
-            QueryDataType type = QueryDataTypeUtils.resolveTypeForClass(method.getReturnType());
+            QueryDataType type = QueryDataTypeUtils.resolveTypeForClass(returnType);
 
             fields.putIfAbsent(name, new SqlTableField(name, resolvePath(name, isKey), type));
         }

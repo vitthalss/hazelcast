@@ -54,7 +54,7 @@ import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.DOUBLE;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.INT;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.INTERVAL_DAY_SECOND;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.INTERVAL_YEAR_MONTH;
-import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.LATE;
+import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.NULL;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.OBJECT;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.REAL;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.SMALLINT;
@@ -66,7 +66,6 @@ import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.VARCHAR;
 import static com.hazelcast.sql.impl.type.QueryDataTypeFamily.values;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @SuppressWarnings("SimplifiableJUnitAssertion")
@@ -75,8 +74,6 @@ import static org.junit.Assert.fail;
 public class ConvertersTest {
     @Test
     public void testGetById() {
-        checkGetById(LateConverter.INSTANCE);
-
         checkGetById(StringConverter.INSTANCE);
         checkGetById(CharacterConverter.INSTANCE);
 
@@ -103,6 +100,8 @@ public class ConvertersTest {
         checkGetById(SqlDaySecondIntervalConverter.INSTANCE);
 
         checkGetById(ObjectConverter.INSTANCE);
+
+        checkGetById(NullConverter.INSTANCE);
     }
 
     @Test
@@ -133,6 +132,9 @@ public class ConvertersTest {
         checkGetByClass(SqlDaySecondIntervalConverter.INSTANCE, SqlDaySecondInterval.class);
 
         checkGetByClass(ObjectConverter.INSTANCE, Object.class, SqlCustomClass.class);
+
+        checkGetByClass(NullConverter.INSTANCE, void.class);
+        checkGetByClass(NullConverter.INSTANCE, Void.class);
     }
 
     @Test
@@ -625,18 +627,28 @@ public class ConvertersTest {
     }
 
     @Test
-    public void testLateConverter() {
-        LateConverter c = LateConverter.INSTANCE;
-
-        checkConverter(c, Converter.ID_LATE, LATE, null);
+    public void testNullConverter() {
+        NullConverter c = NullConverter.INSTANCE;
+        checkConverter(c, Converter.ID_NULL, NULL, Void.class);
         checkConverterConversions(c, BIT, TINYINT, SMALLINT, INT, BIGINT, DECIMAL, REAL, DOUBLE, TIME, DATE, TIMESTAMP,
-            TIMESTAMP_WITH_TIME_ZONE, VARCHAR, OBJECT);
+                TIMESTAMP_WITH_TIME_ZONE, VARCHAR, OBJECT);
 
-        checkObjectConverter(c);
+        checkUnsupportedException(() -> c.asBit(null));
+        checkUnsupportedException(() -> c.asTinyint(null));
+        checkUnsupportedException(() -> c.asSmallint(null));
+        checkUnsupportedException(() -> c.asInt(null));
+        checkUnsupportedException(() -> c.asBigint(null));
+        checkUnsupportedException(() -> c.asDecimal(null));
+        checkUnsupportedException(() -> c.asReal(null));
+        checkUnsupportedException(() -> c.asDouble(null));
+        checkUnsupportedException(() -> c.asTime(null));
+        checkUnsupportedException(() -> c.asDate(null));
+        checkUnsupportedException(() -> c.asTimestamp(null));
+        checkUnsupportedException(() -> c.asTimestampWithTimezone(null));
+        checkUnsupportedException(() -> c.asVarchar(null));
+        checkUnsupportedException(() -> c.asObject(null));
 
-        MockConverter mockConverter = new MockConverter();
-        c.convertToSelf(mockConverter, new Object());
-        assertTrue(mockConverter.isInvokedSelf());
+        checkUnsupportedException(() -> c.convertToSelf(c, null));
     }
 
     private void checkDataException(Runnable runnable) {
@@ -646,6 +658,16 @@ public class ConvertersTest {
             fail("Must fail");
         } catch (HazelcastSqlException e) {
             assertEquals(SqlErrorCode.DATA_EXCEPTION, e.getCode());
+        }
+    }
+
+    private void checkUnsupportedException(Runnable runnable) {
+        try {
+            runnable.run();
+
+            fail("Must fail");
+        } catch (UnsupportedOperationException ignore) {
+            // do nothing
         }
     }
 

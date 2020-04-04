@@ -19,16 +19,12 @@ package com.hazelcast.sql.impl.exec.io;
 import com.hazelcast.sql.impl.exec.AbstractUpstreamAwareExec;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
-import com.hazelcast.sql.impl.mailbox.Outbox;
 import com.hazelcast.sql.impl.row.RowBatch;
 
 /**
  * Abstract sender
  */
 public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
-    /** Done flag. */
-    private boolean done;
-
     /** Batch that is pending sending. */
     private RowBatch pendingBatch;
 
@@ -41,10 +37,6 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
 
     @Override
     public IterationResult advance0() {
-        if (done) {
-            return IterationResult.FETCHED_DONE;
-        }
-
         // Try finalizing the previous batch.
         if (!pushPendingBatch()) {
             return IterationResult.WAIT;
@@ -52,8 +44,6 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
 
         // Stop if state is exhausted.
         if (state.isDone()) {
-            done = true;
-
             return IterationResult.FETCHED_DONE;
         }
 
@@ -73,8 +63,6 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
             if (pushed) {
                 if (last) {
                     // Pushed the very last batch, done.
-                    done = true;
-
                     return IterationResult.FETCHED_DONE;
                 } else {
                     // More batches to follow, repeat the loop.
@@ -127,7 +115,7 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
         boolean res = true;
 
         for (int outboxIndex = 0; outboxIndex < getOutboxCount(); outboxIndex++) {
-            SendQualifier qualifier = getOutboxQualifier(outboxIndex);
+            OutboxSendQualifier qualifier = getOutboxQualifier(outboxIndex);
 
             int position = getOutbox(outboxIndex).onRowBatch(batch, last, 0, qualifier);
 
@@ -162,7 +150,7 @@ public abstract class AbstractSendExec extends AbstractUpstreamAwareExec {
 
     protected abstract void setCurrentBatch(RowBatch batch);
 
-    protected abstract SendQualifier getOutboxQualifier(int outboxIndex);
+    protected abstract OutboxSendQualifier getOutboxQualifier(int outboxIndex);
 
     protected abstract void addPendingPosition(int outboxIndex, int position);
 

@@ -32,11 +32,11 @@ import com.hazelcast.sql.impl.type.converter.DoubleConverter;
 import com.hazelcast.sql.impl.type.converter.FloatConverter;
 import com.hazelcast.sql.impl.type.converter.InstantConverter;
 import com.hazelcast.sql.impl.type.converter.IntegerConverter;
-import com.hazelcast.sql.impl.type.converter.LateConverter;
 import com.hazelcast.sql.impl.type.converter.LocalDateConverter;
 import com.hazelcast.sql.impl.type.converter.LocalDateTimeConverter;
 import com.hazelcast.sql.impl.type.converter.LocalTimeConverter;
 import com.hazelcast.sql.impl.type.converter.LongConverter;
+import com.hazelcast.sql.impl.type.converter.NullConverter;
 import com.hazelcast.sql.impl.type.converter.ObjectConverter;
 import com.hazelcast.sql.impl.type.converter.OffsetDateTimeConverter;
 import com.hazelcast.sql.impl.type.converter.ShortConverter;
@@ -69,8 +69,6 @@ import static org.junit.Assert.assertSame;
 public class QueryDataTypeTest extends SqlTestSupport {
     @Test
     public void testDefaultTypes() {
-        checkType(QueryDataType.LATE, LateConverter.INSTANCE);
-
         checkType(QueryDataType.VARCHAR, StringConverter.INSTANCE);
         checkType(QueryDataType.VARCHAR_CHARACTER, CharacterConverter.INSTANCE);
 
@@ -94,6 +92,8 @@ public class QueryDataTypeTest extends SqlTestSupport {
         checkType(QueryDataType.TIMESTAMP_WITH_TZ_ZONED_DATE_TIME, ZonedDateTimeConverter.INSTANCE);
 
         checkType(QueryDataType.OBJECT, ObjectConverter.INSTANCE);
+
+        checkType(QueryDataType.NULL, NullConverter.INSTANCE);
     }
 
     @Test
@@ -126,12 +126,6 @@ public class QueryDataTypeTest extends SqlTestSupport {
     }
 
     @Test
-    public void testTypeResolutionByValue() {
-        assertEquals(QueryDataType.LATE, QueryDataTypeUtils.resolveType(null));
-        assertEquals(QueryDataType.INT, QueryDataTypeUtils.resolveType(1));
-    }
-
-    @Test
     public void testTypeResolutionByClass() {
         checkResolvedTypeForClass(QueryDataType.VARCHAR, String.class);
         checkResolvedTypeForClass(QueryDataType.VARCHAR_CHARACTER, char.class, Character.class);
@@ -159,6 +153,8 @@ public class QueryDataTypeTest extends SqlTestSupport {
         checkResolvedTypeForClass(QueryDataType.INTERVAL_DAY_SECOND, SqlDaySecondInterval.class);
 
         checkResolvedTypeForClass(QueryDataType.OBJECT, Object.class, SqlCustomClass.class);
+
+        checkResolvedTypeForClass(QueryDataType.NULL, void.class, Void.class);
     }
 
     @Test
@@ -184,12 +180,12 @@ public class QueryDataTypeTest extends SqlTestSupport {
         checkResolvedTypeForTypeFamily(QueryDataType.INTERVAL_DAY_SECOND, QueryDataTypeFamily.INTERVAL_DAY_SECOND);
 
         checkResolvedTypeForTypeFamily(QueryDataType.OBJECT, QueryDataTypeFamily.OBJECT);
+
+        checkResolvedTypeForTypeFamily(QueryDataType.NULL, QueryDataTypeFamily.NULL);
     }
 
     @Test
     public void testBigger() {
-        checkPrecedence(QueryDataType.VARCHAR, QueryDataType.LATE);
-
         checkPrecedence(QueryDataType.BIT, QueryDataType.VARCHAR);
         checkPrecedence(QueryDataType.TINYINT, QueryDataType.BIT);
         checkPrecedence(QueryDataType.SMALLINT, QueryDataType.TINYINT);
@@ -207,6 +203,8 @@ public class QueryDataTypeTest extends SqlTestSupport {
         for (int i = 1; i < QueryDataType.PRECISION_BIGINT; i++) {
             checkPrecedence(QueryDataTypeUtils.integerType(i + 1), QueryDataTypeUtils.integerType(i));
         }
+
+        checkPrecedence(QueryDataType.VARCHAR, QueryDataType.NULL);
     }
 
     @Test

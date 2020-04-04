@@ -90,9 +90,6 @@ public final class Converters {
     private static List<Converter> prepareConverters() {
         List<Converter> converters = new ArrayList<>();
 
-        // Late binding support.
-        converters.add(LateConverter.INSTANCE);
-
         // Boolean converter.
         converters.add(BooleanConverter.INSTANCE);
 
@@ -129,6 +126,8 @@ public final class Converters {
         // Interval converters
         converters.add(SqlYearMonthIntervalConverter.INSTANCE);
         converters.add(SqlDaySecondIntervalConverter.INSTANCE);
+
+        converters.add(NullConverter.INSTANCE);
 
         return converters;
     }
@@ -227,6 +226,10 @@ public final class Converters {
 
         if (targetClass == Double.class) {
             return double.class;
+        }
+
+        if (targetClass == Void.class) {
+            return void.class;
         }
 
         return null;

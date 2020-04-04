@@ -14,17 +14,22 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.type.converter;
+package com.hazelcast.sql.impl.exec.io;
 
-import org.junit.Test;
+/**
+ * Core interface for inbound message processing.
+ */
+public interface InboundHandler {
+    /**
+     * Handle batch from the remote outbound handler.
+     *
+     * @param batch Data batch.
+     * @param remainingMemory Amount of available memory as seen by the remote outbound handler.
+     */
+    void onBatch(InboundBatch batch, long remainingMemory);
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
-public class ConverterTest {
-    @Test
-    public void testIsConvertable() {
-        assertTrue(LocalDateTimeConverter.INSTANCE.canConvertToVarchar());
-        assertFalse(LocalDateTimeConverter.INSTANCE.canConvertToInt());
-    }
+    /**
+     * A callback invoked the fragment that owns this handler is finished.
+     */
+    void onFragmentExecutionCompleted();
 }

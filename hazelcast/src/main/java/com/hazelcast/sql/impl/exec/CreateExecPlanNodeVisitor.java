@@ -27,18 +27,18 @@ import com.hazelcast.sql.impl.exec.index.MapIndexScanExec;
 import com.hazelcast.sql.impl.exec.io.BroadcastSendExec;
 import com.hazelcast.sql.impl.exec.io.ReceiveExec;
 import com.hazelcast.sql.impl.exec.io.ReceiveSortMergeExec;
-import com.hazelcast.sql.impl.exec.io.SingleSendExec;
+import com.hazelcast.sql.impl.exec.io.SendExec;
 import com.hazelcast.sql.impl.exec.io.UnicastSendExec;
 import com.hazelcast.sql.impl.exec.join.HashJoinExec;
 import com.hazelcast.sql.impl.exec.join.NestedLoopJoinExec;
 import com.hazelcast.sql.impl.exec.root.RootExec;
-import com.hazelcast.sql.impl.mailbox.InboundHandler;
-import com.hazelcast.sql.impl.mailbox.Inbox;
-import com.hazelcast.sql.impl.mailbox.OutboundHandler;
-import com.hazelcast.sql.impl.mailbox.Outbox;
-import com.hazelcast.sql.impl.mailbox.StripedInbox;
-import com.hazelcast.sql.impl.mailbox.flowcontrol.FlowControl;
-import com.hazelcast.sql.impl.mailbox.flowcontrol.simple.SimpleFlowControl;
+import com.hazelcast.sql.impl.exec.io.InboundHandler;
+import com.hazelcast.sql.impl.exec.io.Inbox;
+import com.hazelcast.sql.impl.exec.io.OutboundHandler;
+import com.hazelcast.sql.impl.exec.io.Outbox;
+import com.hazelcast.sql.impl.exec.io.StripedInbox;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControl;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.simple.SimpleFlowControl;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping;
@@ -76,8 +76,8 @@ import java.util.UUID;
  */
  @SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "ClassFanOutComplexity"})
 public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
-    // TODO: Understand how to calculate it properly. It should not be hardcoded.
-    private static final int OUTBOX_BATCH_SIZE = 512 * 1024;
+    /** Operation handler. */
+    private final QueryOperationHandler operationHandler;
 
     /** Node engine. */
     private final NodeEngine nodeEngine;
@@ -88,8 +88,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     /** Partitions owned by this data node. */
     private final PartitionIdSet localParts;
 
-    /** Partition map. */
-    private final Map<UUID, PartitionIdSet> partitionMap;
+    /** Recommended outbox batch size in bytes. */
+    private final int outboxBatchSize;
 
     /** Compiled fragment. */
     private final CompiledFragment compiledFragment;
@@ -107,16 +107,18 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     private Map<Integer, Map<UUID, OutboundHandler>> outboxes = new HashMap<>();
 
     public CreateExecPlanNodeVisitor(
+        QueryOperationHandler operationHandler,
         NodeEngine nodeEngine,
         QueryExecuteOperation operation,
         PartitionIdSet localParts,
-        Map<UUID, PartitionIdSet> partitionMap,
+        int outboxBatchSize,
         CompiledFragment compiledFragment
     ) {
+        this.operationHandler = operationHandler;
         this.nodeEngine = nodeEngine;
         this.operation = operation;
         this.localParts = localParts;
-        this.partitionMap = partitionMap;
+        this.outboxBatchSize = outboxBatchSize;
         this.compiledFragment = compiledFragment;
     }
 
@@ -147,7 +149,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             operation.getQueryId(),
             edgeId,
             sendFragment.getNode().getSchema().getEstimatedRowSize(),
-            getOperationHandler(),
+            operationHandler,
             fragmentMemberCount,
             createFlowControl(edgeId)
         );
@@ -173,7 +175,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             operation.getQueryId(),
             edgeId,
             node.getSchema().getEstimatedRowSize(),
-            getOperationHandler(),
+            operationHandler,
             getFragmentMembers(sendFragment),
             createFlowControl(edgeId)
         );
@@ -199,7 +201,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
 
         assert outboxes.length == 1;
 
-        exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+        exec = topNode(new SendExec(node.getId(), pop(), outboxes[0]));
     }
 
     @Override
@@ -207,14 +209,14 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         Outbox[] outboxes = prepareOutboxes(node);
 
         if (outboxes.length == 1) {
-            exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+            exec = topNode(new SendExec(node.getId(), pop(), outboxes[0]));
         } else {
             int[] partitionOutboxIndexes = new int[localParts.getPartitionCount()];
 
             for (int outboxIndex = 0; outboxIndex < outboxes.length; outboxIndex++) {
                 final int outboxIndex0 = outboxIndex;
 
-                PartitionIdSet partitions = partitionMap.get(outboxes[outboxIndex0].getTargetMemberId());
+                PartitionIdSet partitions = operation.getPartitionMapping().get(outboxes[outboxIndex0].getTargetMemberId());
 
                 partitions.forEach((part) -> partitionOutboxIndexes[part] = outboxIndex0);
             }
@@ -234,7 +236,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         Outbox[] outboxes = prepareOutboxes(node);
 
         if (outboxes.length == 1) {
-            exec = topNode(new SingleSendExec(node.getId(), pop(), outboxes[0]));
+            exec = topNode(new SendExec(node.getId(), pop(), outboxes[0]));
         } else {
             exec = topNode(new BroadcastSendExec(node.getId(), pop(), outboxes));
         }
@@ -264,11 +266,11 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         for (UUID receiveMemberId : receiveFragmentMemberIds) {
             Outbox outbox = new Outbox(
                 operation.getQueryId(),
-                getOperationHandler(),
+                operationHandler,
                 edgeId,
                 rowWidth,
                 receiveMemberId,
-                OUTBOX_BATCH_SIZE,
+                outboxBatchSize,
                 operation.getEdgeCreditMap().get(edgeId)
             );
 
@@ -307,36 +309,37 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         push(res);
     }
 
-     @Override
-     public void onMapIndexScanNode(MapIndexScanPlanNode node) {
-         Exec res;
+    @Override
+    public void onMapIndexScanNode(MapIndexScanPlanNode node) {
+        Exec res;
 
-         if (localParts == null) {
-             res = new EmptyExec(node.getId());
-         } else {
-             String mapName = node.getMapName();
+        if (localParts == null) {
+            res = new EmptyExec(node.getId());
+        } else {
+            String mapName = node.getMapName();
 
-             MapProxyImpl<?, ?> map = (MapProxyImpl<?, ?>) nodeEngine.getHazelcastInstance().getMap(mapName);
+            MapProxyImpl<?, ?> map = (MapProxyImpl<?, ?>) nodeEngine.getHazelcastInstance().getMap(mapName);
 
-             res = new MapIndexScanExec(
-                 node.getId(),
-                 map,
-                 localParts,
-                 node.getKeyDescriptor(),
-                 node.getValueDescriptor(),
-                 node.getFieldNames(),
-                 node.getFieldTypes(),
-                 node.getProjects(),
-                 node.getFilter(),
-                 node.getIndexName(),
-                 node.getIndexFilter()
-             );
-         }
+            res = new MapIndexScanExec(
+                node.getId(),
+                map,
+                (InternalSerializationService) nodeEngine.getSerializationService(),
+                localParts,
+                node.getKeyDescriptor(),
+                node.getValueDescriptor(),
+                node.getFieldNames(),
+                node.getFieldTypes(),
+                node.getProjects(),
+                node.getFilter(),
+                node.getIndexName(),
+                node.getIndexFilter()
+            );
+        }
 
-         push(res);
-     }
+        push(res);
+    }
 
-     @Override
+    @Override
     public void onReplicatedMapScanNode(ReplicatedMapScanPlanNode node) {
         String mapName = node.getMapName();
 
@@ -527,10 +530,6 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         stack.add(exec);
     }
 
-    private QueryOperationHandler getOperationHandler() {
-         return nodeEngine.getSqlService().getInternalService().getOperationHandler();
-    }
-
     /**
      * Get the top-level node. In order to ensure that compiled fragments are counted appropriately, we perform push-pop
      * sequence which in turn ensures proper initialization and replacement of compiled fragments if needed.
@@ -559,6 +558,6 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
 
         assert fragment.getMapping() == QueryExecuteOperationFragmentMapping.DATA_MEMBERS;
 
-        return partitionMap.keySet();
+        return operation.getPartitionMapping().keySet();
     }
 }

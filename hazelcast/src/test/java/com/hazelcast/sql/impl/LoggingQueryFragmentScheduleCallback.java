@@ -14,36 +14,24 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.mailbox;
+package com.hazelcast.sql.impl;
 
-import com.hazelcast.sql.impl.row.RowBatch;
+import com.hazelcast.sql.impl.worker.QueryFragmentScheduleCallback;
 
-import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Mailbox batch received from the remote member.
- */
-public final class InboundBatch {
+public class LoggingQueryFragmentScheduleCallback implements QueryFragmentScheduleCallback {
 
-    private final RowBatch batch;
-    private final boolean last;
-    private final UUID senderId;
+    private final AtomicInteger count = new AtomicInteger();
 
-    public InboundBatch(RowBatch batch, boolean last, UUID senderId) {
-        this.batch = batch;
-        this.last = last;
-        this.senderId = senderId;
+    @Override
+    public boolean schedule() {
+        count.incrementAndGet();
+
+        return true;
     }
 
-    public RowBatch getBatch() {
-        return batch;
-    }
-
-    public boolean isLast() {
-        return last;
-    }
-
-    public UUID getSenderId() {
-        return senderId;
+    public int getCount() {
+        return count.get();
     }
 }

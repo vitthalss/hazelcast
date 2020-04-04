@@ -16,11 +16,11 @@
 
 package com.hazelcast.sql.impl.exec;
 
-import com.hazelcast.sql.impl.SqlTestUtils;
-import com.hazelcast.sql.impl.worker.QueryFragmentContext;
+import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.row.EmptyRowBatch;
 import com.hazelcast.sql.impl.row.ListRowBatch;
 import com.hazelcast.sql.impl.row.RowBatch;
+import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
@@ -33,7 +33,7 @@ import static org.junit.Assert.assertSame;
 
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class AbstractExecTest {
+public class AbstractExecTest extends SqlTestSupport {
     @Test
     public void testPropagation() {
         TestExec exec = new TestExec(1);
@@ -42,7 +42,7 @@ public class AbstractExecTest {
         assertEquals(1, exec.getId());
 
         // Setup.
-        QueryFragmentContext context = SqlTestUtils.emptyFragmentContext();
+        QueryFragmentContext context = emptyFragmentContext();
 
         exec.setup(context);
 
@@ -50,10 +50,18 @@ public class AbstractExecTest {
 
         // Advance management
         for (IterationResult result : IterationResult.values()) {
-            exec.currentResult = result;
+            if (result == IterationResult.FETCHED_DONE) {
+                continue;
+            }
 
+            exec.currentResult = result;
             assertEquals(result, exec.advance());
         }
+
+        // Check done state.
+        exec.currentResult = IterationResult.FETCHED_DONE;
+        assertEquals(IterationResult.FETCHED_DONE, exec.advance());
+        assertThrows(IllegalStateException.class, exec::advance);
 
         // Batch management.
         assertSame(EmptyRowBatch.INSTANCE, exec.currentBatch());

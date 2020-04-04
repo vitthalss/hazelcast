@@ -18,6 +18,7 @@ package com.hazelcast.sql.impl.calcite.schema;
 
 import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
+import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
@@ -37,41 +38,36 @@ import java.util.Map;
 /**
  * Hazelcast table which provides information about its fields.
  */
-@SuppressWarnings("checkstyle:ExecutableStatementCount")
 public final class HazelcastTable extends AbstractTable {
 
-    private static final Map<QueryDataType, SqlTypeName> QUERY_TO_SQL_TYPE = new HashMap<>();
+    private static final Map<QueryDataTypeFamily, SqlTypeName> QUERY_TO_SQL_TYPE = new HashMap<>();
 
     static {
-        // TODO: VO: Mapping should be done from type family.
-        QUERY_TO_SQL_TYPE.put(QueryDataType.VARCHAR, SqlTypeName.VARCHAR);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.VARCHAR_CHARACTER, SqlTypeName.CHAR);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.VARCHAR, SqlTypeName.VARCHAR);
 
-        QUERY_TO_SQL_TYPE.put(QueryDataType.BIT, SqlTypeName.BOOLEAN);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TINYINT, SqlTypeName.TINYINT);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.SMALLINT, SqlTypeName.SMALLINT);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.INT, SqlTypeName.INTEGER);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.BIGINT, SqlTypeName.BIGINT);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.BIT, SqlTypeName.BOOLEAN);
 
-        QUERY_TO_SQL_TYPE.put(QueryDataType.DECIMAL, SqlTypeName.DECIMAL);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.DECIMAL_BIG_INTEGER, SqlTypeName.DECIMAL);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.TINYINT, SqlTypeName.TINYINT);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.SMALLINT, SqlTypeName.SMALLINT);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.INT, SqlTypeName.INTEGER);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.BIGINT, SqlTypeName.BIGINT);
 
-        QUERY_TO_SQL_TYPE.put(QueryDataType.REAL, SqlTypeName.REAL);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.DOUBLE, SqlTypeName.DOUBLE);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.DECIMAL, SqlTypeName.DECIMAL);
 
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIME, SqlTypeName.TIME);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.DATE, SqlTypeName.DATE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP, SqlTypeName.TIMESTAMP);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP_WITH_TZ_DATE, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP_WITH_TZ_CALENDAR, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP_WITH_TZ_INSTANT, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP_WITH_TZ_OFFSET_DATE_TIME, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.TIMESTAMP_WITH_TZ_ZONED_DATE_TIME, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.INTERVAL_YEAR_MONTH, SqlTypeName.INTERVAL_YEAR_MONTH);
-        QUERY_TO_SQL_TYPE.put(QueryDataType.INTERVAL_DAY_SECOND, SqlTypeName.INTERVAL_DAY_SECOND);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.REAL, SqlTypeName.REAL);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.DOUBLE, SqlTypeName.DOUBLE);
+
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.TIME, SqlTypeName.TIME);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.DATE, SqlTypeName.DATE);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.TIMESTAMP, SqlTypeName.TIMESTAMP);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.TIMESTAMP_WITH_TIME_ZONE, SqlTypeName.TIMESTAMP_WITH_LOCAL_TIME_ZONE);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.INTERVAL_YEAR_MONTH, SqlTypeName.INTERVAL_YEAR_MONTH);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.INTERVAL_DAY_SECOND, SqlTypeName.INTERVAL_DAY_SECOND);
 
         // TODO: Object type should be very restrictive, but currently all check for it are skipped. Use "STRUCTURED"?
-        QUERY_TO_SQL_TYPE.put(QueryDataType.OBJECT, SqlTypeName.ANY);
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.OBJECT, SqlTypeName.ANY);
+
+        QUERY_TO_SQL_TYPE.put(QueryDataTypeFamily.NULL, SqlTypeName.NULL);
     }
 
     private final String schemaName;
@@ -114,10 +110,7 @@ public final class HazelcastTable extends AbstractTable {
     public QueryDataType getFieldType(String fieldName) {
         QueryDataType fieldType = fieldTypes.get(fieldName);
 
-        if (fieldType == null) {
-            fieldType = QueryDataType.LATE;
-        }
-
+        assert fieldType != null;
         return fieldType;
     }
 
@@ -171,8 +164,12 @@ public final class HazelcastTable extends AbstractTable {
 
         List<RelDataTypeField> fields = new ArrayList<>(fieldTypes.size());
         for (Map.Entry<String, QueryDataType> entry : fieldTypes.entrySet()) {
-            SqlTypeName sqlTypeName = QUERY_TO_SQL_TYPE.get(entry.getValue());
-            assert sqlTypeName != null;
+            QueryDataTypeFamily typeFamily = entry.getValue().getTypeFamily();
+
+            SqlTypeName sqlTypeName = QUERY_TO_SQL_TYPE.get(typeFamily);
+            if (sqlTypeName == null) {
+                throw new IllegalStateException("unexpected type family: " + typeFamily);
+            }
             RelDataType relDataType = typeFactory.createSqlType(sqlTypeName);
             RelDataType nullableRelDataType = typeFactory.createTypeWithNullability(relDataType, true);
             RelDataTypeField field = new RelDataTypeFieldImpl(entry.getKey(), fields.size(), nullableRelDataType);
