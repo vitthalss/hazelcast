@@ -19,6 +19,7 @@ package com.hazelcast.sql.impl;
 import com.hazelcast.internal.nio.Packet;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.client.QueryClientStateRegistry;
+import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.exec.root.BlockingRootResultConsumer;
 import com.hazelcast.sql.impl.explain.QueryExplain;
 import com.hazelcast.sql.impl.explain.QueryExplainResultProducer;
@@ -77,7 +78,8 @@ public class SqlInternalService {
         InternalSerializationService serializationService,
         int operationThreadCount,
         int fragmentThreadCount,
-        long maxMemory
+        long maxMemory,
+        CompilerManager compilerManager
     ) {
         this.nodeServiceProvider = nodeServiceProvider;
 
@@ -95,7 +97,8 @@ public class SqlInternalService {
             serializationService,
             stateRegistry,
             fragmentThreadCount,
-            operationThreadCount
+            operationThreadCount,
+            compilerManager
         );
 
         // State checker depends on state registries and operation handler.

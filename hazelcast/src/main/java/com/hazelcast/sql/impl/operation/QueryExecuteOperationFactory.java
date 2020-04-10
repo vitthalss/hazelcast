@@ -60,18 +60,21 @@ public class QueryExecuteOperationFactory {
             QueryExecuteOperationFragmentMapping mapping;
             Collection<UUID> memberIds;
             PlanNode node;
+            String signature;
 
             if (planMapping.isDataMembers()) {
                 mapping = DATA_MEMBERS;
                 memberIds = null;
                 node = plan.getFragment(i);
+                signature = plan.getFragmentSignature(i);
             } else {
                 mapping = EXPLICIT;
                 memberIds = planMapping.getMemberIds();
                 node = memberIds.contains(targetMemberId) ? plan.getFragment(i) : null;
+                signature = node != null ? plan.getFragmentSignature(i) : null;
             }
 
-            fragments.add(new QueryExecuteOperationFragment(node, mapping, memberIds));
+            fragments.add(new QueryExecuteOperationFragment(node, signature, mapping, memberIds));
         }
 
         return new QueryExecuteOperation(

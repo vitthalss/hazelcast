@@ -19,12 +19,13 @@ package com.hazelcast.sql.impl.operation;
 import com.hazelcast.internal.nio.Connection;
 import com.hazelcast.internal.nio.Packet;
 import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.NodeServiceProvider;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 /**
  * Executes query operations.
@@ -60,9 +60,10 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     private final QueryStateRegistry stateRegistry;
     private final QueryFragmentWorkerPool fragmentPool;
     private final QueryOperationWorkerPool operationPool;
+    private final CompilerManager compilerManager;
 
     // TODO: Cache whole plans instead of compiled fragments because in this case we will have simpler lifecycle.
-    private final ConcurrentHashMap<UUID, CompiledFragmentTemplate> compiledFragments = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CompiledFragmentTemplate> compiledFragments = new ConcurrentHashMap<>();
 
     public QueryOperationHandlerImpl(
         String instanceName,
@@ -70,7 +71,8 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         InternalSerializationService serializationService,
         QueryStateRegistry stateRegistry,
         int threadCount,
-        int operationThreadCount
+        int operationThreadCount,
+        CompilerManager compilerManager
     ) {
         this.nodeServiceProvider = nodeServiceProvider;
         this.serializationService = serializationService;
@@ -90,6 +92,8 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             serializationService,
             nodeServiceProvider.getLogger(QueryOperationWorkerPool.class)
         );
+
+        this.compilerManager = compilerManager;
     }
 
     public void stop() {
@@ -192,7 +196,9 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             }
 
             // Get compiled fragment, if any.
-            CompiledFragment compiledFragment = getCompiledFragment(fragmentDescriptor);
+            CompiledFragment compiledFragment = getCompiledFragment(
+                fragmentDescriptor.getSignature(), fragmentDescriptor.getNode()
+            );
 
             // Create executors and inboxes.
             CreateExecPlanNodeVisitor visitor = new CreateExecPlanNodeVisitor(
@@ -222,7 +228,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 inboxes,
                 outboxes,
                 fragmentPool,
-                (InternalSerializationService) nodeEngine.getSerializationService()
+                serializationService // TODO: Remove!
             );
 
             fragmentExecutables.add(fragmentExecutable);
@@ -381,19 +387,14 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         }
     }
 
-    private CompiledFragment getCompiledFragment(QueryExecuteOperationFragment fragmentDescriptor) {
-        UUID key = fragmentDescriptor.getId();
-
-        CompiledFragmentTemplate template = compiledFragments.get(key);
+    private CompiledFragment getCompiledFragment(String signature, PlanNode node) {
+        CompiledFragmentTemplate template = compiledFragments.get(signature);
 
         if (template == null) {
-            PlanNode node = fragmentDescriptor.getNode();
-
-            // TODO: Here we need to associate fragment signature (to be impemented) with the compiled fragment template.
-            template = nodeEngine.getSqlService().getCompiledFragment(node);
+            template = compilerManager.getTemplate(node);
 
             if (template != null) {
-                compiledFragments.put(key, template);
+                compiledFragments.put(signature, template);
             }
         }
 

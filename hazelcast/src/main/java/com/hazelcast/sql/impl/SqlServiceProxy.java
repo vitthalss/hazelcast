@@ -71,6 +71,9 @@ public class SqlServiceProxy implements SqlService, Consumer<Packet> {
             throw new HazelcastException("SqlConfig.threadCount must be positive: " + config.getThreadCount());
         }
 
+        optimizer = createOptimizer(nodeEngine);
+        compilerManager = new CompilerManager(optimizer);
+
         nodeServiceProvider = new NodeServiceProviderImpl(nodeEngine);
 
         String instanceName = nodeEngine.getHazelcastInstance().getName();
@@ -82,13 +85,11 @@ public class SqlServiceProxy implements SqlService, Consumer<Packet> {
             serializationService,
             operationThreadCount,
             fragmentThreadCount,
-            maxMemory
+            maxMemory,
+            compilerManager
         );
 
-        optimizer = createOptimizer(nodeEngine);
         liteMember = nodeEngine.getConfig().isLiteMember();
-
-        compilerManager = new CompilerManager(optimizer);
     }
 
     public void start() {

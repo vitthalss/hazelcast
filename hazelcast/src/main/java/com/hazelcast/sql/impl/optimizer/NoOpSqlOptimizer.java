@@ -38,6 +38,6 @@ public class NoOpSqlOptimizer implements SqlOptimizer {
 
     @Override
     public CompiledFragmentTemplate compile(PlanNode node) {
-        throw HazelcastSqlException.error("Cannot compile SQL query because \"hazelcast-sql\" module is not in the classpath.");
+        throw QueryException.error("Cannot compile SQL query because \"hazelcast-sql\" module is not in the classpath.");
     }
 }

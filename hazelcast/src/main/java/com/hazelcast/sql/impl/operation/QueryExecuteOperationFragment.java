@@ -33,9 +33,8 @@ import java.util.UUID;
  * Query fragment descriptor which is sent over a wire.
  */
 public class QueryExecuteOperationFragment implements IdentifiedDataSerializable {
-    // TODO: This should be singature instead.
-    private UUID id;
     private PlanNode node;
+    private String signature;
     private QueryExecuteOperationFragmentMapping mapping;
     private Collection<UUID> memberIds;
 
@@ -44,23 +43,23 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
     }
 
     public QueryExecuteOperationFragment(
-        UUID id,
         PlanNode node,
+        String signature,
         QueryExecuteOperationFragmentMapping mapping,
         Collection<UUID> memberIds
     ) {
-        this.id = id;
         this.node = node;
+        this.signature = signature;
         this.mapping = mapping;
         this.memberIds = memberIds;
     }
 
-    public UUID getId() {
-        return id;
-    }
-
     public PlanNode getNode() {
         return node;
+    }
+
+    public String getSignature() {
+        return signature;
     }
 
     public QueryExecuteOperationFragmentMapping getMapping() {
@@ -83,8 +82,8 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public void writeData(ObjectDataOutput out) throws IOException {
-        UUIDSerializationUtil.writeUUID(out, id);
         out.writeObject(node);
+        out.writeUTF(signature);
         out.writeInt(mapping.getId());
 
         if (memberIds != null) {
@@ -100,9 +99,8 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public void readData(ObjectDataInput in) throws IOException {
-        id = UUIDSerializationUtil.readUUID(in);
-
         node = in.readObject();
+        signature = in.readUTF();
         mapping = QueryExecuteOperationFragmentMapping.getById(in.readInt());
 
         int mappedMemberIdsSize = in.readInt();
@@ -118,7 +116,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, node, memberIds);
+        return Objects.hash(signature, node, mapping, memberIds);
     }
 
     @Override
@@ -133,6 +131,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
         QueryExecuteOperationFragment fragment = (QueryExecuteOperationFragment) o;
 
-        return id.equals(fragment.id) && Objects.equals(node, fragment.node) && Objects.equals(memberIds, fragment.memberIds);
+        return signature.equals(fragment.signature) && Objects.equals(node, fragment.node)
+                   && Objects.equals(mapping, fragment.mapping) && Objects.equals(memberIds, fragment.memberIds);
     }
 }

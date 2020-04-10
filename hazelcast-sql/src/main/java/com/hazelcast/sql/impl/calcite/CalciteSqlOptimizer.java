@@ -38,7 +38,6 @@ import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
 import com.hazelcast.sql.impl.optimizer.OptimizerRuleCallTracker;
 import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
 import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
-import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.schema.ChainedSqlSchemaResolver;
 import com.hazelcast.sql.impl.schema.PartitionedMapSqlSchemaResolver;
@@ -49,6 +48,7 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlNode;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;

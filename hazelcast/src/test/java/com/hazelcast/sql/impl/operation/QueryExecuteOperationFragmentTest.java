@@ -43,7 +43,8 @@ public class QueryExecuteOperationFragmentTest extends SqlTestSupport {
         PlanNode node = MockPlanNode.create(1, QueryDataType.INT);
         List<UUID> memberIds = Arrays.asList(UUID.randomUUID(), UUID.randomUUID());
 
-        QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(UUID.randomUUID(), node, EXPLICIT, memberIds);
+        QueryExecuteOperationFragment fragment =
+            new QueryExecuteOperationFragment(node, UUID.randomUUID().toString(), EXPLICIT, memberIds);
 
         assertEquals(node, fragment.getNode());
         assertEquals(memberIds, fragment.getMemberIds());
@@ -52,16 +53,16 @@ public class QueryExecuteOperationFragmentTest extends SqlTestSupport {
     @Test
     public void testSerialization() {
         QueryExecuteOperationFragment original = new QueryExecuteOperationFragment(
-            UUID.randomUUID(),
             MockPlanNode.create(1, QueryDataType.INT),
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Arrays.asList(UUID.randomUUID(), UUID.randomUUID())
         );
 
         QueryExecuteOperationFragment restored = serializeAndCheck(original, SqlDataSerializerHook.OPERATION_EXECUTE_FRAGMENT);
 
-        assertEquals(original.getId(), restored.getId());
         assertEquals(original.getNode(), restored.getNode());
+        assertEquals(original.getSignature(), restored.getSignature());
         assertEquals(original.getMapping(), restored.getMapping());
         assertEquals(original.getMemberIds(), restored.getMemberIds());
     }

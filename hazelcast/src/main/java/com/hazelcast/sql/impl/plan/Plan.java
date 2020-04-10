@@ -38,6 +38,9 @@ public class Plan {
     /** Fragment nodes. */
     private final List<PlanNode> fragments;
 
+    /** Fragment signatures. */
+    private final List<String> fragmentSignatures;
+
     /** Fragment mapping. */
     private final List<PlanFragmentMapping> fragmentMappings;
 
@@ -64,6 +67,7 @@ public class Plan {
     public Plan(
         Map<UUID, PartitionIdSet> partMap,
         List<PlanNode> fragments,
+        List<String> fragmentSignatures,
         List<PlanFragmentMapping> fragmentMappings,
         Map<Integer, Integer> outboundEdgeMap,
         Map<Integer, Integer> inboundEdgeMap,
@@ -75,6 +79,7 @@ public class Plan {
     ) {
         this.partMap = partMap;
         this.fragments = fragments;
+        this.fragmentSignatures = fragmentSignatures;
         this.fragmentMappings = fragmentMappings;
         this.outboundEdgeMap = outboundEdgeMap;
         this.inboundEdgeMap = inboundEdgeMap;
@@ -99,6 +104,10 @@ public class Plan {
 
     public PlanNode getFragment(int index) {
         return fragments.get(index);
+    }
+
+    public String getFragmentSignature(int index) {
+        return fragmentSignatures.get(index);
     }
 
     public PlanFragmentMapping getFragmentMapping(int index) {

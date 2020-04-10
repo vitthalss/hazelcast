@@ -19,7 +19,7 @@ package com.hazelcast.sql.impl.schema;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.Portable;
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 
 import java.io.IOException;
 
@@ -95,7 +95,7 @@ public final class SqlTopObjectDescriptor {
         if (res) {
             return target;
         } else {
-            throw HazelcastSqlException.error("Unexpected object type: " + target.getClass());
+            throw QueryException.error("Unexpected object type: " + target.getClass());
         }
     }
 

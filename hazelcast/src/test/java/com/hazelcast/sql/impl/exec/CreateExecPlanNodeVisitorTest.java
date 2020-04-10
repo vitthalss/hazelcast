@@ -98,6 +98,7 @@ public class CreateExecPlanNodeVisitorTest {
 
         QueryExecuteOperationFragment rootFragment = new QueryExecuteOperationFragment(
             rootNode,
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Collections.singletonList(MEMBER_ID_1)
         );
@@ -128,11 +129,13 @@ public class CreateExecPlanNodeVisitorTest {
 
         QueryExecuteOperationFragment sendFragment = new QueryExecuteOperationFragment(
             sendNode,
+            UUID.randomUUID().toString(),
             DATA_MEMBERS,
             null
         );
 
         QueryExecuteOperationFragment receiveFragment = new QueryExecuteOperationFragment(
+            null,
             null,
             EXPLICIT,
             Collections.singletonList(MEMBER_ID_1)
@@ -184,12 +187,14 @@ public class CreateExecPlanNodeVisitorTest {
 
         QueryExecuteOperationFragment sendFragment = new QueryExecuteOperationFragment(
             null,
+            null,
             DATA_MEMBERS,
             PARTITION_MAPPING.keySet()
         );
 
         QueryExecuteOperationFragment receiveFragment = new QueryExecuteOperationFragment(
             downstreamNode,
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Collections.singletonList(MEMBER_ID_1)
         );
@@ -296,6 +301,11 @@ public class CreateExecPlanNodeVisitorTest {
         @Override
         public void visit(PlanNodeVisitor visitor) {
             visitor.onOtherNode(this);
+        }
+
+        @Override
+        public int getInputCount() {
+            return 1;
         }
 
         @Override

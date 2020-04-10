@@ -16,7 +16,6 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
 
-import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryMetadata;
@@ -130,6 +129,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     /** Prepared fragments. */
     private final List<PlanNode> fragments = new ArrayList<>();
 
+    /** Fragment signatures. */
+    private final List<String> fragmentSignatures = new ArrayList<>();
+
     /** Fragment mappings. */
     private final List<PlanFragmentMapping> fragmentMappings = new ArrayList<>();
 
@@ -202,6 +204,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         return new Plan(
             partMap,
             fragments,
+            fragmentSignatures,
             fragmentMappings,
             outboundEdgeMap,
             inboundEdgeMap,
@@ -692,6 +695,9 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         node.visit(edgeVisitor);
 
         fragments.add(node);
+
+        // TODO: Fix signature generation: we should use internal node content, so that two equal nodes has the same signature.
+        fragmentSignatures.add(UUID.randomUUID().toString());
         fragmentMappings.add(mapping);
         fragmentOutboundEdge.add(edgeVisitor.getOutboundEdge());
         fragmentInboundEdges.add(edgeVisitor.getInboundEdges());

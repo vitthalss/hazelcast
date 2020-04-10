@@ -196,10 +196,10 @@ public class QueryOperationsTest extends SqlTestSupport {
         partitionMapping.put(randomUUID(), new PartitionIdSet(10));
 
         List<QueryExecuteOperationFragment> fragments = new ArrayList<>();
-        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(1, QueryDataType.INT), EXPLICIT,
-            Arrays.asList(randomUUID(), randomUUID())));
-        fragments.add(new QueryExecuteOperationFragment(UUID.randomUUID(), MockPlanNode.create(2, QueryDataType.INT), EXPLICIT,
-            Arrays.asList(randomUUID(), randomUUID())));
+        fragments.add(new QueryExecuteOperationFragment(MockPlanNode.create(1, QueryDataType.INT), UUID.randomUUID().toString(),
+            EXPLICIT, Arrays.asList(randomUUID(), randomUUID())));
+        fragments.add(new QueryExecuteOperationFragment(MockPlanNode.create(2, QueryDataType.INT), UUID.randomUUID().toString(),
+            EXPLICIT, Arrays.asList(randomUUID(), randomUUID())));
 
         Map<Integer, Integer> outboundEdgeMap = new HashMap<>();
         outboundEdgeMap.put(1, 2);

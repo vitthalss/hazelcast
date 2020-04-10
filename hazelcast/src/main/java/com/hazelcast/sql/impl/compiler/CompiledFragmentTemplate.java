@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl.compiler;
 
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -51,7 +51,7 @@ public class CompiledFragmentTemplate {
             return new CompiledFragment(topExecs, subsumedExecs);
         } catch (ReflectiveOperationException e) {
             // TODO: How to react to this? Normally it should never happen.
-            throw HazelcastSqlException.error("Failed to instantiate compiled fragment. ", e);
+            throw QueryException.error("Failed to instantiate compiled fragment. ", e);
         }
     }
 }
