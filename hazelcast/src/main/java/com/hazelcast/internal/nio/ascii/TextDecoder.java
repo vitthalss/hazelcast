@@ -23,11 +23,11 @@ import com.hazelcast.internal.ascii.memcache.ErrorCommand;
 import com.hazelcast.internal.ascii.rest.HttpCommand;
 import com.hazelcast.internal.networking.HandlerStatus;
 import com.hazelcast.internal.networking.InboundHandler;
-import com.hazelcast.logging.ILogger;
 import com.hazelcast.internal.nio.ConnectionType;
-import com.hazelcast.internal.nio.IOService;
-import com.hazelcast.internal.nio.tcp.TcpIpConnection;
+import com.hazelcast.internal.server.IOService;
+import com.hazelcast.internal.server.ServerConnection;
 import com.hazelcast.internal.util.StringUtil;
+import com.hazelcast.logging.ILogger;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -50,7 +50,7 @@ public abstract class TextDecoder extends InboundHandler<ByteBuffer, Void> {
     private TextCommand command;
     private final TextCommandService textCommandService;
     private final TextEncoder encoder;
-    private final TcpIpConnection connection;
+    private final ServerConnection connection;
     private boolean connectionTypeSet;
     private long requestIdGen;
     private final TextProtocolFilter textProtocolFilter;
@@ -58,9 +58,9 @@ public abstract class TextDecoder extends InboundHandler<ByteBuffer, Void> {
     private final TextParsers textParsers;
     private final boolean rootDecoder;
 
-    public TextDecoder(TcpIpConnection connection, TextEncoder encoder, TextProtocolFilter textProtocolFilter,
-            TextParsers textParsers, boolean rootDecoder) {
-        IOService ioService = connection.getEndpointManager().getNetworkingService().getIoService();
+    public TextDecoder(ServerConnection connection, TextEncoder encoder, TextProtocolFilter textProtocolFilter,
+                       TextParsers textParsers, boolean rootDecoder) {
+        IOService ioService = connection.getConnectionManager().getServer().getIoService();
         this.textCommandService = ioService.getTextCommandService();
         this.encoder = encoder;
         this.connection = connection;

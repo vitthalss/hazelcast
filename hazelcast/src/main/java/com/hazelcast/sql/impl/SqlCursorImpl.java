@@ -16,10 +16,8 @@
 
 package com.hazelcast.sql.impl;
 
-import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlColumnMetadata;
 import com.hazelcast.sql.SqlCursor;
-import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.row.Row;
@@ -28,6 +26,7 @@ import com.hazelcast.sql.impl.state.QueryState;
 
 import javax.annotation.Nonnull;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Cursor implementation.
@@ -69,16 +68,16 @@ public class SqlCursorImpl implements SqlCursor {
 
             return iterator0;
         } else {
-            throw HazelcastSqlException.error("Iteartor can be requested only once.");
+            throw QueryException.error("Iteartor can be requested only once.");
         }
     }
 
     @Override
     public void close() {
-        closeOnError(HazelcastSqlException.error(SqlErrorCode.CANCELLED, "Query was cancelled by user."));
+        closeOnError(QueryException.cancelledByUser());
     }
 
-    public void closeOnError(HazelcastSqlException error) {
+    public void closeOnError(QueryException error) {
         state.cancel(error);
     }
 
@@ -94,7 +93,7 @@ public class SqlCursorImpl implements SqlCursor {
         return state.getInitiatorState();
     }
 
-    private static final class RowToSqlRowIterator implements Iterator<SqlRow> {
+    private final class RowToSqlRowIterator implements Iterator<SqlRow> {
 
         private final Iterator<Row> delegate;
 
@@ -104,12 +103,22 @@ public class SqlCursorImpl implements SqlCursor {
 
         @Override
         public boolean hasNext() {
-            return delegate.hasNext();
+            try {
+                return delegate.hasNext();
+            } catch (Exception e) {
+                throw QueryUtils.toPublicException(e, state.getLocalMemberId());
+            }
         }
 
         @Override
         public SqlRow next() {
-            return new SqlRowImpl(delegate.next());
+            try {
+                return new SqlRowImpl(delegate.next());
+            } catch (NoSuchElementException e) {
+                throw e;
+            } catch (Exception e) {
+                throw QueryUtils.toPublicException(e, state.getLocalMemberId());
+            }
         }
     }
 }

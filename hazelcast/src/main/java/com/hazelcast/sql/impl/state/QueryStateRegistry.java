@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.impl.state;
 
+import com.hazelcast.sql.impl.ClockProvider;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.QueryMetadata;
 import com.hazelcast.sql.impl.QueryResultProducer;
@@ -37,14 +38,14 @@ public class QueryStateRegistry {
     /** IDs of locally started queries. */
     private final ConcurrentHashMap<QueryId, QueryState> states = new ConcurrentHashMap<>();
 
-    /** Local member ID. */
-    private UUID localMemberId;
+    private final ClockProvider clockProvider;
 
-    public void start(UUID localMemberId) {
-        this.localMemberId = localMemberId;
+    public QueryStateRegistry(ClockProvider clockProvider) {
+        this.clockProvider = clockProvider;
     }
 
     public QueryState onInitiatorQueryStarted(
+        UUID localMemberId,
         long initiatorTimeout,
         Plan initiatorPlan,
         QueryMetadata initiatorMetadata,
@@ -61,7 +62,8 @@ public class QueryStateRegistry {
             initiatorTimeout,
             initiatorPlan,
             initiatorMetadata,
-            initiatorResultProducer
+            initiatorResultProducer,
+            clockProvider
         );
 
         if (register) {
@@ -71,7 +73,11 @@ public class QueryStateRegistry {
         return state;
     }
 
-    public QueryState onDistributedQueryStarted(QueryId queryId, QueryStateCompletionCallback completionCallback) {
+    public QueryState onDistributedQueryStarted(
+        UUID localMemberId,
+        QueryId queryId,
+        QueryStateCompletionCallback completionCallback
+    ) {
         UUID initiatorMemberId =  queryId.getMemberId();
 
         boolean local = localMemberId.equals(initiatorMemberId);
@@ -87,7 +93,8 @@ public class QueryStateRegistry {
                 state = QueryState.createDistributedState(
                     queryId,
                     localMemberId,
-                    completionCallback
+                    completionCallback,
+                    clockProvider
                 );
 
                 QueryState oldState = states.putIfAbsent(queryId, state);
@@ -113,7 +120,7 @@ public class QueryStateRegistry {
         states.clear();
     }
 
-    public void update(Collection<UUID> memberIds, QueryOperationHandler operationHandler) {
+    public void update(UUID localMemberId, Collection<UUID> memberIds, QueryOperationHandler operationHandler) {
         Map<UUID, Collection<QueryId>> checkMap = new HashMap<>();
 
         for (QueryState state : states.values()) {
@@ -139,7 +146,7 @@ public class QueryStateRegistry {
         for (Map.Entry<UUID, Collection<QueryId>> checkEntry : checkMap.entrySet()) {
             QueryCheckOperation operation = new QueryCheckOperation(checkEntry.getValue());
 
-            operationHandler.submit(checkEntry.getKey(), operation);
+            operationHandler.submit(localMemberId, checkEntry.getKey(), operation);
         }
     }
 }

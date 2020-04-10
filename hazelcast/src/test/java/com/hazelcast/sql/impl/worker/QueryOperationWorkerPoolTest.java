@@ -23,12 +23,14 @@ import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.nio.serialization.DataSerializable;
 import com.hazelcast.sql.SqlErrorCode;
+import com.hazelcast.sql.impl.LoggingQueryOperationHandler;
+import com.hazelcast.sql.impl.LocalMemberIdProvider;
 import com.hazelcast.sql.impl.QueryId;
+import com.hazelcast.sql.impl.TestLocalMemberIdProvider;
 import com.hazelcast.sql.impl.operation.QueryBatchExchangeOperation;
 import com.hazelcast.sql.impl.operation.QueryCancelOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryOperation;
-import com.hazelcast.sql.impl.operation.QueryOperationChannel;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.ListRowBatch;
@@ -48,7 +50,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.LinkedBlockingQueue;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -74,7 +75,7 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
 
     @Test
     public void testSubmitLocal() {
-        TestQueryOperationHandler operationHandler = new TestQueryOperationHandler();
+        LoggingQueryOperationHandler operationHandler = new LoggingQueryOperationHandler();
 
         pool = createPool(operationHandler);
 
@@ -92,7 +93,7 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
         }
 
         assertTrueEventually(() -> {
-            List<ExecuteInfo> infos = operationHandler.tryPollExecuteInfos(repeatCount);
+            List<LoggingQueryOperationHandler.ExecuteInfo> infos = operationHandler.tryPollExecuteInfos(repeatCount);
 
             assertNotNull(infos);
 
@@ -113,7 +114,7 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
         }
 
         assertTrueEventually(() -> {
-            List<ExecuteInfo> infos = operationHandler.tryPollExecuteInfos(repeatCount);
+            List<LoggingQueryOperationHandler.ExecuteInfo> infos = operationHandler.tryPollExecuteInfos(repeatCount);
 
             assertNotNull(infos);
 
@@ -131,7 +132,7 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
 
     @Test
     public void testSubmitRemote() {
-        TestQueryOperationHandler operationHandler = new TestQueryOperationHandler();
+        LoggingQueryOperationHandler operationHandler = new LoggingQueryOperationHandler();
 
         pool = createPool(operationHandler);
 
@@ -145,11 +146,11 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
         pool.submit(cancelOperation.getPartition(), QueryOperationExecutable.remote(packet));
 
         assertTrueEventually(() -> {
-            List<ExecuteInfo> infos = operationHandler.tryPollExecuteInfos(1);
+            LoggingQueryOperationHandler.ExecuteInfo info = operationHandler.tryPollExecuteInfo();
 
-            assertNotNull(infos);
+            assertNotNull(info);
 
-            QueryCancelOperation operation = (QueryCancelOperation) infos.get(0).getOperation();
+            QueryCancelOperation operation = (QueryCancelOperation) info.getOperation();
 
             assertEquals(cancelOperation.getCallerId(), operation.getCallerId());
             assertEquals(cancelOperation.getQueryId(), operation.getQueryId());
@@ -161,18 +162,18 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
 
     @Test
     public void testSubmitRemoteWithDeserializationError() {
-        TestQueryOperationHandler operationHandler = new TestQueryOperationHandler();
-
-        pool = createPool(operationHandler);
-
         UUID localMemberId = UUID.randomUUID();
         UUID remoteMemberId = UUID.randomUUID();
 
-        pool.init(localMemberId);
+        LoggingQueryOperationHandler operationHandler = new LoggingQueryOperationHandler();
+        TestLocalMemberIdProvider localMemberIdProvider = new TestLocalMemberIdProvider(localMemberId);
+
+        pool = createPool(operationHandler, localMemberIdProvider);
 
         QueryBatchExchangeOperation badOperation = new QueryBatchExchangeOperation(
             QueryId.create(remoteMemberId),
             1,
+            UUID.randomUUID(),
             new ListRowBatch(Collections.singletonList(new HeapRow(new Object[]{new BadValue()}))),
             false,
             100
@@ -181,13 +182,13 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
         pool.submit(badOperation.getPartition(), QueryOperationExecutable.remote(toPacket(badOperation)));
 
         assertTrueEventually(() -> {
-            SubmitInfo info = operationHandler.tryPollSubmitInfo();
+            LoggingQueryOperationHandler.SubmitInfo info = operationHandler.tryPollSubmitInfo();
 
             assertNotNull(info);
 
             assertEquals(remoteMemberId, info.getMemberId());
 
-            QueryCancelOperation cancelOperation = (QueryCancelOperation) info.getOperation();
+            QueryCancelOperation cancelOperation = info.getOperation();
 
             assertEquals(SqlErrorCode.GENERIC, cancelOperation.getErrorCode());
             assertTrue(cancelOperation.getErrorMessage().startsWith("Failed to deserialize"));
@@ -197,7 +198,7 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
 
     @Test
     public void testShutdown() {
-        pool = createPool(new TestQueryOperationHandler());
+        pool = createPool(new LoggingQueryOperationHandler());
 
         pool.stop();
 
@@ -208,10 +209,18 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
         }
     }
 
-    private QueryOperationWorkerPool createPool(TestQueryOperationHandler operationHandler) {
+    private QueryOperationWorkerPool createPool(QueryOperationHandler operationHandler) {
+        return createPool(operationHandler, new TestLocalMemberIdProvider(UUID.randomUUID()));
+    }
+
+    private QueryOperationWorkerPool createPool(
+        QueryOperationHandler operationHandler,
+        LocalMemberIdProvider localMemberIdProvider
+    ) {
         return new QueryOperationWorkerPool(
             "instance",
             THREAD_COUNT,
+            localMemberIdProvider,
             operationHandler,
             new DefaultSerializationServiceBuilder().build(),
             new NoLogFactory().getLogger("logger")
@@ -220,83 +229,6 @@ public class QueryOperationWorkerPoolTest extends HazelcastTestSupport {
 
     private static Packet toPacket(QueryOperation operation) {
         return new Packet(new DefaultSerializationServiceBuilder().build().toBytes(operation), operation.getPartition());
-    }
-
-    private static class TestQueryOperationHandler implements QueryOperationHandler {
-
-        private final LinkedBlockingQueue<SubmitInfo> submitInfos = new LinkedBlockingQueue<>();
-        private final LinkedBlockingQueue<ExecuteInfo> executeInfos = new LinkedBlockingQueue<>();
-
-        @Override
-        public boolean submit(UUID memberId, QueryOperation operation) {
-            submitInfos.add(new SubmitInfo(memberId, operation));
-
-            return true;
-        }
-
-        @Override
-        public void execute(QueryOperation operation) {
-            executeInfos.add(new ExecuteInfo(operation, Thread.currentThread().getName()));
-        }
-
-        @Override
-        public QueryOperationChannel createChannel(UUID memberId) {
-            return null;
-        }
-
-        public SubmitInfo tryPollSubmitInfo() {
-            return submitInfos.poll();
-        }
-
-        public List<ExecuteInfo> tryPollExecuteInfos(int count) {
-            if (executeInfos.size() >= count) {
-                List<ExecuteInfo> res = new ArrayList<>();
-
-                for (int i = 0; i < count; i++) {
-                    res.add(executeInfos.poll());
-                }
-
-                return res;
-            } else {
-                return null;
-            }
-        }
-    }
-
-    private static class SubmitInfo {
-        private final UUID memberId;
-        private final QueryOperation operation;
-
-        private SubmitInfo(UUID memberId, QueryOperation operation) {
-            this.memberId = memberId;
-            this.operation = operation;
-        }
-
-        private UUID getMemberId() {
-            return memberId;
-        }
-
-        private QueryOperation getOperation() {
-            return operation;
-        }
-    }
-
-    private static class ExecuteInfo {
-        private final QueryOperation operation;
-        private final String threadName;
-
-        private ExecuteInfo(QueryOperation operation, String threadName) {
-            this.operation = operation;
-            this.threadName = threadName;
-        }
-
-        private QueryOperation getOperation() {
-            return operation;
-        }
-
-        private String getThreadName() {
-            return threadName;
-        }
     }
 
     private static class BadValue implements DataSerializable {

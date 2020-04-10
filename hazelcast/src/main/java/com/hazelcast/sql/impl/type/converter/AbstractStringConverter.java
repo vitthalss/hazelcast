@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl.type.converter;
 
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 
@@ -36,7 +36,7 @@ public abstract class AbstractStringConverter extends Converter {
     }
 
     @Override
-    public final boolean asBit(Object val) {
+    public final boolean asBoolean(Object val) {
         String val0 = cast(val);
 
         if (val0.equalsIgnoreCase(BooleanConverter.TRUE)) {
@@ -45,7 +45,7 @@ public abstract class AbstractStringConverter extends Converter {
             return false;
         }
 
-        throw HazelcastSqlException.error(SqlErrorCode.DATA_EXCEPTION, "VARCHAR value cannot be converted to BIT: " + val);
+        throw QueryException.error(SqlErrorCode.DATA_EXCEPTION, "VARCHAR value cannot be converted to BOOLEAN: " + val);
     }
 
     @Override

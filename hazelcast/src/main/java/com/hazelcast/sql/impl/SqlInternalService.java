@@ -16,14 +16,14 @@
 
 package com.hazelcast.sql.impl;
 
-import com.hazelcast.config.SqlConfig;
-import com.hazelcast.spi.impl.NodeEngineImpl;
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.internal.nio.Packet;
+import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.client.QueryClientStateRegistry;
 import com.hazelcast.sql.impl.exec.root.BlockingRootResultConsumer;
 import com.hazelcast.sql.impl.explain.QueryExplain;
 import com.hazelcast.sql.impl.explain.QueryExplainResultProducer;
 import com.hazelcast.sql.impl.memory.GlobalMemoryReservationManager;
+import com.hazelcast.sql.impl.memory.MemoryPressure;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFactory;
 import com.hazelcast.sql.impl.operation.QueryOperationHandlerImpl;
@@ -34,7 +34,9 @@ import com.hazelcast.sql.impl.state.QueryStateRegistryUpdater;
 import com.hazelcast.sql.impl.type.converter.Converter;
 import com.hazelcast.sql.impl.type.converter.Converters;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -44,8 +46,15 @@ public class SqlInternalService {
     /** Default state check frequency. */
     public static final long STATE_CHECK_FREQUENCY = 2000L;
 
-    /** Node engine. */
-    private final NodeEngineImpl nodeEngine;
+    private static final int SMALL_TOPOLOGY_THRESHOLD = 8;
+    private static final int MEDIUM_TOPOLOGY_THRESHOLD = 16;
+
+    private static final int LOW_PRESSURE_CREDIT = 1024 * 1024;
+    private static final int MEDIUM_PRESSURE_CREDIT = 512 * 1024;
+    private static final int HIGH_PRESSURE_CREDIT = 256 * 1024;
+
+    /** Node service provider. */
+    private final NodeServiceProvider nodeServiceProvider;
 
     /** Global memory manager. */
     private final GlobalMemoryReservationManager memoryManager;
@@ -62,28 +71,36 @@ public class SqlInternalService {
     /** State registry updater. */
     private final QueryStateRegistryUpdater stateRegistryUpdater;
 
-    public SqlInternalService(NodeEngineImpl nodeEngine) {
-        this.nodeEngine = nodeEngine;
-
-        SqlConfig config = nodeEngine.getConfig().getSqlConfig();
+    public SqlInternalService(
+        String instanceName,
+        NodeServiceProvider nodeServiceProvider,
+        InternalSerializationService serializationService,
+        int operationThreadCount,
+        int fragmentThreadCount,
+        long maxMemory
+    ) {
+        this.nodeServiceProvider = nodeServiceProvider;
 
         // Memory manager is created first.
-        memoryManager = new GlobalMemoryReservationManager(config.getMaxMemory());
+        memoryManager = new GlobalMemoryReservationManager(maxMemory);
 
         // Create state registries since they do not depend on anything.
-        stateRegistry = new QueryStateRegistry();
+        stateRegistry = new QueryStateRegistry(nodeServiceProvider);
         clientStateRegistry = new QueryClientStateRegistry();
 
         // Operation handler depends on state registry.
         operationHandler = new QueryOperationHandlerImpl(
-            nodeEngine,
+            instanceName,
+            nodeServiceProvider,
+            serializationService,
             stateRegistry,
-            config.getThreadCount(),
-            config.getOperationThreadCount()
+            fragmentThreadCount,
+            operationThreadCount
         );
 
         // State checker depends on state registries and operation handler.
         stateRegistryUpdater = new QueryStateRegistryUpdater(
+            nodeServiceProvider,
             stateRegistry,
             clientStateRegistry,
             operationHandler,
@@ -92,11 +109,7 @@ public class SqlInternalService {
     }
 
     public void start() {
-        UUID localMemberId = nodeEngine.getLocalMember().getUuid();
-
-        stateRegistry.start(localMemberId);
-        stateRegistryUpdater.start(nodeEngine.getClusterService(), nodeEngine.getHazelcastInstance().getClientService());
-        operationHandler.start(localMemberId);
+        stateRegistryUpdater.start();
     }
 
     public void reset() {
@@ -117,15 +130,76 @@ public class SqlInternalService {
      * @return Query state.
      */
     public QueryState execute(Plan plan, List<Object> params, long timeout, int pageSize) {
-
         // Prepare parameters.
+        params = prepareParameters(plan, params);
 
+        // Get local member ID and check if it is still part of the plan.
+        UUID localMemberId = nodeServiceProvider.getLocalMemberId();
+
+        if (!plan.getPartitionMap().containsKey(localMemberId)) {
+            throw QueryException.memberLeave(localMemberId);
+        }
+
+        // Prepare mappings.
+        QueryExecuteOperationFactory operationFactory = new QueryExecuteOperationFactory(
+            plan,
+            params,
+            createEdgeInitialMemoryMapForPlan(plan)
+        );
+
+        // Register the state.
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+
+        QueryState state = stateRegistry.onInitiatorQueryStarted(
+            localMemberId,
+            timeout,
+            plan,
+            plan.getMetadata(),
+            consumer,
+            operationHandler,
+            true
+        );
+
+        try {
+            // Start execution on local member.
+            QueryExecuteOperation localOp = operationFactory.create(state.getQueryId(), localMemberId);
+
+            localOp.setRootConsumer(consumer, pageSize);
+
+            operationHandler.submitLocal(localMemberId, localOp);
+
+            // Start execution on remote members.
+            for (UUID memberId : plan.getMemberIds()) {
+                if (memberId.equals(localMemberId)) {
+                    continue;
+                }
+
+                QueryExecuteOperation remoteOp = operationFactory.create(state.getQueryId(), memberId);
+
+                if (!operationHandler.submit(localMemberId, memberId, remoteOp)) {
+                    throw QueryException.memberLeave(memberId);
+                }
+            }
+
+            return state;
+        } catch (Exception e) {
+            state.cancel(e);
+
+            throw e;
+        }
+    }
+
+    public void onPacket(Packet packet) {
+        operationHandler.onPacket(packet);
+    }
+
+    private List<Object> prepareParameters(Plan plan, List<Object> params) {
         assert params != null;
         QueryParameterMetadata parameterMetadata = plan.getParameterMetadata();
         int parameterCount = parameterMetadata.getParameterCount();
         if (parameterCount != params.size()) {
-            throw HazelcastSqlException.error(
-                    "Unexpected parameter count: expected " + parameterCount + ", got " + params.size());
+            throw QueryException.error(
+                "Unexpected parameter count: expected " + parameterCount + ", got " + params.size());
         }
         for (int i = 0; i < params.size(); ++i) {
             Object value = params.get(i);
@@ -139,56 +213,50 @@ public class SqlInternalService {
             params.set(i, value);
         }
 
-        // Prepare mappings.
-        QueryExecuteOperationFactory operationFactory = new QueryExecuteOperationFactory(
-            plan,
-            params,
-            timeout,
-            memoryManager.getMemoryPressure()
-        );
+        return params;
+    }
 
-        // Register the state.
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+    private Map<Integer, Long> createEdgeInitialMemoryMapForPlan(Plan plan) {
+        Map<Integer, Integer> inboundEdgeMemberCountMap = plan.getInboundEdgeMemberCountMap();
 
-        QueryState state = stateRegistry.onInitiatorQueryStarted(
-            timeout,
-            plan,
-            plan.getMetadata(),
-            consumer,
-            operationHandler,
-            true
-        );
+        Map<Integer, Long> res = new HashMap<>(inboundEdgeMemberCountMap.size());
 
-        try {
-            // Start execution on local member.
-            UUID localMemberId = nodeEngine.getLocalMember().getUuid();
+        for (Map.Entry<Integer, Integer> entry : inboundEdgeMemberCountMap.entrySet()) {
+            res.put(entry.getKey(), getCredit(memoryManager.getMemoryPressure(), entry.getValue()));
+        }
 
-            QueryExecuteOperation localOp = operationFactory.create(state.getQueryId(), localMemberId);
+        return res;
+    }
 
-            localOp.setRootConsumer(consumer, pageSize);
+    private static long getCredit(MemoryPressure memoryPressure, int memberCount) {
+        MemoryPressure memoryPressure0;
 
-            operationHandler.submit(localMemberId, localOp);
+        if (memberCount <= SMALL_TOPOLOGY_THRESHOLD) {
+            // Small topology. Do not adjust memory pressure.
+            memoryPressure0 = memoryPressure;
+        } else if (memberCount <= MEDIUM_TOPOLOGY_THRESHOLD) {
+            // Medium topology. Treat LOW as MEDIUM.
+            memoryPressure0 = memoryPressure == MemoryPressure.LOW ? MemoryPressure.MEDIUM : memoryPressure;
+        } else {
+            // Large topology. Tread everything as HIGH.
+            memoryPressure0 = MemoryPressure.HIGH;
+        }
 
-            // Start execution on remote members.
-            for (int i = 0; i < plan.getDataMemberIds().size(); i++) {
-                UUID memberId = plan.getDataMemberIds().get(i);
+        switch (memoryPressure0) {
+            case LOW:
+                // 1Mb
+                return LOW_PRESSURE_CREDIT;
 
-                if (memberId.equals(localMemberId)) {
-                    continue;
-                }
+            case MEDIUM:
+                // 512Kb
+                return MEDIUM_PRESSURE_CREDIT;
 
-                QueryExecuteOperation remoteOp = operationFactory.create(state.getQueryId(), memberId);
+            case HIGH:
+                // 256Kb
+                return HIGH_PRESSURE_CREDIT;
 
-                if (!operationHandler.submit(memberId, remoteOp)) {
-                    throw HazelcastSqlException.memberLeave(memberId);
-                }
-            }
-
-            return state;
-        } catch (Exception e) {
-            state.cancel(e);
-
-            throw e;
+            default:
+                throw new IllegalStateException("Invalid memory pressure: " + memoryPressure0);
         }
     }
 
@@ -198,6 +266,7 @@ public class SqlInternalService {
         QueryExplainResultProducer rowSource = new QueryExplainResultProducer(explain);
 
         QueryState state = stateRegistry.onInitiatorQueryStarted(
+            nodeServiceProvider.getLocalMemberId(),
             0,
             plan,
             QueryExplain.EXPLAIN_METADATA,

@@ -16,8 +16,7 @@
 
 package com.hazelcast.sql.impl.exec.io.flowcontrol.simple;
 
-import com.hazelcast.sql.HazelcastSqlException;
-import com.hazelcast.sql.SqlErrorCode;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControl;
 import com.hazelcast.sql.impl.operation.QueryFlowControlExchangeOperation;
@@ -28,17 +27,21 @@ import java.util.UUID;
 
 /**
  * Simple implementation of a flow control. The flow control message is sent when the remote end thinks that local end is low
- * on memory, while this is no longer the case for the local end.
+ * on memory.
  */
 public class SimpleFlowControl implements FlowControl {
-    /** Low watermark: denotes low memory condition. */
-    private static final double LWM_PERCENTAGE = 0.25f;
+    /** Default threashold. */
+    static final double THRESHOLD_PERCENTAGE = 0.25f;
 
     /** Maximum amount of memory allowed to be consumed by the local stream. */
     private final long maxMemory;
 
+    /** Low memory threshold in percents. */
+    private final double thresholdPercentage;
+
     private QueryId queryId;
     private int edgeId;
+    private UUID localMemberId;
     private QueryOperationHandler operationHandler;
 
     /** Remote streams. */
@@ -47,14 +50,16 @@ public class SimpleFlowControl implements FlowControl {
     /** Remote streams that should be notified. */
     private HashMap<UUID, SimpleFlowControlStream> pendingStreams;
 
-    public SimpleFlowControl(long maxMemory) {
+    public SimpleFlowControl(long maxMemory, double thresholdPercentage) {
         this.maxMemory = maxMemory;
+        this.thresholdPercentage = thresholdPercentage;
     }
 
     @Override
-    public void setup(QueryId queryId, int edgeId, QueryOperationHandler operationHandler) {
+    public void setup(QueryId queryId, int edgeId, UUID localMemberId, QueryOperationHandler operationHandler) {
         this.queryId = queryId;
         this.edgeId = edgeId;
+        this.localMemberId = localMemberId;
         this.operationHandler = operationHandler;
     }
 
@@ -138,6 +143,14 @@ public class SimpleFlowControl implements FlowControl {
         pendingStreams.clear();
     }
 
+    public long getMaxMemory() {
+        return maxMemory;
+    }
+
+    public double getThresholdPercentage() {
+        return thresholdPercentage;
+    }
+
     /**
      * Send flow control message for the given stream.
      *
@@ -150,11 +163,10 @@ public class SimpleFlowControl implements FlowControl {
             stream.getLocalMemory()
         );
 
-        boolean success = operationHandler.submit(stream.getMemberId(), operation);
+        boolean success = operationHandler.submit(localMemberId, stream.getMemberId(), operation);
 
         if (!success) {
-            throw HazelcastSqlException.error(SqlErrorCode.MEMBER_LEAVE,
-                "Failed to send control flow message to member: " + stream.getMemberId());
+            throw QueryException.memberConnection(stream.getMemberId());
         }
     }
 
@@ -165,8 +177,6 @@ public class SimpleFlowControl implements FlowControl {
      * @return {@code true} if below the watermark.
      */
     private boolean isLowMemory(long availableMemory) {
-        double percentage = ((double) availableMemory) / maxMemory;
-
-        return percentage <= LWM_PERCENTAGE;
+        return ((double) availableMemory) / maxMemory <= thresholdPercentage;
     }
 }

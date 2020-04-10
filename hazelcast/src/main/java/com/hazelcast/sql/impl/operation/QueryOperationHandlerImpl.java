@@ -16,15 +16,12 @@
 
 package com.hazelcast.sql.impl.operation;
 
-import com.hazelcast.cluster.impl.MemberImpl;
-import com.hazelcast.instance.EndpointQualifier;
 import com.hazelcast.internal.nio.Connection;
-import com.hazelcast.internal.nio.EndpointManager;
 import com.hazelcast.internal.nio.Packet;
 import com.hazelcast.internal.serialization.InternalSerializationService;
-import com.hazelcast.spi.impl.NodeEngineImpl;
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.SqlErrorCode;
+import com.hazelcast.sql.impl.NodeServiceProvider;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.compiler.CompiledFragment;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
@@ -32,6 +29,7 @@ import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;
 import com.hazelcast.sql.impl.exec.io.OutboundHandler;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.simple.SimpleFlowControlFactory;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.state.QueryState;
 import com.hazelcast.sql.impl.state.QueryStateCompletionCallback;
@@ -52,50 +50,46 @@ import java.util.function.Consumer;
 /**
  * Executes query operations.
  */
-public class QueryOperationHandlerImpl implements QueryOperationHandler, QueryStateCompletionCallback, Consumer<Packet> {
+public class QueryOperationHandlerImpl implements QueryOperationHandler, QueryStateCompletionCallback {
 
     // TODO: Understand how to calculate it properly. It should not be hardcoded.
     private static final int OUTBOX_BATCH_SIZE = 512 * 1024;
 
-    private final NodeEngineImpl nodeEngine;
+    private final NodeServiceProvider nodeServiceProvider;
+    private final InternalSerializationService serializationService;
     private final QueryStateRegistry stateRegistry;
     private final QueryFragmentWorkerPool fragmentPool;
     private final QueryOperationWorkerPool operationPool;
-    private final QueryOperationChannel localOperationChannel;
 
     // TODO: Cache whole plans instead of compiled fragments because in this case we will have simpler lifecycle.
     private final ConcurrentHashMap<UUID, CompiledFragmentTemplate> compiledFragments = new ConcurrentHashMap<>();
 
     public QueryOperationHandlerImpl(
-        NodeEngineImpl nodeEngine,
+        String instanceName,
+        NodeServiceProvider nodeServiceProvider,
+        InternalSerializationService serializationService,
         QueryStateRegistry stateRegistry,
         int threadCount,
         int operationThreadCount
     ) {
-        this.nodeEngine = nodeEngine;
+        this.nodeServiceProvider = nodeServiceProvider;
+        this.serializationService = serializationService;
         this.stateRegistry = stateRegistry;
-
-        String instanceName = nodeEngine.getHazelcastInstance().getName();
 
         fragmentPool = new QueryFragmentWorkerPool(
             instanceName,
             threadCount,
-            nodeEngine.getLogger(QueryFragmentWorkerPool.class)
+            nodeServiceProvider.getLogger(QueryFragmentWorkerPool.class)
         );
 
         operationPool = new QueryOperationWorkerPool(
             instanceName,
             operationThreadCount,
+            nodeServiceProvider,
             this,
-            nodeEngine.getSerializationService(),
-            nodeEngine.getLogger(QueryOperationWorkerPool.class)
+            serializationService,
+            nodeServiceProvider.getLogger(QueryOperationWorkerPool.class)
         );
-
-        localOperationChannel = new QueryOperationChannelImpl(this, null);
-    }
-
-    public void start(UUID localMemberId) {
-        operationPool.init(localMemberId);
     }
 
     public void stop() {
@@ -104,30 +98,30 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     }
 
     @Override
-    public boolean submit(UUID memberId, QueryOperation operation) {
-        if (memberId.equals(getLocalMemberId())) {
-            submitLocal(operation);
+    public boolean submit(UUID localMemberId, UUID targetMemberId, QueryOperation operation) {
+        if (targetMemberId.equals(localMemberId)) {
+            submitLocal(localMemberId, operation);
 
             return true;
         } else {
-            Connection connection = getConnection(memberId);
+            Connection connection = getConnection(targetMemberId);
 
             if (connection == null) {
                 return false;
             }
 
-            return submitRemote(connection, operation, false);
+            return submitRemote(localMemberId, connection, operation, false);
         }
     }
 
-    public void submitLocal(QueryOperation operation) {
-        operation.setCallerId(getLocalMemberId());
+    public void submitLocal(UUID callerId, QueryOperation operation) {
+        operation.setCallerId(callerId);
 
         operationPool.submit(operation.getPartition(), QueryOperationExecutable.local(operation));
     }
 
-    public boolean submitRemote(Connection connection, QueryOperation operation, boolean ordered) {
-        operation.setCallerId(getLocalMemberId());
+    public boolean submitRemote(UUID callerId, Connection connection, QueryOperation operation, boolean ordered) {
+        operation.setCallerId(callerId);
 
         byte[] bytes = serializeOperation(operation);
 
@@ -141,17 +135,17 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     }
 
     @Override
-    public QueryOperationChannel createChannel(UUID memberId) {
-        if (memberId.equals(getLocalMemberId())) {
-            return localOperationChannel;
+    public QueryOperationChannel createChannel(UUID sourceMemberId, UUID targetMemberId) {
+        if (targetMemberId.equals(getLocalMemberId())) {
+            return new QueryOperationChannelImpl(this, sourceMemberId, null);
         } else {
-            Connection connection = getConnection(memberId);
+            Connection connection = getConnection(targetMemberId);
 
             if (connection == null) {
-                throw HazelcastSqlException.memberLeave(memberId);
+                throw QueryException.memberLeave(targetMemberId);
             }
 
-            return new QueryOperationChannelImpl(this, connection);
+            return new QueryOperationChannelImpl(this, sourceMemberId, connection);
         }
     }
 
@@ -173,12 +167,19 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     }
 
     private void handleExecute(QueryExecuteOperation operation) {
+        UUID localMemberId = getLocalMemberId();
+
+        if (!operation.getPartitionMap().containsKey(localMemberId)) {
+            // Race condition when the message was initiated before the split brain, but arrived after it when the member got
+            // a new local ID. No need to start the query, because it will be cancelled by the initiator anyway.
+            return;
+        }
+
         // Get or create query state.
-        QueryState state = stateRegistry.onDistributedQueryStarted(operation.getQueryId(), this);
+        QueryState state = stateRegistry.onDistributedQueryStarted(localMemberId, operation.getQueryId(), this);
 
         if (state == null) {
-            // Rare situation when query start request arrived after query cancel and the epoch is advanced enough that
-            // we know for sure that the query should not start at all.
+            // Race condition when query start request arrived after query cancel.
             return;
         }
 
@@ -196,9 +197,12 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             // Create executors and inboxes.
             CreateExecPlanNodeVisitor visitor = new CreateExecPlanNodeVisitor(
                 this,
-                nodeEngine,
+                nodeServiceProvider,
+                serializationService,
+                localMemberId,
                 operation,
-                operation.getPartitionMapping().get(getLocalMemberId()),
+                SimpleFlowControlFactory.INSTANCE,
+                operation.getPartitionMap().get(localMemberId),
                 OUTBOX_BATCH_SIZE,
                 compiledFragment
             );
@@ -225,7 +229,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         }
 
         // Initialize the distributed state.
-        state.getDistributedState().onStart(fragmentExecutables, operation.getTimeout());
+        state.getDistributedState().onStart(fragmentExecutables);
 
         // Schedule initial processing of fragments.
         for (QueryFragmentExecutable fragmentExecutable : fragmentExecutables) {
@@ -234,16 +238,20 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     }
 
     private void handleBatch(QueryBatchExchangeOperation operation) {
-        // TODO: Remove
-//        RowBatch batch = operation.getBatch();
-//
-//        System.out.println(">>> BATCH       : " + operation.getCallerId() + " => " + getLocalMemberId()
-//            + " => (" + batch.getRows().size() + ", " + operation.isLast() + ", " + operation.getRemainingMemory() + ")");
+        UUID localMemberId = getLocalMemberId();
 
-        QueryState state = stateRegistry.onDistributedQueryStarted(operation.getQueryId(), this);
+        if (!localMemberId.equals(operation.getTargetMemberId())) {
+            // Received the batch for the old local member ID. I.e. the query was started before the split brain, and the
+            // batch is received after the split brain healing. The query will be cancelled anyway, so ignore the batch.
+            return;
+        }
+
+        QueryState state = stateRegistry.onDistributedQueryStarted(localMemberId, operation.getQueryId(), this);
 
         if (state == null) {
-            // Received stale batch, no-op.
+            // Received stale batch for the query initiated on a local member, ignore.
+            assert localMemberId.equals(operation.getQueryId().getMemberId());
+
             return;
         }
 
@@ -268,7 +276,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         // We pass originating member ID here instead if caller ID to preserve the causality:
         // in the "participant1 -> co4ordinator -> participant2" flow, the second participant
         // get the ID of participant1.
-        HazelcastSqlException error = HazelcastSqlException.remoteError(
+        QueryException error = QueryException.remoteError(
             operation.getErrorCode(),
             operation.getErrorMessage(),
             operation.getOriginatingMemberId()
@@ -278,10 +286,6 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
     }
 
     private void handleFlowControl(QueryFlowControlExchangeOperation operation) {
-        // TODO: Remove
-//        System.out.println(">>> FLOW CONTROL: " + operation.getCallerUuid() + " => "
-//            + getLocalMemberId() + " => " + operation.getRemainingMemory());
-
         QueryState state = stateRegistry.getState(operation.getQueryId());
 
         if (state == null) {
@@ -309,7 +313,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
 
         QueryCheckResponseOperation responseOperation = new QueryCheckResponseOperation(inactiveQueryIds);
 
-        submit(operation.getCallerId(), responseOperation);
+        submit(getLocalMemberId(), operation.getCallerId(), responseOperation);
     }
 
     private void handleCheckResponse(QueryCheckResponseOperation operation) {
@@ -317,7 +321,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             return;
         }
 
-        HazelcastSqlException error = HazelcastSqlException.remoteError(
+        QueryException error = QueryException.remoteError(
             SqlErrorCode.GENERIC,
             "Query is no longer active on coordinator.",
             operation.getCallerId()
@@ -347,43 +351,32 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             QueryCancelOperation operation = new QueryCancelOperation(queryId, errCode, errMessage, originatingMemberId);
 
             for (UUID memberId : memberIds) {
-                submit(memberId, operation);
+                submit(getLocalMemberId(), memberId, operation);
             }
         } finally {
             stateRegistry.complete(queryId);
         }
     }
 
-    @Override
-    public void accept(Packet packet) {
+    public void onPacket(Packet packet) {
         int partition = packet.hasPartitionHash() ? packet.getPartitionId() : QueryOperation.PARTITION_ANY;
 
         operationPool.submit(partition, QueryOperationExecutable.remote(packet));
     }
 
     private Connection getConnection(UUID memberId) {
-        MemberImpl member = nodeEngine.getClusterService().getMember(memberId);
-
-        if (member == null) {
-            return null;
-        }
-
-        EndpointManager<Connection> endpointManager = nodeEngine.getNode().getEndpointManager(EndpointQualifier.MEMBER);
-
-        return endpointManager.getConnection(member.getAddress());
+        return nodeServiceProvider.getConnection(memberId);
     }
 
     private UUID getLocalMemberId() {
-        return nodeEngine.getLocalMember().getUuid();
+        return nodeServiceProvider.getLocalMemberId();
     }
 
     private byte[] serializeOperation(QueryOperation operation) {
         try {
-            InternalSerializationService ss = (InternalSerializationService) nodeEngine.getSerializationService();
-
-            return ss.toBytes(operation);
+            return serializationService.toBytes(operation);
         } catch (Exception e) {
-            throw HazelcastSqlException.error(
+            throw QueryException.error(
                 "Failed to serialize " + operation.getClass().getSimpleName() + ": " + e.getMessage(), e);
         }
     }

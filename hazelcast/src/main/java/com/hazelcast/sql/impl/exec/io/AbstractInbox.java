@@ -20,6 +20,8 @@ import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControl;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 
+import java.util.UUID;
+
 /**
  * Abstract inbox implementation.
  */
@@ -30,21 +32,19 @@ public abstract class AbstractInbox extends AbstractMailbox implements InboundHa
     /** Remaining active sources. */
     private int remainingStreams;
 
-    /** Parent service. */
     private final QueryOperationHandler operationHandler;
-
-    /** Backpressure control. */
     private final FlowControl flowControl;
 
     protected AbstractInbox(
+        QueryOperationHandler operationHandler,
         QueryId queryId,
         int edgeId,
         int rowWidth,
-        QueryOperationHandler operationHandler,
+        UUID localMemberId,
         int remainingStreams,
         FlowControl flowControl
     ) {
-        super(queryId, edgeId, rowWidth);
+        super(queryId, edgeId, rowWidth, localMemberId);
 
         this.operationHandler = operationHandler;
         this.remainingStreams = remainingStreams;
@@ -52,7 +52,7 @@ public abstract class AbstractInbox extends AbstractMailbox implements InboundHa
     }
 
     public void setup() {
-        flowControl.setup(queryId, edgeId, operationHandler);
+        flowControl.setup(queryId, edgeId, localMemberId, operationHandler);
     }
 
     @Override
@@ -99,13 +99,21 @@ public abstract class AbstractInbox extends AbstractMailbox implements InboundHa
     }
 
     /**
-     * @return {@code True} if no more incoming batches are expected.
+     * @return {@code true} if no more incoming batches are expected.
      */
     public boolean closed() {
         return enqueuedBatches == 0 && remainingStreams == 0;
     }
 
+    public int getRemainingStreams() {
+        return remainingStreams;
+    }
+
+    public FlowControl getFlowControl() {
+        return flowControl;
+    }
+
     private long getBatchSize(InboundBatch batch) {
-        return batch.getBatch().getRowCount() * rowWidth;
+        return (long) batch.getBatch().getRowCount() * rowWidth;
     }
 }

@@ -16,11 +16,12 @@
 
 package com.hazelcast.sql.impl.state;
 
-import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlErrorCode;
+import com.hazelcast.sql.impl.ClockProvider;
+import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.QueryMetadata;
 import com.hazelcast.sql.impl.QueryResultProducer;
-import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.plan.Plan;
 
 import java.util.Collection;
@@ -48,6 +49,9 @@ public final class QueryState implements QueryStateCallback {
     /** Distributed state. */
     private final QueryDistributedState distributedState = new QueryDistributedState();
 
+    /** Clock provider. */
+    private final ClockProvider clockProvider;
+
     /** Start time. */
     private final long startTime;
 
@@ -55,26 +59,25 @@ public final class QueryState implements QueryStateCallback {
     private final UUID localMemberId;
 
     /** Error which caused query completion. */
-    private volatile HazelcastSqlException completionError;
+    private volatile QueryException completionError;
 
-    /** Whether query check was requested. */
-    private volatile boolean queryCheckRequested;
+    /** Time when the a check was performed for the last time. */
+    private volatile long checkTime;
 
     private QueryState(
         QueryId queryId,
-        long startTime,
         UUID localMemberId,
         QueryStateCompletionCallback completionCallback,
         boolean initiator,
         long initiatorTimeout,
         Plan initiatorPlan,
         QueryMetadata initiatorMetadata,
-        QueryResultProducer initiatorRowSource
+        QueryResultProducer initiatorRowSource,
+        ClockProvider clockProvider
     ) {
         // Set common state.
         this.queryId = queryId;
         this.completionCallback = completionCallback;
-        this.startTime = startTime;
         this.localMemberId = localMemberId;
 
         if (initiator) {
@@ -88,6 +91,11 @@ public final class QueryState implements QueryStateCallback {
         } else {
             initiatorState = null;
         }
+
+        this.clockProvider = clockProvider;
+
+        startTime = clockProvider.currentTimeMillis();
+        checkTime = startTime;
     }
 
     public static QueryState createInitiatorState(
@@ -97,18 +105,19 @@ public final class QueryState implements QueryStateCallback {
         long initiatorTimeout,
         Plan initiatorPlan,
         QueryMetadata initiatorMetadata,
-        QueryResultProducer initiatorResultProducer
+        QueryResultProducer initiatorResultProducer,
+        ClockProvider clockProvider
     ) {
         return new QueryState(
             queryId,
-            System.currentTimeMillis(),
             localMemberId,
             completionCallback,
             true,
             initiatorTimeout,
             initiatorPlan,
             initiatorMetadata,
-            initiatorResultProducer
+            initiatorResultProducer,
+            clockProvider
         );
     }
 
@@ -121,23 +130,28 @@ public final class QueryState implements QueryStateCallback {
     public static QueryState createDistributedState(
         QueryId queryId,
         UUID localMemberId,
-        QueryStateCompletionCallback completionCallback
+        QueryStateCompletionCallback completionCallback,
+        ClockProvider clockProvider
     ) {
         return new QueryState(
             queryId,
-            System.currentTimeMillis(),
             localMemberId,
             completionCallback,
             false,
             -1,
             null,
             null,
-            null
+            null,
+            clockProvider
         );
     }
 
     public QueryId getQueryId() {
         return queryId;
+    }
+
+    public UUID getLocalMemberId() {
+        return localMemberId;
     }
 
     public boolean isInitiator() {
@@ -167,12 +181,17 @@ public final class QueryState implements QueryStateCallback {
 
     @Override
     public void cancel(Exception error) {
-        // Wrap into common SQL exception if needed.
-        if (!(error instanceof HazelcastSqlException)) {
-            error = HazelcastSqlException.error(SqlErrorCode.GENERIC, error.getMessage(), error);
+        // Make sure that this thread changes the state.
+        if (!completionGuard.compareAndSet(false, true)) {
+            return;
         }
 
-        HazelcastSqlException error0 = (HazelcastSqlException) error;
+        // Wrap into common SQL exception if needed.
+        if (!(error instanceof QueryException)) {
+            error = QueryException.error(SqlErrorCode.GENERIC, error.getMessage(), error);
+        }
+
+        QueryException error0 = (QueryException) error;
 
         // Calculate the originating member.
         UUID originatingMemberId = error0.getOriginatingMemberId();
@@ -182,17 +201,23 @@ public final class QueryState implements QueryStateCallback {
         }
 
         // Determine members which should be notified.
-        boolean initiator = queryId.getMemberId().equals(localMemberId);
-        boolean propagate = originatingMemberId.equals(localMemberId) || initiator;
+        Collection<UUID> memberIds;
 
-        Collection<UUID> memberIds = propagate ? initiator
-            ? getParticipantsWithoutInitiator() : Collections.singletonList(queryId.getMemberId()) : Collections.emptyList();
-
-        // Invoke the completion callback.
-        if (!completionGuard.compareAndSet(false, true)) {
-            return;
+        if (isInitiator()) {
+            // Cancel is performed on an initiator. Broadcast to all participants.
+            memberIds = getParticipantsWithoutInitiator();
+        } else {
+            // Cancel is performed on a participant.
+            if (error0.getOriginatingMemberId() == null) {
+                // The cancel was just triggered. Propagate to the initiator.
+                memberIds = Collections.singletonList(queryId.getMemberId());
+            } else {
+                // The cancel was propagated from coordinator. Do not notify again.
+                memberIds = Collections.emptyList();
+            }
         }
 
+        // Invoke the completion callback.
         assert completionCallback != null;
 
         completionCallback.onError(
@@ -205,6 +230,7 @@ public final class QueryState implements QueryStateCallback {
 
         completionError = error0;
 
+        // If this is the initiator
         if (isInitiator()) {
             initiatorState.getResultProducer().onError(error0);
         }
@@ -235,7 +261,7 @@ public final class QueryState implements QueryStateCallback {
             return false;
         }
 
-        HazelcastSqlException error = HazelcastSqlException.memberLeave(missingMemberIds);
+        QueryException error = QueryException.memberLeave(missingMemberIds);
 
         cancel(error);
 
@@ -246,21 +272,14 @@ public final class QueryState implements QueryStateCallback {
      * Attempts to cancel the query if timeout has reached.
      */
     public boolean tryCancelOnTimeout() {
-        // Get timeout from either initiator state of initialized distributed state.
-        Long timeout;
-
-        if (isInitiator()) {
-            timeout = initiatorState.getTimeout();
-        } else {
-            timeout = distributedState.getTimeout();
+        if (!isInitiator()) {
+            return false;
         }
 
-        if (timeout != null && timeout > 0 && System.currentTimeMillis() > startTime + timeout) {
-            HazelcastSqlException error = HazelcastSqlException.error(
-                SqlErrorCode.TIMEOUT, "Query is cancelled due to timeout (" + timeout + " ms)"
-            );
+        long timeout = initiatorState.getTimeout();
 
-            cancel(error);
+        if (timeout > 0 && clockProvider.currentTimeMillis() > startTime + timeout) {
+            cancel(QueryException.timeout(timeout));
 
             return true;
         } else {
@@ -268,8 +287,13 @@ public final class QueryState implements QueryStateCallback {
         }
     }
 
+    /**
+     * Check if the query check is required for the given query.
+     *
+     * @return {@code true} if query check should be initiated, {@code false} otherwise.
+     */
     public boolean requestQueryCheck() {
-        // We never need to check queries started locally.
+        // No need to check the query that has initiator state.
         if (isInitiator()) {
             return false;
         }
@@ -280,24 +304,20 @@ public final class QueryState implements QueryStateCallback {
         }
 
         // Don't bother if the query is relatively recent.
-        if (System.currentTimeMillis() - startTime < STATE_CHECK_FREQUENCY * 2) {
+        long currentTime = clockProvider.currentTimeMillis();
+
+        if (currentTime - checkTime < STATE_CHECK_FREQUENCY * 2) {
             return false;
         }
 
-        // Staleness check already requested, do not bother.
-        if (queryCheckRequested) {
-            return false;
-        }
-
-        // Otherwise schedule the check,
-        queryCheckRequested = true;
+        checkTime = currentTime;
 
         return true;
     }
 
     @Override
     public void checkCancelled() {
-        HazelcastSqlException completionError0 = completionError;
+        QueryException completionError0 = completionError;
 
         if (completionError0 != null) {
             throw completionError0;
@@ -311,11 +331,10 @@ public final class QueryState implements QueryStateCallback {
      */
     public Set<UUID> getParticipantsWithoutInitiator() {
         assert isInitiator();
-        assert queryId.getMemberId().equals(localMemberId);
 
-        Set<UUID> res = new HashSet<>(initiatorState.getPlan().getDataMemberIds());
+        Set<UUID> res = new HashSet<>(initiatorState.getPlan().getMemberIds());
 
-        res.remove(localMemberId);
+        res.remove(queryId.getMemberId());
 
         return res;
     }

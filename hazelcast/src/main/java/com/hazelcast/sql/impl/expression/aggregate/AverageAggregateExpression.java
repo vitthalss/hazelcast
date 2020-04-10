@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl.expression.aggregate;
 
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.sql.impl.exec.agg.AggregateCollector;
 import com.hazelcast.sql.impl.expression.Expression;
@@ -53,7 +53,6 @@ public class AverageAggregateExpression<T> extends AbstractSingleOperandAggregat
     public static QueryDataType inferResultType(QueryDataType operandType) {
         // TODO: Read ANSI standard on how to infer return types here.
         switch (operandType.getTypeFamily()) {
-            case BIT:
             case TINYINT:
             case SMALLINT:
             case INT:
@@ -64,7 +63,7 @@ public class AverageAggregateExpression<T> extends AbstractSingleOperandAggregat
                 return QueryDataType.DOUBLE;
 
             default:
-                throw HazelcastSqlException.error("Unsupported operand type: " + operandType);
+                throw QueryException.error("Unsupported operand type: " + operandType);
         }
     }
 }

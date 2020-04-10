@@ -20,10 +20,11 @@ import com.hazelcast.config.EndpointConfig;
 import com.hazelcast.instance.ProtocolType;
 import com.hazelcast.internal.networking.Channel;
 import com.hazelcast.internal.networking.InboundHandler;
-import com.hazelcast.internal.nio.IOService;
-import com.hazelcast.internal.nio.tcp.AbstractChannelInitializer;
-import com.hazelcast.internal.nio.tcp.TcpIpConnection;
-import com.hazelcast.internal.nio.tcp.TextHandshakeDecoder;
+import com.hazelcast.internal.server.IOService;
+import com.hazelcast.internal.server.ServerConnection;
+import com.hazelcast.internal.server.tcp.AbstractChannelInitializer;
+import com.hazelcast.internal.server.tcp.TcpServerConnection;
+import com.hazelcast.internal.server.tcp.TextHandshakeDecoder;
 
 public class TextChannelInitializer
         extends AbstractChannelInitializer {
@@ -37,7 +38,7 @@ public class TextChannelInitializer
 
     @Override
     public void initChannel(Channel channel) {
-        TcpIpConnection connection = (TcpIpConnection) channel.attributeMap().get(TcpIpConnection.class);
+        ServerConnection connection = (TcpServerConnection) channel.attributeMap().get(ServerConnection.class);
         TextEncoder encoder = new TextEncoder(connection);
 
         InboundHandler decoder = rest

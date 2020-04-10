@@ -18,6 +18,7 @@ package com.hazelcast.sql.impl.optimizer;
 
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 
@@ -27,7 +28,7 @@ import com.hazelcast.sql.impl.plan.node.PlanNode;
 public class NoOpSqlOptimizer implements SqlOptimizer {
     @Override
     public Plan prepare(String sql) {
-        throw HazelcastSqlException.error("Cannot execute SQL query because \"hazelcast-sql\" module is not in the classpath.");
+        throw QueryException.error("Cannot execute SQL query because \"hazelcast-sql\" module is not in the classpath.");
     }
 
     @Override

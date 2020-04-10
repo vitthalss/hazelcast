@@ -18,7 +18,7 @@ package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
 
 import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryMetadata;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
 import com.hazelcast.sql.impl.calcite.EdgeCollectorPlanNodeVisitor;
@@ -61,7 +61,6 @@ import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
 import com.hazelcast.sql.impl.partitioner.AllFieldsRowPartitioner;
 import com.hazelcast.sql.impl.partitioner.FieldsRowPartitioner;
 import com.hazelcast.sql.impl.plan.Plan;
-import com.hazelcast.sql.impl.plan.PlanFragment;
 import com.hazelcast.sql.impl.plan.PlanFragmentMapping;
 import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
 import com.hazelcast.sql.impl.plan.node.FetchOffsetPlanNodeFieldTypeProvider;
@@ -114,11 +113,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     /** Partition mapping. */
     private final Map<UUID, PartitionIdSet> partMap;
 
-    /** Data member IDs. */
-    private final List<UUID> dataMemberIds;
-
-    /** Data members in a form of set. */
-    private final Set<UUID> dataMemberIdsSet;
+    /** Participant IDs. */
+    private final Set<UUID> memberIds;
 
     /** Rel ID map. */
     private final Map<PhysicalRel, List<Integer>> relIdMap;
@@ -132,7 +128,16 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     private final OptimizerStatistics stats;
 
     /** Prepared fragments. */
-    private final List<PlanFragment> fragments = new ArrayList<>();
+    private final List<PlanNode> fragments = new ArrayList<>();
+
+    /** Fragment mappings. */
+    private final List<PlanFragmentMapping> fragmentMappings = new ArrayList<>();
+
+    /** Outbound edge of the fragment. */
+    private final List<Integer> fragmentOutboundEdge = new ArrayList<>();
+
+    /** Inbound edges of the fragment. */
+    private final List<List<Integer>> fragmentInboundEdges = new ArrayList<>();
 
     /** Upstream nodes. Normally it is a one node, except of multi-source operations (e.g. joins, sets, subqueries). */
     private final Deque<PlanNode> upstreamNodes = new ArrayDeque<>();
@@ -149,7 +154,6 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     public PlanCreateVisitor(
         UUID localMemberId,
         Map<UUID, PartitionIdSet> partMap,
-        List<UUID> dataMemberIds,
         Map<PhysicalRel, List<Integer>> relIdMap,
         String sql,
         QueryParameterMetadata parameterMetadata,
@@ -157,13 +161,12 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     ) {
         this.localMemberId = localMemberId;
         this.partMap = partMap;
-        this.dataMemberIds = dataMemberIds;
         this.relIdMap = relIdMap;
         this.sql = sql;
         this.parameterMetadata = parameterMetadata;
         this.stats = stats;
 
-        dataMemberIdsSet = new HashSet<>(dataMemberIds);
+        memberIds = new HashSet<>(partMap.keySet());
     }
 
     public Plan getPlan() {
@@ -173,18 +176,20 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         Map<Integer, Integer> inboundEdgeMemberCountMap = new HashMap<>();
 
         for (int i = 0; i < fragments.size(); i++) {
-            PlanFragment fragment = fragments.get(i);
-
-            Integer outboundEdge = fragment.getOutboundEdge();
+            PlanFragmentMapping fragmentMapping = fragmentMappings.get(i);
+            Integer outboundEdge = fragmentOutboundEdge.get(i);
+            List<Integer> inboundEdges = fragmentInboundEdges.get(i);
 
             if (outboundEdge != null) {
                 outboundEdgeMap.put(outboundEdge, i);
             }
 
-            if (fragment.getInboundEdges() != null) {
-                for (Integer inboundEdge : fragment.getInboundEdges()) {
+            if (inboundEdges != null) {
+                for (Integer inboundEdge : inboundEdges) {
+                    int count = fragmentMapping.isDataMembers() ? partMap.size() : fragmentMapping.getMemberIds().size();
+
                     inboundEdgeMap.put(inboundEdge, i);
-                    inboundEdgeMemberCountMap.put(inboundEdge, fragment.getMapping().getMemberCount());
+                    inboundEdgeMemberCountMap.put(inboundEdge, count);
                 }
             }
         }
@@ -196,8 +201,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         return new Plan(
             partMap,
-            dataMemberIds,
             fragments,
+            fragmentMappings,
             outboundEdgeMap,
             inboundEdgeMap,
             inboundEdgeMemberCountMap,
@@ -646,7 +651,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
                 );
 
             default:
-                throw HazelcastSqlException.error("Unsupported aggregate call: " + aggFunc.getName());
+                throw QueryException.error("Unsupported aggregate call: " + aggFunc.getName());
         }
     }
 
@@ -686,18 +691,10 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         node.visit(edgeVisitor);
 
-        Integer outboundEdge = edgeVisitor.getOutboundEdge();
-        List<Integer> inboundEdges = edgeVisitor.getInboundEdges();
-
-        PlanFragment fragment = new PlanFragment(
-            UuidUtil.newUnsecureUUID(),
-            node,
-            outboundEdge,
-            inboundEdges,
-            mapping
-        );
-
-        fragments.add(fragment);
+        fragments.add(node);
+        fragmentMappings.add(mapping);
+        fragmentOutboundEdge.add(edgeVisitor.getOutboundEdge());
+        fragmentInboundEdges.add(edgeVisitor.getInboundEdges());
     }
 
     private int nextEdge() {
@@ -770,6 +767,6 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
     // TODO: Data member mapping should be used only for fragments with scans!
     private PlanFragmentMapping dataMemberMapping() {
-        return new PlanFragmentMapping(dataMemberIdsSet, true);
+        return new PlanFragmentMapping(memberIds, true);
     }
 }

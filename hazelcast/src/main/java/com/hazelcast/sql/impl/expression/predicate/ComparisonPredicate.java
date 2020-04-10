@@ -18,7 +18,7 @@ package com.hazelcast.sql.impl.expression.predicate;
 
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.expression.BiExpression;
 import com.hazelcast.sql.impl.expression.CastExpression;
 import com.hazelcast.sql.impl.expression.Expression;
@@ -107,7 +107,7 @@ public class ComparisonPredicate extends BiExpression<Boolean> {
         Converter converter2 = operand2Type.getConverter();
 
         switch (type.getTypeFamily()) {
-            case BIT:
+            case BOOLEAN:
             case TINYINT:
             case SMALLINT:
             case INT:
@@ -175,7 +175,7 @@ public class ComparisonPredicate extends BiExpression<Boolean> {
             }
 
             default:
-                throw HazelcastSqlException.error("Unsupported result type: " + type);
+                throw QueryException.error("Unsupported result type: " + type);
         }
     }
 
@@ -219,13 +219,13 @@ public class ComparisonPredicate extends BiExpression<Boolean> {
                 return compare <= 0;
 
             default:
-                throw HazelcastSqlException.error("Unsupported operator: " + type);
+                throw QueryException.error("Unsupported operator: " + type);
         }
     }
 
     @Override
     public QueryDataType getType() {
-        return QueryDataType.BIT;
+        return QueryDataType.BOOLEAN;
     }
 
     @Override

@@ -18,14 +18,12 @@ package com.hazelcast.sql.impl.expression.math;
 
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.sql.HazelcastSqlException;
-import com.hazelcast.sql.impl.expression.CastExpression;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import com.hazelcast.sql.impl.type.converter.Converter;
 
 import java.io.IOException;
@@ -51,10 +49,6 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
         QueryDataType operandType = operand.getType();
 
         switch (operandType.getTypeFamily()) {
-            case BIT:
-                // Bit alway remain the same, just coerce it.
-                return CastExpression.coerceExpression(operand, QueryDataTypeFamily.TINYINT);
-
             case TINYINT:
             case SMALLINT:
             case INT:
@@ -105,7 +99,7 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
             }
 
             default:
-                throw HazelcastSqlException.error("Unexpected type: " + resultType);
+                throw QueryException.error("Unexpected type: " + resultType);
         }
     }
 
@@ -130,7 +124,7 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
 
     private static QueryDataType inferResultType(QueryDataType operandType) {
         if (!MathFunctionUtils.canConvertToNumber(operandType)) {
-            throw HazelcastSqlException.error("Operand is not numeric: " + operandType);
+            throw QueryException.error("Operand is not numeric: " + operandType);
         }
 
         switch (operandType.getTypeFamily()) {

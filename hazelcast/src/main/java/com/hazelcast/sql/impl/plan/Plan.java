@@ -21,7 +21,9 @@ import com.hazelcast.sql.impl.QueryMetadata;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
 import com.hazelcast.sql.impl.explain.QueryExplain;
 import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
+import com.hazelcast.sql.impl.plan.node.PlanNode;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -33,11 +35,11 @@ public class Plan {
     /** Partition mapping. */
     private final Map<UUID, PartitionIdSet> partMap;
 
-    /** Data member IDs. */
-    private final List<UUID> dataMemberIds;
-
     /** Fragment nodes. */
-    private final List<PlanFragment> fragments;
+    private final List<PlanNode> fragments;
+
+    /** Fragment mapping. */
+    private final List<PlanFragmentMapping> fragmentMappings;
 
     /** Outbound edge mapping (from edge ID to owning fragment position). */
     private final Map<Integer, Integer> outboundEdgeMap;
@@ -61,8 +63,8 @@ public class Plan {
 
     public Plan(
         Map<UUID, PartitionIdSet> partMap,
-        List<UUID> dataMemberIds,
-        List<PlanFragment> fragments,
+        List<PlanNode> fragments,
+        List<PlanFragmentMapping> fragmentMappings,
         Map<Integer, Integer> outboundEdgeMap,
         Map<Integer, Integer> inboundEdgeMap,
         Map<Integer, Integer> inboundEdgeMemberCountMap,
@@ -72,8 +74,8 @@ public class Plan {
         OptimizerStatistics stats
     ) {
         this.partMap = partMap;
-        this.dataMemberIds = dataMemberIds;
         this.fragments = fragments;
+        this.fragmentMappings = fragmentMappings;
         this.outboundEdgeMap = outboundEdgeMap;
         this.inboundEdgeMap = inboundEdgeMap;
         this.inboundEdgeMemberCountMap = inboundEdgeMemberCountMap;
@@ -87,12 +89,20 @@ public class Plan {
         return partMap;
     }
 
-    public List<UUID> getDataMemberIds() {
-        return dataMemberIds;
+    public Collection<UUID> getMemberIds() {
+        return partMap.keySet();
     }
 
-    public List<PlanFragment> getFragments() {
-        return fragments;
+    public int getFragmentCount() {
+        return fragments.size();
+    }
+
+    public PlanNode getFragment(int index) {
+        return fragments.get(index);
+    }
+
+    public PlanFragmentMapping getFragmentMapping(int index) {
+        return fragmentMappings.get(index);
     }
 
     public Map<Integer, Integer> getOutboundEdgeMap() {

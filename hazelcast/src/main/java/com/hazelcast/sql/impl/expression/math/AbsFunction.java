@@ -16,8 +16,7 @@
 
 package com.hazelcast.sql.impl.expression.math;
 
-import com.hazelcast.sql.HazelcastSqlException;
-import com.hazelcast.sql.impl.expression.CastExpression;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
@@ -38,13 +37,6 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
     }
 
     public static Expression<?> create(Expression<?> operand) {
-        QueryDataType operandType = operand.getType();
-
-        if (operandType.getTypeFamily() == QueryDataTypeFamily.BIT) {
-            // Bit always remain the same, just coerce it.
-            return CastExpression.coerceExpression(operand, QueryDataTypeFamily.TINYINT);
-        }
-
         return new AbsFunction<>(operand, inferResultType(operand.getType()));
     }
 
@@ -86,7 +78,7 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
                 return Math.abs(operandConverter.asDouble(operand));
 
             default:
-                throw HazelcastSqlException.error("Unexpected result type: " + resultType);
+                throw QueryException.error("Unexpected result type: " + resultType);
         }
     }
 
@@ -98,7 +90,7 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
      */
     private static QueryDataType inferResultType(QueryDataType operandType) {
         if (!MathFunctionUtils.canConvertToNumber(operandType)) {
-            throw HazelcastSqlException.error("Operand is not numeric: " + operandType);
+            throw QueryException.error("Operand is not numeric: " + operandType);
         }
 
         if (operandType.getTypeFamily() == QueryDataTypeFamily.VARCHAR) {

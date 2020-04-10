@@ -16,12 +16,13 @@
 
 package com.hazelcast.sql.impl.expression.math;
 
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
+import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import com.hazelcast.sql.impl.type.converter.Converter;
 
 public class SignFunction extends UniExpressionWithType<Number> {
@@ -54,7 +55,6 @@ public class SignFunction extends UniExpressionWithType<Number> {
         Converter operandConverter = operandType.getConverter();
 
         switch (resultType.getTypeFamily()) {
-            case BIT:
             case TINYINT:
             case SMALLINT:
             case INT:
@@ -73,7 +73,7 @@ public class SignFunction extends UniExpressionWithType<Number> {
                 return Math.signum(operandConverter.asDouble(operandValue));
 
             default:
-                throw HazelcastSqlException.error("Unexpected type: " + resultType);
+                throw QueryException.error("Unexpected type: " + resultType);
         }
     }
 
@@ -85,18 +85,11 @@ public class SignFunction extends UniExpressionWithType<Number> {
      */
     private static QueryDataType inferResultType(QueryDataType operandType) {
         if (!MathFunctionUtils.canConvertToNumber(operandType)) {
-            throw HazelcastSqlException.error("Operand is not numeric: " + operandType);
+            throw QueryException.error("Operand is not numeric: " + operandType);
         }
 
-        switch (operandType.getTypeFamily()) {
-            case BIT:
-                return QueryDataType.TINYINT;
-
-            case VARCHAR:
-                return QueryDataType.DECIMAL;
-
-            default:
-                break;
+        if (operandType.getTypeFamily() == QueryDataTypeFamily.VARCHAR) {
+            return QueryDataType.DECIMAL;
         }
 
         return operandType;
