@@ -58,6 +58,10 @@ public class QueryExecuteOperationFactoryTest {
         PlanNode node2 = MockPlanNode.create(2);
         List<PlanNode> fragments = Arrays.asList(node1, node2);
 
+        String signature1 = UUID.randomUUID().toString();
+        String signature2 = UUID.randomUUID().toString();
+        List<String> fragmentSignatures = Arrays.asList(signature1, signature2);
+
         PlanFragmentMapping mapping1 = new PlanFragmentMapping(null, true);
         PlanFragmentMapping mapping2 = new PlanFragmentMapping(Collections.singletonList(member2), false);
         List<PlanFragmentMapping> fragmentMappings = Arrays.asList(mapping1, mapping2);
@@ -69,6 +73,7 @@ public class QueryExecuteOperationFactoryTest {
         Plan plan = new Plan(
             partitionMap,
             fragments,
+            fragmentSignatures,
             fragmentMappings,
             outboundEdgeMap,
             inboundEdgeMap,
@@ -100,11 +105,19 @@ public class QueryExecuteOperationFactoryTest {
         }
 
         // Check fragments.
-        assertEquals(operation1.getFragments().get(0), new QueryExecuteOperationFragment(node1, DATA_MEMBERS, null));
-        assertEquals(operation2.getFragments().get(0), new QueryExecuteOperationFragment(node1, DATA_MEMBERS, null));
+        assertEquals(operation1.getFragments().get(0), new QueryExecuteOperationFragment(node1, signature1, DATA_MEMBERS, null));
+        assertEquals(operation2.getFragments().get(0), new QueryExecuteOperationFragment(node1, signature1, DATA_MEMBERS, null));
 
         Collection<UUID> expectedMemberIds = Collections.singletonList(member2);
-        assertEquals(operation1.getFragments().get(1), new QueryExecuteOperationFragment(null, EXPLICIT, expectedMemberIds));
-        assertEquals(operation2.getFragments().get(1), new QueryExecuteOperationFragment(node2, EXPLICIT, expectedMemberIds));
+
+        assertEquals(
+            operation1.getFragments().get(1),
+            new QueryExecuteOperationFragment(null, null, EXPLICIT, expectedMemberIds)
+        );
+
+        assertEquals(
+            operation2.getFragments().get(1),
+            new QueryExecuteOperationFragment(node2, signature2, EXPLICIT, expectedMemberIds)
+        );
     }
 }

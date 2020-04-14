@@ -27,12 +27,14 @@ import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.SqlInternalService;
 import com.hazelcast.sql.impl.SqlServiceProxy;
 import com.hazelcast.sql.impl.SqlTestSupport;
+import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.exec.AbstractUpstreamAwareExec;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitorCallback;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
 import com.hazelcast.sql.impl.exec.root.BlockingRootResultConsumer;
+import com.hazelcast.sql.impl.optimizer.NoOpSqlOptimizer;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNodeVisitor;
@@ -448,6 +450,7 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
 
         QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(
             node,
+            UUID.randomUUID().toString(),
             QueryExecuteOperationFragmentMapping.EXPLICIT,
             Collections.singletonList(toMemberId)
         );
@@ -497,6 +500,7 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
     private State startQueryOnInitiator(long timeout) {
         Plan plan = new Plan(
             partitionMap,
+            Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyMap(),
@@ -600,7 +604,8 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
             Runtime.getRuntime().availableProcessors(),
             1000,
             stateCheckFrequency,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            new CompilerManager(new NoOpSqlOptimizer())
         );
 
         internalService.start();

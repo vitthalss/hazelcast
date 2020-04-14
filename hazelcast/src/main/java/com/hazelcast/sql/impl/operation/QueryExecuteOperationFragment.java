@@ -131,7 +131,7 @@ public class QueryExecuteOperationFragment implements IdentifiedDataSerializable
 
         QueryExecuteOperationFragment fragment = (QueryExecuteOperationFragment) o;
 
-        return signature.equals(fragment.signature) && Objects.equals(node, fragment.node)
+        return Objects.equals(signature, fragment.signature) && Objects.equals(node, fragment.node)
                    && Objects.equals(mapping, fragment.mapping) && Objects.equals(memberIds, fragment.memberIds);
     }
 }

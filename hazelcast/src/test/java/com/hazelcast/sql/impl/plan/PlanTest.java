@@ -42,6 +42,7 @@ public class PlanTest extends SqlTestSupport {
     public void testPlan() {
         Map<UUID, PartitionIdSet> partitionMap = Collections.singletonMap(UUID.randomUUID(), new PartitionIdSet(1));
         List<PlanNode> fragments = Collections.singletonList(new MockPlanNode());
+        List<String> fragmentSignatures = Collections.singletonList(UUID.randomUUID().toString());
         List<PlanFragmentMapping> fragmentMappings = Collections.singletonList(new PlanFragmentMapping(Collections.emptyList(), true));
         Map<Integer, Integer> outboundEdgeMap = Collections.singletonMap(1, 1);
         Map<Integer, Integer> inboundEdgeMap = Collections.singletonMap(2, 2);
@@ -50,6 +51,7 @@ public class PlanTest extends SqlTestSupport {
         Plan plan = new Plan(
             partitionMap,
             fragments,
+            fragmentSignatures,
             fragmentMappings,
             outboundEdgeMap,
             inboundEdgeMap,

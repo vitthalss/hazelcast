@@ -123,6 +123,7 @@ public class SqlTestSupport extends HazelcastTestSupport {
             Collections.emptyMap(),
             Collections.emptyList(),
             Collections.emptyList(),
+            Collections.emptyList(),
             Collections.emptyMap(),
             Collections.emptyMap(),
             Collections.emptyMap(),

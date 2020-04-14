@@ -71,7 +71,8 @@ public class QueryOperationChannelTest extends SqlTestSupport {
             1000,
             SimpleFlowControlFactory.INSTANCE,
             1,
-            1
+            1,
+            null
         );
 
         QueryOperationChannel channel = operationHandler.createChannel(UUID.randomUUID(), UUID.randomUUID());
