@@ -30,6 +30,7 @@ import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitor;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;
 import com.hazelcast.sql.impl.exec.io.OutboundHandler;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControlFactory;
 import com.hazelcast.sql.impl.exec.io.flowcontrol.simple.SimpleFlowControlFactory;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.state.QueryState;
@@ -52,14 +53,14 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class QueryOperationHandlerImpl implements QueryOperationHandler, QueryStateCompletionCallback {
 
-    // TODO: Understand how to calculate it properly. It should not be hardcoded.
-    private static final int OUTBOX_BATCH_SIZE = 512 * 1024;
-
     private final NodeServiceProvider nodeServiceProvider;
     private final InternalSerializationService serializationService;
     private final QueryStateRegistry stateRegistry;
     private final QueryFragmentWorkerPool fragmentPool;
     private final QueryOperationWorkerPool operationPool;
+    private final int outboxBatchSize;
+    private final FlowControlFactory flowControlFactory;
+
     private final CompilerManager compilerManager;
 
     // TODO: Cache whole plans instead of compiled fragments because in this case we will have simpler lifecycle.
@@ -70,6 +71,8 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         NodeServiceProvider nodeServiceProvider,
         InternalSerializationService serializationService,
         QueryStateRegistry stateRegistry,
+        int outboxBatchSize,
+        FlowControlFactory flowControlFactory,
         int threadCount,
         int operationThreadCount,
         CompilerManager compilerManager
@@ -77,6 +80,8 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         this.nodeServiceProvider = nodeServiceProvider;
         this.serializationService = serializationService;
         this.stateRegistry = stateRegistry;
+        this.outboxBatchSize = outboxBatchSize;
+        this.flowControlFactory = flowControlFactory;
 
         fragmentPool = new QueryFragmentWorkerPool(
             instanceName,
@@ -207,9 +212,9 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 serializationService,
                 localMemberId,
                 operation,
-                SimpleFlowControlFactory.INSTANCE,
+                flowControlFactory,
                 operation.getPartitionMap().get(localMemberId),
-                OUTBOX_BATCH_SIZE,
+                outboxBatchSize,
                 compiledFragment
             );
 
@@ -280,9 +285,9 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
         }
 
         // We pass originating member ID here instead if caller ID to preserve the causality:
-        // in the "participant1 -> co4ordinator -> participant2" flow, the second participant
+        // in the "participant1 -> coordinator -> participant2" flow, the participant2
         // get the ID of participant1.
-        QueryException error = QueryException.remoteError(
+        QueryException error = QueryException.error(
             operation.getErrorCode(),
             operation.getErrorMessage(),
             operation.getOriginatingMemberId()
@@ -327,7 +332,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             return;
         }
 
-        QueryException error = QueryException.remoteError(
+        QueryException error = QueryException.error(
             SqlErrorCode.GENERIC,
             "Query is no longer active on coordinator.",
             operation.getCallerId()
@@ -344,7 +349,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
 
     @Override
     public void onCompleted(QueryId queryId) {
-        stateRegistry.complete(queryId);
+        stateRegistry.onQueryCompleted(queryId);
     }
 
     @Override
@@ -360,7 +365,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 submit(getLocalMemberId(), memberId, operation);
             }
         } finally {
-            stateRegistry.complete(queryId);
+            stateRegistry.onQueryCompleted(queryId);
         }
     }
 

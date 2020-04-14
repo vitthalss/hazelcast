@@ -19,6 +19,8 @@ package com.hazelcast.sql.impl;
 import com.hazelcast.internal.nio.Packet;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.client.QueryClientStateRegistry;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControlFactory;
+import com.hazelcast.sql.impl.exec.io.flowcontrol.simple.SimpleFlowControlFactory;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.exec.root.BlockingRootResultConsumer;
 import com.hazelcast.sql.impl.explain.QueryExplain;
@@ -44,8 +46,11 @@ import java.util.UUID;
  * Proxy for SQL service. Backed by either Calcite-based or no-op implementation.
  */
 public class SqlInternalService {
-    /** Default state check frequency. */
-    public static final long STATE_CHECK_FREQUENCY = 2000L;
+    /** Memory assigned to a single edge mailbox. Will be reworked to dynamic mode when memory manager is implemented. */
+    private static final long MEMORY_PER_EDGE_MAILBOX = 512 * 1024;
+
+    /** Default flow control factory. */
+    private static final FlowControlFactory FLOW_CONTROL_FACTORY = SimpleFlowControlFactory.INSTANCE;
 
     private static final int SMALL_TOPOLOGY_THRESHOLD = 8;
     private static final int MEDIUM_TOPOLOGY_THRESHOLD = 16;
@@ -61,7 +66,7 @@ public class SqlInternalService {
     private final GlobalMemoryReservationManager memoryManager;
 
     /** Registry for running queries. */
-    private volatile QueryStateRegistry stateRegistry;
+    private final QueryStateRegistry stateRegistry;
 
     /** Registry for client queries. */
     private final QueryClientStateRegistry clientStateRegistry;
@@ -78,6 +83,8 @@ public class SqlInternalService {
         InternalSerializationService serializationService,
         int operationThreadCount,
         int fragmentThreadCount,
+        int outboxBatchSize,
+        long stateCheckFrequency,
         long maxMemory,
         CompilerManager compilerManager
     ) {
@@ -96,6 +103,8 @@ public class SqlInternalService {
             nodeServiceProvider,
             serializationService,
             stateRegistry,
+            outboxBatchSize,
+            FLOW_CONTROL_FACTORY,
             fragmentThreadCount,
             operationThreadCount,
             compilerManager
@@ -103,11 +112,12 @@ public class SqlInternalService {
 
         // State checker depends on state registries and operation handler.
         stateRegistryUpdater = new QueryStateRegistryUpdater(
+            instanceName,
             nodeServiceProvider,
             stateRegistry,
             clientStateRegistry,
             operationHandler,
-            STATE_CHECK_FREQUENCY
+            stateCheckFrequency
         );
     }
 
@@ -180,7 +190,7 @@ public class SqlInternalService {
                 QueryExecuteOperation remoteOp = operationFactory.create(state.getQueryId(), memberId);
 
                 if (!operationHandler.submit(localMemberId, memberId, remoteOp)) {
-                    throw QueryException.memberLeave(memberId);
+                    throw QueryException.memberConnection(memberId);
                 }
             }
 
@@ -279,6 +289,10 @@ public class SqlInternalService {
         );
 
         return state;
+    }
+
+    public QueryStateRegistry getStateRegistry() {
+        return stateRegistry;
     }
 
     public QueryOperationHandlerImpl getOperationHandler() {
