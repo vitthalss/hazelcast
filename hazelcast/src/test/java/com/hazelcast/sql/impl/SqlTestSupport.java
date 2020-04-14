@@ -110,7 +110,7 @@ public class SqlTestSupport extends HazelcastTestSupport {
             }
         };
 
-        return new QueryFragmentContext(args, new LoggingQueryFragmentScheduleCallback(), stateCallback, null);
+        return new QueryFragmentContext(args, new LoggingQueryFragmentScheduleCallback(), stateCallback);
     }
 
     /**

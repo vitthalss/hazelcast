@@ -31,7 +31,6 @@ import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;
 import com.hazelcast.sql.impl.exec.io.OutboundHandler;
 import com.hazelcast.sql.impl.exec.io.flowcontrol.FlowControlFactory;
-import com.hazelcast.sql.impl.exec.io.flowcontrol.simple.SimpleFlowControlFactory;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.state.QueryState;
 import com.hazelcast.sql.impl.state.QueryStateCompletionCallback;
@@ -232,8 +231,7 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
                 exec,
                 inboxes,
                 outboxes,
-                fragmentPool,
-                serializationService // TODO: Remove!
+                fragmentPool
             );
 
             fragmentExecutables.add(fragmentExecutable);

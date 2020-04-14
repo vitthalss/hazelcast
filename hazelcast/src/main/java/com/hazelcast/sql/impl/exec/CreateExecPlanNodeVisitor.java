@@ -114,7 +114,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     private final Map<Integer, InboundHandler> inboxes = new HashMap<>();
 
     /** Outboxes. */
-    private Map<Integer, Map<UUID, OutboundHandler>> outboxes = new HashMap<>();
+    private final Map<Integer, Map<UUID, OutboundHandler>> outboxes = new HashMap<>();
 
     public CreateExecPlanNodeVisitor(
         QueryOperationHandler operationHandler,
@@ -322,7 +322,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                 node.getFieldNames(),
                 node.getFieldTypes(),
                 node.getProjects(),
-                node.getFilter()
+                node.getFilter(),
+                serializationService
             );
         }
 
@@ -351,7 +352,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                 node.getProjects(),
                 node.getFilter(),
                 node.getIndexName(),
-                node.getIndexFilter()
+                node.getIndexFilter(),
+                serializationService
             );
         }
 
@@ -372,7 +374,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             node.getFieldNames(),
             node.getFieldTypes(),
             node.getProjects(),
-            node.getFilter()
+            node.getFilter(),
+            serializationService
         );
 
         push(res);

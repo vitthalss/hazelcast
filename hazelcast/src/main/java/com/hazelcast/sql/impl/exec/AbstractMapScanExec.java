@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.impl.exec;
 
+import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.sql.impl.expression.Expression;
@@ -51,6 +52,9 @@ public abstract class AbstractMapScanExec extends AbstractExec {
     /** Filter. */
     protected final Expression<Boolean> filter;
 
+    /** Serialization service. */
+    private final InternalSerializationService serializationService;
+
     /** Row to get data with extractors. */
     private KeyValueRow keyValueRow;
 
@@ -62,7 +66,8 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
-        Expression<Boolean> filter
+        Expression<Boolean> filter,
+        InternalSerializationService serializationService
     ) {
         super(id);
 
@@ -73,6 +78,7 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         this.fieldTypes = fieldTypes;
         this.projects = projects;
         this.filter = filter;
+        this.serializationService = serializationService;
     }
 
     @Override
@@ -83,7 +89,7 @@ public abstract class AbstractMapScanExec extends AbstractExec {
             fieldNames,
             fieldTypes,
             createExtractors(),
-            MapScanExecUtils.getSerializationService(ctx)
+            serializationService
         );
 
         setup1(ctx);

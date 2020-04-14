@@ -31,21 +31,16 @@ public final class QueryFragmentContext implements ExpressionEvalContext {
     private final QueryFragmentScheduleCallback scheduleCallback;
     private final QueryStateCallback stateCallback;
 
-    // TODO: Pass serialization service as constructor argument instead.
-    private final InternalSerializationService serializationService;
-
     public QueryFragmentContext(
         List<Object> arguments,
         QueryFragmentScheduleCallback scheduleCallback,
-        QueryStateCallback stateCallback,
-        InternalSerializationService serializationService
+        QueryStateCallback stateCallback
     ) {
         assert arguments != null;
 
         this.arguments = arguments;
         this.scheduleCallback = scheduleCallback;
         this.stateCallback = stateCallback;
-        this.serializationService = serializationService;
     }
 
     @Override
@@ -61,9 +56,5 @@ public final class QueryFragmentContext implements ExpressionEvalContext {
 
     public void checkCancelled() {
         stateCallback.checkCancelled();
-    }
-
-    public InternalSerializationService getSerializationService() {
-        return serializationService;
     }
 }

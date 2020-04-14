@@ -16,11 +16,9 @@
 
 package com.hazelcast.sql.impl.exec;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
 import com.hazelcast.query.impl.getters.Extractors;
-import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 
 public final class MapScanExecUtils {
     private MapScanExecUtils() {
@@ -33,10 +31,5 @@ public final class MapScanExecUtils {
 
     public static MapScanExecIterator createIterator(MapProxyImpl<?, ?> map, PartitionIdSet parts) {
         return new MapScanExecIterator(map, parts);
-    }
-
-    // TODO: Pass serialization service as constructor argument instead.
-    public static InternalSerializationService getSerializationService(QueryFragmentContext ctx) {
-        return ctx.getSerializationService();
     }
 }

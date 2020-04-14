@@ -116,7 +116,7 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
             return true;
         };
 
-        consumer.setup(new QueryFragmentContext(Collections.emptyList(), scheduleCallback, null, null));
+        consumer.setup(new QueryFragmentContext(Collections.emptyList(), scheduleCallback, null));
 
         // Start consuming.
         IteratorRunnable runnable = startConsuming(consumer);
@@ -159,7 +159,7 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
             return true;
         };
 
-        consumer.setup(new QueryFragmentContext(Collections.emptyList(), scheduleCallback, null, null));
+        consumer.setup(new QueryFragmentContext(Collections.emptyList(), scheduleCallback, null));
 
         // Start consuming.
         IteratorRunnable runnable = startConsuming(consumer);
