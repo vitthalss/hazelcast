@@ -20,7 +20,7 @@ import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 import com.hazelcast.sql.impl.exec.index.IndexFilter;
 import com.hazelcast.sql.impl.expression.Expression;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.io.IOException;
@@ -45,8 +45,8 @@ public class MapIndexScanPlanNode extends AbstractMapScanPlanNode {
     public MapIndexScanPlanNode(
         int id,
         String mapName,
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,

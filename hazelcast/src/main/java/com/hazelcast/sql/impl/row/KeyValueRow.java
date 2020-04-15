@@ -16,10 +16,12 @@
 
 package com.hazelcast.sql.impl.row;
 
-import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
+import com.hazelcast.sql.impl.extract.QueryExtractor;
+import com.hazelcast.sql.impl.extract.QueryPath;
+import com.hazelcast.sql.impl.extract.QueryTarget;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -28,112 +30,66 @@ import java.util.List;
  * Key-value row. Appears during iteration over a data stored in map or it's index.
  */
 public final class KeyValueRow implements Row {
-    /** Key descriptor. */
-    private final SqlTopObjectDescriptor keyDescriptor;
 
-    /** Value descriptor. */
-    private final SqlTopObjectDescriptor valueDescriptor;
+    private final QueryTarget keyTarget;
+    private final QueryTarget valueTarget;
+    private final QueryExtractor[] fieldExtractors;
 
-    /** Map extractors. */
-    private final Extractors extractors;
-
-    /** Field extractors. */
-    private final KeyValueFieldExtractor[] fieldExtractors;
-
-    /** Serialization service. */
-    private final InternalSerializationService serializationService;
-
-    /** Raw key. */
-    private Object rawKey;
-
-    /** Raw value. */
-    private Object rawValue;
-
-    /** Key. */
-    private Object key;
-
-    /** Value. */
-    private Object value;
-
-    private KeyValueRow(
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
-        Extractors extractors,
-        KeyValueFieldExtractor[] fieldExtractors,
-        InternalSerializationService serializationService
-    ) {
-        this.keyDescriptor = keyDescriptor;
-        this.valueDescriptor = valueDescriptor;
-        this.extractors = extractors;
+    private KeyValueRow(QueryTarget keyTarget, QueryTarget valueTarget, QueryExtractor[] fieldExtractors) {
+        this.keyTarget = keyTarget;
+        this.valueTarget = valueTarget;
         this.fieldExtractors = fieldExtractors;
-        this.serializationService = serializationService;
     }
 
     public static KeyValueRow create(
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldPaths,
         List<QueryDataType> fieldTypes,
         Extractors extractors,
         InternalSerializationService serializationService
     ) {
-        KeyValueFieldExtractor[] fieldExtractors = new KeyValueFieldExtractor[fieldPaths.size()];
+        QueryTarget keyTarget = keyDescriptor.create(serializationService, extractors, true);
+        QueryTarget valueTarget = valueDescriptor.create(serializationService, extractors, false);
 
-        for (int i = 0; i < fieldExtractors.length; i++) {
-            fieldExtractors[i] = KeyValueFieldExtractor.create(fieldPaths.get(i), fieldTypes.get(i));
+        QueryExtractor[] fieldExtractors = new QueryExtractor[fieldPaths.size()];
+
+        for (int i = 0; i < fieldPaths.size(); i++) {
+            String fieldPath = fieldPaths.get(i);
+            QueryDataType fieldType = fieldTypes.get(i);
+
+            fieldExtractors[i] = createExtractor(keyTarget, valueTarget, fieldPath, fieldType);
         }
 
-        return new KeyValueRow(keyDescriptor, valueDescriptor, extractors, fieldExtractors, serializationService);
+        return new KeyValueRow(keyTarget, valueTarget, fieldExtractors);
     }
 
     public void setKeyValue(Object rawKey, Object rawValue) {
-        this.rawKey = rawKey;
-        this.rawValue = rawValue;
-
-        this.key = null;
-        this.value = null;
+        keyTarget.setTarget(rawKey);
+        valueTarget.setTarget(rawValue);
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public <T> T get(int idx) {
-        KeyValueFieldExtractor fieldExtractor = fieldExtractors[idx];
-
-        boolean isKey = fieldExtractor.isTargetIsKey();
-
-        return (T) fieldExtractors[idx].get(
-            isKey ? getKey() : null,
-            isKey ? null : getValue(),
-            extractors
-        );
-    }
-
-    private Object getKey() {
-        if (key != null) {
-            return key;
-        }
-
-        Object res = keyDescriptor.validate(rawKey instanceof Data ? serializationService.toObject(rawKey) : rawKey);
-
-        key = res;
-
-        return res;
-    }
-
-    private Object getValue() {
-        if (value != null) {
-            return value;
-        }
-
-        Object res = valueDescriptor.validate(rawValue instanceof Data ? serializationService.toObject(rawValue) : rawValue);
-
-        value = res;
-
-        return res;
+        return (T) fieldExtractors[idx].get();
     }
 
     @Override
     public int getColumnCount() {
         return fieldExtractors.length;
+    }
+
+    private static QueryExtractor createExtractor(
+        QueryTarget keyTarget,
+        QueryTarget valueTarget,
+        String path,
+        QueryDataType type
+    ) {
+        QueryPath path0 = QueryPath.create(path);
+
+        QueryTarget target = path0.isKey() ? keyTarget : valueTarget;
+
+        return target.createExtractor(path0.getPath(), type);
     }
 }

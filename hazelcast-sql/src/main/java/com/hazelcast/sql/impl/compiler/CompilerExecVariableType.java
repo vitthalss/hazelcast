@@ -20,7 +20,7 @@ import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
 import com.hazelcast.sql.impl.exec.MapScanExecIterator;
 import com.hazelcast.sql.impl.expression.Expression;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -28,8 +28,8 @@ import java.util.List;
 public enum CompilerExecVariableType {
     MAP_SCAN_MAP(MapProxyImpl.class),
     MAP_SCAN_PARTS(PartitionIdSet.class),
-    MAP_SCAN_KEY_DESCRIPTOR(SqlTopObjectDescriptor.class),
-    MAP_SCAN_VALUE_DESCRIPTOR(SqlTopObjectDescriptor.class),
+    MAP_SCAN_KEY_DESCRIPTOR(QueryTargetDescriptor.class),
+    MAP_SCAN_VALUE_DESCRIPTOR(QueryTargetDescriptor.class),
     MAP_SCAN_FIELD_NAMES(List.class, String.class),
     MAP_SCAN_FIELD_TYPES(List.class, QueryDataType.class),
     MAP_SCAN_PROJECTS(List.class, Integer.class),

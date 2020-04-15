@@ -26,8 +26,10 @@ import com.hazelcast.sql.impl.compiler.expression.ExpressionCompiler;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.MapScanExec;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
+import com.hazelcast.sql.impl.extract.QueryPath;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
-import com.hazelcast.sql.impl.row.KeyValueFieldExtractor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.lang.reflect.Method;
@@ -208,11 +210,6 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
     }
 
     private List<LocalVariable> extractFields(EmitableMethod method) {
-        if (node.getKeyDescriptor().isPortable() || node.getValueDescriptor().isPortable()) {
-            // TODO: Implement.
-            throw new UnsupportedOperationException("Not implemented yet.");
-        }
-
         // Initialize fields.
         List<String> fieldPaths = node.getFieldNames();
         List<QueryDataType> fieldTypes = node.getFieldTypes();
@@ -223,7 +220,7 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
             String fieldPath = fieldPaths.get(i);
             QueryDataType fieldType = fieldTypes.get(i);
 
-            LocalVariable field = extractField(method, fieldPath, fieldType);
+            LocalVariable field = extractJavaField(method, fieldPath, fieldType);
 
             fields.add(field);
         }
@@ -231,16 +228,16 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
         return fields;
     }
 
-    private LocalVariable extractField(EmitableMethod method, String fieldPath, QueryDataType fieldType) {
+    private LocalVariable extractJavaField(EmitableMethod method, String fieldPath, QueryDataType fieldType) {
         // TODO: Custom extractors are not supported at the moment. We need Extractor's instance for this.
-        KeyValueFieldExtractor extractor = KeyValueFieldExtractor.create(fieldPath, fieldType);
+        QueryPath path = QueryPath.create(fieldPath);
 
-        if (extractor.isTopObject()) {
-            return extractTopObject(method, extractor.isTargetIsKey());
+        if (path.isTop()) {
+            return extractJavaTopObject(method, path.isKey());
         }
 
         // Get parent object.
-        LocalVariable targetVar = extractTopObject(method, extractor.isTargetIsKey());
+        LocalVariable targetVar = extractJavaTopObject(method, path.isKey());
 
         // Register local variable.
         String varName = getScanFieldVariableName(fieldPath);
@@ -257,7 +254,8 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
         return fieldVar;
     }
 
-    private LocalVariable extractTopObject(EmitableMethod method, boolean isKey) {
+    @SuppressWarnings("checkstyle:NPathComplexity")
+    private LocalVariable extractJavaTopObject(EmitableMethod method, boolean isKey) {
         // Return early if already initialized.
         if (isKey && keyVar != null) {
             return keyVar;
@@ -269,7 +267,14 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
 
         // Register the variable in the compiler.
         String name = isKey ? QueryConstants.KEY_ATTRIBUTE_NAME.value() : QueryConstants.THIS_ATTRIBUTE_NAME.value();
-        String className = isKey ? node.getKeyDescriptor().getJavaClassName() : node.getValueDescriptor().getJavaClassName();
+
+        QueryTargetDescriptor descriptor = isKey ? node.getKeyDescriptor() : node.getValueDescriptor();
+
+        if (!(descriptor instanceof JavaClassQueryTargetDescriptor)) {
+            throw new UnsupportedOperationException("Only JavaClassQueryTargetDescriptor is supported.");
+        }
+
+        String className = ((JavaClassQueryTargetDescriptor) descriptor).getClassName();
 
         LocalVariable res = method.addLocalVariable(getScanFieldVariableName(name), className);
 

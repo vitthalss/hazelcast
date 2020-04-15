@@ -17,7 +17,7 @@
 package com.hazelcast.sql.impl.plan.node;
 
 import com.hazelcast.sql.impl.expression.Expression;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -34,8 +34,8 @@ public class MapScanPlanNode extends AbstractMapScanPlanNode {
     public MapScanPlanNode(
         int id,
         String mapName,
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,

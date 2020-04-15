@@ -16,7 +16,6 @@
 
 package com.hazelcast.sql.impl.worker;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;

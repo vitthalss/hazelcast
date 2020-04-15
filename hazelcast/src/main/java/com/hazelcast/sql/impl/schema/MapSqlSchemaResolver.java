@@ -17,14 +17,16 @@
 package com.hazelcast.sql.impl.schema;
 
 import com.hazelcast.core.DistributedObject;
-import com.hazelcast.core.HazelcastJsonValue;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.util.BiTuple;
 import com.hazelcast.nio.serialization.ClassDefinition;
 import com.hazelcast.nio.serialization.FieldType;
-import com.hazelcast.nio.serialization.Portable;
 import com.hazelcast.query.QueryConstants;
+import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
+import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
+import com.hazelcast.sql.impl.extract.PortableQueryTargetDescriptor;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
 
@@ -64,8 +66,8 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
     private SqlTableSchema resolveFromSample(String mapName, Data key, Object value) {
         Map<String, SqlTableField> fieldMap = new LinkedHashMap<>();
 
-        SqlTopObjectDescriptor valueExtractorDescriptor = resolve(value, false, fieldMap);
-        SqlTopObjectDescriptor keyExtractorDescriptor = resolve(key, true, fieldMap);
+        QueryTargetDescriptor valueExtractorDescriptor = resolve(value, false, fieldMap);
+        QueryTargetDescriptor keyExtractorDescriptor = resolve(key, true, fieldMap);
 
         if (keyExtractorDescriptor == null || valueExtractorDescriptor == null) {
             // TODO: This may happen due to serialization problem (e.g. getting Portable class definition).
@@ -77,7 +79,7 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
         return new SqlTableSchema(getSchemaName(), mapName, keyExtractorDescriptor, valueExtractorDescriptor, fields);
     }
 
-    private SqlTopObjectDescriptor resolve(Object target, boolean isKey, Map<String, SqlTableField> fieldMap) {
+    private QueryTargetDescriptor resolve(Object target, boolean isKey, Map<String, SqlTableField> fieldMap) {
         try {
             if (target instanceof Data) {
                 Data data = (Data) target;
@@ -88,17 +90,10 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
                     // TODO: Is it worth? May be just allow for flexible schema which is filled on demand with LATE fields?
                     throw new UnsupportedOperationException("JSON is not supported.");
                 } else {
-                    return resolveClass(ss.toObject(data).getClass(), isKey, fieldMap);
+                    return resolveClass(ss.toObject(data).getClass(), isKey, fieldMap, false);
                 }
             } else {
-                if (target instanceof Portable) {
-                    return resolvePortable(ss.getPortableContext().lookupClassDefinition(ss.toData(target)), isKey, fieldMap);
-                } else if (target instanceof HazelcastJsonValue) {
-                    // TODO: Is it worth? May be just allow for flexible schema which is filled on demand with LATE fields?
-                    throw new UnsupportedOperationException("JSON is not supported.");
-                } else {
-                    return resolveClass(target.getClass(), isKey, fieldMap);
-                }
+                return resolveClass(target.getClass(), isKey, fieldMap, true);
             }
         } catch (Exception e) {
             // TODO: Is it ok to ignore this exception (cannot get Portable class def, cannot serialize)?
@@ -106,7 +101,12 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
         }
     }
 
-    private SqlTopObjectDescriptor resolveClass(Class<?> clazz, boolean isKey, Map<String, SqlTableField> fields) {
+    private QueryTargetDescriptor resolveClass(
+        Class<?> clazz,
+        boolean isKey,
+        Map<String, SqlTableField> fields,
+        boolean objectFormat
+    ) {
         // Add top-level object.
         String topName = isKey ? QueryConstants.KEY_ATTRIBUTE_NAME.value() : QueryConstants.THIS_ATTRIBUTE_NAME.value();
         QueryDataType topType = QueryDataTypeUtils.resolveTypeForClass(clazz);
@@ -133,10 +133,14 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
             fields.putIfAbsent(name, new SqlTableField(name, resolvePath(name, isKey), type));
         }
 
-        return SqlTopObjectDescriptor.forJavaClass(clazz.getName());
+        if (objectFormat) {
+            return new JavaClassQueryTargetDescriptor(clazz.getName());
+        } else {
+            return GenericQueryTargetDescriptor.INSTANCE;
+        }
     }
 
-    private SqlTopObjectDescriptor resolvePortable(ClassDefinition clazz, boolean isKey, Map<String, SqlTableField> fields) {
+    private QueryTargetDescriptor resolvePortable(ClassDefinition clazz, boolean isKey, Map<String, SqlTableField> fields) {
         // Add top-level object.
         String topName = isKey ? QueryConstants.KEY_ATTRIBUTE_NAME.value() : QueryConstants.THIS_ATTRIBUTE_NAME.value();
         fields.put(topName, new SqlTableField(topName, topName, QueryDataType.OBJECT));
@@ -150,7 +154,7 @@ public abstract class MapSqlSchemaResolver implements SqlSchemaResolver {
             fields.putIfAbsent(name, new SqlTableField(name, resolvePath(name, isKey), type));
         }
 
-        return SqlTopObjectDescriptor.forPortable(clazz.getFactoryId(), clazz.getClassId());
+        return new PortableQueryTargetDescriptor(clazz.getFactoryId(), clazz.getClassId());
     }
 
     private static String extractAttributeNameFromMethod(Method method) {

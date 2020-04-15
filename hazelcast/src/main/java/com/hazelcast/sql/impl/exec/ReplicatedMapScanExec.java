@@ -23,10 +23,10 @@ import com.hazelcast.replicatedmap.impl.ReplicatedMapService;
 import com.hazelcast.replicatedmap.impl.record.ReplicatedRecord;
 import com.hazelcast.replicatedmap.impl.record.ReplicatedRecordStore;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.ArrayList;
@@ -54,8 +54,8 @@ public class ReplicatedMapScanExec extends AbstractMapScanExec {
     public ReplicatedMapScanExec(
         int id,
         ReplicatedMapProxy map,
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,

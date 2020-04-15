@@ -16,7 +16,6 @@
 
 package com.hazelcast.sql.impl.optimizer;
 
-import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.plan.Plan;

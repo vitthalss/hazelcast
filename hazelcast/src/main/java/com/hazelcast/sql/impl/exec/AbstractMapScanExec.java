@@ -18,11 +18,11 @@ package com.hazelcast.sql.impl.exec;
 
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.KeyValueRow;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -31,38 +31,22 @@ import java.util.List;
  * Common operator for map scans.
  */
 public abstract class AbstractMapScanExec extends AbstractExec {
-    /** Map name. */
+
     protected final String mapName;
-
-    /** Key descriptor. */
-    protected final SqlTopObjectDescriptor keyDescriptor;
-
-    /** Value descriptor. */
-    protected final SqlTopObjectDescriptor valueDescriptor;
-
-    /** Field names. */
+    protected final QueryTargetDescriptor keyDescriptor;
+    protected final QueryTargetDescriptor valueDescriptor;
     protected final List<String> fieldNames;
-
-    /** Field types. */
     protected final List<QueryDataType> fieldTypes;
-
-    /** Projects. */
     protected final List<Integer> projects;
-
-    /** Filter. */
     protected final Expression<Boolean> filter;
-
-    /** Serialization service. */
     private final InternalSerializationService serializationService;
-
-    /** Row to get data with extractors. */
     private KeyValueRow keyValueRow;
 
     protected AbstractMapScanExec(
         int id,
         String mapName,
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
@@ -131,11 +115,11 @@ public abstract class AbstractMapScanExec extends AbstractExec {
      */
     protected abstract Extractors createExtractors();
 
-    public SqlTopObjectDescriptor getKeyDescriptor() {
+    public QueryTargetDescriptor getKeyDescriptor() {
         return keyDescriptor;
     }
 
-    public SqlTopObjectDescriptor getValueDescriptor() {
+    public QueryTargetDescriptor getValueDescriptor() {
         return valueDescriptor;
     }
 

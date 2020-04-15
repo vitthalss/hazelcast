@@ -64,6 +64,7 @@ public class Plan {
     /** Optimizer statistics. */
     private final OptimizerStatistics stats;
 
+    @SuppressWarnings("checkstyle:ParameterNumber")
     public Plan(
         Map<UUID, PartitionIdSet> partMap,
         List<PlanNode> fragments,

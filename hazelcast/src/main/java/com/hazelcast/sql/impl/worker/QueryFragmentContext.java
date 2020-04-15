@@ -16,7 +16,6 @@
 
 package com.hazelcast.sql.impl.worker;
 
-import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.state.QueryStateCallback;
 

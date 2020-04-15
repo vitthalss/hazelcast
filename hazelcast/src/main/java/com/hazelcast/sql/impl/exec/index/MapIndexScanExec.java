@@ -28,10 +28,10 @@ import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.sql.impl.exec.AbstractMapScanExec;
 import com.hazelcast.sql.impl.exec.IterationResult;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.ArrayList;
@@ -72,8 +72,8 @@ public class MapIndexScanExec extends AbstractMapScanExec {
         int id,
         MapProxyImpl map,
         PartitionIdSet parts,
-        SqlTopObjectDescriptor keyDescriptor,
-        SqlTopObjectDescriptor valueDescriptor,
+        QueryTargetDescriptor keyDescriptor,
+        QueryTargetDescriptor valueDescriptor,
         List<String> fieldNames,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,

@@ -25,9 +25,9 @@ import com.hazelcast.sql.impl.expression.ColumnExpression;
 import com.hazelcast.sql.impl.expression.math.PlusFunction;
 import com.hazelcast.sql.impl.expression.predicate.ComparisonMode;
 import com.hazelcast.sql.impl.expression.predicate.ComparisonPredicate;
+import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
 import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.RootPlanNode;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.test.HazelcastTestSupport;
 import org.junit.BeforeClass;
@@ -53,14 +53,14 @@ public class MapScanSqlCompilerTest extends HazelcastTestSupport {
         MapScanPlanNode mapScanNode = new MapScanPlanNode(
             1,
             "MyMap",
-            SqlTopObjectDescriptor.forJavaClass(CompilerPersonKey.class.getName()),
-            SqlTopObjectDescriptor.forJavaClass(CompilerPerson.class.getName()),
-            Arrays.asList("__key.fieldA", "__key.fieldB", "fieldC", "fieldD"),
-            Arrays.asList(QueryDataType.VARCHAR, QueryDataType.VARCHAR, QueryDataType.INT, QueryDataType.INT),
-            Arrays.asList(0, 1, 2, 3),
+            new JavaClassQueryTargetDescriptor(CompilerPersonKey.class.getName()),
+            new JavaClassQueryTargetDescriptor(CompilerPerson.class.getName()),
+            Arrays.asList("fieldC", "fieldD"),
+            Arrays.asList(QueryDataType.INT, QueryDataType.INT),
+            Arrays.asList(0, 1),
             ComparisonPredicate.create(
-                PlusFunction.create(ColumnExpression.create(2, QueryDataType.INT), ColumnExpression.create(3, QueryDataType.INT)),
-                ColumnExpression.create(3, QueryDataType.INT),
+                PlusFunction.create(ColumnExpression.create(0, QueryDataType.INT), ColumnExpression.create(1, QueryDataType.INT)),
+                ColumnExpression.create(1, QueryDataType.INT),
                 ComparisonMode.EQUALS
             )
         );

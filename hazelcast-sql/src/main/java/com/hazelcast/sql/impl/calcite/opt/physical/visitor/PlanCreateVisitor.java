@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
 
+import com.hazelcast.internal.util.UuidUtil;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryMetadata;
@@ -56,6 +57,7 @@ import com.hazelcast.sql.impl.expression.aggregate.MaxAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.MinAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.SingleValueAggregateExpression;
 import com.hazelcast.sql.impl.expression.aggregate.SumAggregateExpression;
+import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.optimizer.OptimizerStatistics;
 import com.hazelcast.sql.impl.partitioner.AllFieldsRowPartitioner;
 import com.hazelcast.sql.impl.partitioner.FieldsRowPartitioner;
@@ -83,7 +85,6 @@ import com.hazelcast.sql.impl.plan.node.io.RootSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.io.UnicastSendPlanNode;
 import com.hazelcast.sql.impl.plan.node.join.HashJoinPlanNode;
 import com.hazelcast.sql.impl.plan.node.join.NestedLoopJoinPlanNode;
-import com.hazelcast.sql.impl.schema.SqlTopObjectDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.core.AggregateCall;
@@ -104,7 +105,8 @@ import java.util.UUID;
 /**
  * Visitor which produces executable query plan.
  */
-@SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "checkstyle:classfanoutcomplexity", "rawtypes"})
+@SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "checkstyle:classfanoutcomplexity", "checkstyle:MethodCount",
+    "rawtypes"})
 public class PlanCreateVisitor implements PhysicalRelVisitor {
     /** ID of query coordinator. */
     private final UUID localMemberId;
@@ -697,7 +699,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         fragments.add(node);
 
         // TODO: Fix signature generation: we should use internal node content, so that two equal nodes has the same signature.
-        fragmentSignatures.add(UUID.randomUUID().toString());
+        fragmentSignatures.add(UuidUtil.newSecureUUID().toString());
         fragmentMappings.add(mapping);
         fragmentOutboundEdge.add(edgeVisitor.getOutboundEdge());
         fragmentInboundEdges.add(edgeVisitor.getInboundEdges());
@@ -763,11 +765,11 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         return paths;
     }
 
-     private static SqlTopObjectDescriptor scanKeyDescriptor(AbstractScanRel rel) {
+     private static QueryTargetDescriptor scanKeyDescriptor(AbstractScanRel rel) {
          return rel.getTableUnwrapped().getKeyDescriptor();
      }
 
-     private static SqlTopObjectDescriptor scanValueDescriptor(AbstractScanRel rel) {
+     private static QueryTargetDescriptor scanValueDescriptor(AbstractScanRel rel) {
          return rel.getTableUnwrapped().getValueDescriptor();
      }
 
