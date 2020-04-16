@@ -24,7 +24,7 @@ import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableMethod;
 import com.hazelcast.sql.impl.compiler.expression.ExpressionCompiler;
 import com.hazelcast.sql.impl.exec.Exec;
-import com.hazelcast.sql.impl.exec.MapScanExec;
+import com.hazelcast.sql.impl.exec.scan.MapScanExec;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;

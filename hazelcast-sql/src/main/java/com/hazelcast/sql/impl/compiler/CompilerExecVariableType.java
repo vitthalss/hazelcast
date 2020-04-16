@@ -18,7 +18,7 @@ package com.hazelcast.sql.impl.compiler;
 
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
-import com.hazelcast.sql.impl.exec.MapScanExecIterator;
+import com.hazelcast.sql.impl.exec.scan.MapScanExecIterator;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
