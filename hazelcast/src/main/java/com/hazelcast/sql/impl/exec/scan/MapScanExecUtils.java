@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.exec;
+package com.hazelcast.sql.impl.exec.scan;
 
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.proxy.MapProxyImpl;
