@@ -46,9 +46,6 @@ import java.util.UUID;
  * Proxy for SQL service. Backed by either Calcite-based or no-op implementation.
  */
 public class SqlInternalService {
-    /** Memory assigned to a single edge mailbox. Will be reworked to dynamic mode when memory manager is implemented. */
-    private static final long MEMORY_PER_EDGE_MAILBOX = 512 * 1024;
-
     /** Default flow control factory. */
     private static final FlowControlFactory FLOW_CONTROL_FACTORY = SimpleFlowControlFactory.INSTANCE;
 

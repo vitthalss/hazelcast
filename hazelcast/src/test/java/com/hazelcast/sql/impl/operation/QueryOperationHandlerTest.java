@@ -25,7 +25,7 @@ import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.NodeServiceProviderImpl;
 import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.SqlInternalService;
-import com.hazelcast.sql.impl.SqlServiceProxy;
+import com.hazelcast.sql.impl.SqlServiceImpl;
 import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.exec.AbstractUpstreamAwareExec;
@@ -580,7 +580,7 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
         assertTrueEventually(() -> assertNull(service.getStateRegistry().getState(testState.getQueryId())));
     }
 
-    private static SqlServiceProxy getService(HazelcastInstance instance) {
+    private static SqlServiceImpl getService(HazelcastInstance instance) {
         return ((HazelcastInstanceProxy) instance).getOriginal().node.nodeEngine.getSqlService();
     }
 
