@@ -18,7 +18,7 @@ package com.hazelcast.sql.impl.compiler;
 
 import com.hazelcast.core.HazelcastException;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
-import com.hazelcast.map.impl.proxy.MapProxyImpl;
+import com.hazelcast.map.impl.MapContainer;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableClass;
 import com.hazelcast.sql.impl.compiler.emitter.EmitableMethod;
 import com.hazelcast.sql.impl.compiler.emitter.EmitterCommand;
@@ -106,7 +106,7 @@ public final class CompilerUtils {
             C_MAP_SCAN_EXEC__M_GET_FILTER = MapScanExec.class.getMethod("getFilter");
 
             C_MAP_SCAN_EXEC_UTILS__M_CREATE_ITERATOR = MapScanExecUtils.class.getMethod(
-                "createIterator", MapProxyImpl.class, PartitionIdSet.class
+                "createIterator", MapContainer.class, PartitionIdSet.class
             );
 
             C_MAP_SCAN_EXEC_ITERATOR__M_TRY_ADVANCE = MapScanExecIterator.class.getMethod("tryAdvance");
