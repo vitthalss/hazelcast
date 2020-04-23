@@ -247,6 +247,7 @@ public class CreateExecPlanNodeVisitorTest {
 
         QueryExecuteOperationFragment rootFragment = new QueryExecuteOperationFragment(
             projectNode,
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Collections.singletonList(MEMBER_ID_1)
         );
@@ -280,6 +281,7 @@ public class CreateExecPlanNodeVisitorTest {
 
         QueryExecuteOperationFragment rootFragment = new QueryExecuteOperationFragment(
             filterNode,
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Collections.singletonList(MEMBER_ID_1)
         );
