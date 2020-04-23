@@ -26,13 +26,11 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.core.HazelcastJsonValue;
 import com.hazelcast.internal.json.Json;
 import com.hazelcast.internal.util.Clock;
-import com.hazelcast.map.impl.proxy.MapProxyImpl;
 import com.hazelcast.map.listener.EntryAddedListener;
 import com.hazelcast.map.listener.EntryExpiredListener;
 import com.hazelcast.query.PagingPredicate;
 import com.hazelcast.query.Predicate;
 import com.hazelcast.query.Predicates;
-import com.hazelcast.spi.impl.InternalCompletableFuture;
 import com.hazelcast.test.AssertTask;
 import com.hazelcast.test.ChangeLoggingRule;
 import com.hazelcast.test.HazelcastParallelClassRunner;
@@ -48,21 +46,27 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
+import testsubjects.StaticSerializableBiConsumer;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -922,7 +926,7 @@ public class BasicMapTest extends HazelcastTestSupport {
     @Test
     public void testPutAllAsyncEmpty() {
         IMap<Integer, Integer> map = getInstance().getMap("testPutAllEmpty");
-        ((MapProxyImpl<Integer, Integer>) map).putAllAsync(emptyMap());
+        map.putAllAsync(emptyMap());
     }
 
     @Test
@@ -1032,7 +1036,7 @@ public class BasicMapTest extends HazelcastTestSupport {
         for (int i = 0; i < size; i++) {
             mm.put(i, i);
         }
-        InternalCompletableFuture<Void> future = ((MapProxyImpl<Integer, Integer>) map).putAllAsync(mm);
+        CompletableFuture<Void> future = map.putAllAsync(mm).toCompletableFuture();
         assertTrueEventually(() -> assertTrue(future.isDone()));
         assertEquals(map.size(), size);
         for (int i = 0; i < size; i++) {
@@ -1940,6 +1944,50 @@ public class BasicMapTest extends HazelcastTestSupport {
             entry.setValue(entry.getValue() + 1);
             return true;
         }
+    }
+
+    @Test
+    public void testForEachWithALambdaFunction() {
+        final IMap<String, Integer> sourceMap = getSourceMapFor_ForEach_Test();
+        final IMap<String, Integer> targetMap = getTargetMapFor_ForEach_Test();
+
+        sourceMap.forEach((k, v) -> {
+            targetMap.put(k, v);
+        });
+
+        assertEntriesEqual(sourceMap, targetMap);
+    }
+
+    @Test
+    public void testForEachWithStaticSerializableAction() throws IOException {
+        final IMap<String, Integer> sourceMap = getSourceMapFor_ForEach_Test();
+
+        //Create a bi-consumer which writes both args to a file
+        File tempFile = File.createTempFile("Map", ".txt");
+        tempFile.deleteOnExit();
+        StaticSerializableBiConsumer action = new StaticSerializableBiConsumer(tempFile.getAbsolutePath());
+
+        sourceMap.forEach(action);
+
+        //Verify that all map entries got written to the file
+        List<String> lines = Files.readAllLines(tempFile.toPath());
+        boolean allEntriesProcessed = sourceMap.entrySet().stream().allMatch(e -> lines.contains(e.getKey() + "#" + e.getValue()));
+        assertTrue(allEntriesProcessed);
+    }
+
+    private IMap<String, Integer> getSourceMapFor_ForEach_Test() {
+        final IMap<String, Integer> sourceMap = getInstance().getMap("source_map");
+        sourceMap.put("k1", 1);
+        sourceMap.put("k2", 2);
+        return sourceMap;
+    }
+
+    private IMap<String, Integer> getTargetMapFor_ForEach_Test() {
+        return getInstance().getMap("target_map");
+    }
+
+    private void assertEntriesEqual(IMap<String, Integer> sourceMap, IMap<String, Integer> targetMap) {
+        sourceMap.entrySet().forEach(e -> assertEquals(e.getValue(), targetMap.get(e.getKey())));
     }
 
 }

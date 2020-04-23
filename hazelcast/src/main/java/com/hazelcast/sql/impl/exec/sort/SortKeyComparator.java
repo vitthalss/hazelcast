@@ -16,12 +16,15 @@
 
 package com.hazelcast.sql.impl.exec.sort;
 
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+
 import java.util.Comparator;
 import java.util.List;
 
 /**
  * Comparator fot the sort key.
  */
+@SuppressFBWarnings(value = "SE_COMPARATOR_SHOULD_BE_SERIALIZABLE", justification = "Never serialized")
 public class SortKeyComparator implements Comparator<SortKey> {
     /** List of ascending collations. */
     private final List<Boolean> ascs;
@@ -30,11 +33,9 @@ public class SortKeyComparator implements Comparator<SortKey> {
         this.ascs = ascs;
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
     public int compare(SortKey o1, SortKey o2) {
-        int res;
-
         for (int i = 0; i < ascs.size(); i++) {
             boolean asc = ascs.get(i);
 
@@ -44,18 +45,9 @@ public class SortKeyComparator implements Comparator<SortKey> {
             Comparable item1Comp = (Comparable) item1;
             Comparable item2Comp = (Comparable) item2;
 
-            //noinspection unchecked
-            res = item1Comp.compareTo(item2Comp);
-
-            if (!asc) {
-                res = -res;
-            }
+            int res = asc ? item1Comp.compareTo(item2Comp) : item2Comp.compareTo(item1Comp);
 
             if (res != 0) {
-                if (!asc) {
-                    res = -res;
-                }
-
                 return res;
             }
         }

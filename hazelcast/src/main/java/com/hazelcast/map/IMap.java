@@ -39,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -916,6 +917,8 @@ public interface IMap<K, V> extends ConcurrentMap<K, V>, BaseMap<K, V> {
      * operation to complete or register callbacks to be invoked
      * upon putAll operation completion
      * @see CompletionStage
+     *
+     * @since 4.1
      */
     CompletionStage<Void> putAllAsync(@Nonnull Map<? extends K, ? extends V> map);
 
@@ -1790,6 +1793,8 @@ public interface IMap<K, V> extends ConcurrentMap<K, V>, BaseMap<K, V> {
      * {@link com.hazelcast.map.ReachedMaxSizeException} may be thrown
      * if the write-behind queue has reached its per-node maximum
      * capacity.
+     *
+     * @since 4.1
      */
     void setAll(@Nonnull Map<? extends K, ? extends V> map);
 
@@ -1837,6 +1842,8 @@ public interface IMap<K, V> extends ConcurrentMap<K, V>, BaseMap<K, V> {
      * operation to complete or register callbacks to be invoked
      * upon setAll operation completion
      * @see CompletionStage
+     *
+     * @since 4.1
      */
     CompletionStage<Void> setAllAsync(@Nonnull Map<? extends K, ? extends V> map);
 
@@ -3030,6 +3037,8 @@ public interface IMap<K, V> extends ConcurrentMap<K, V>, BaseMap<K, V> {
      * <p>
      *     When this method is invoked using a hazelcast-client instance, the {@code remappingFunction} is always executed locally
      * </p>
+     *
+     * @since 4.1
      */
     V computeIfPresent(@Nonnull K key, @Nonnull BiFunction<? super K, ? super V, ? extends V> remappingFunction);
 
@@ -3052,7 +3061,34 @@ public interface IMap<K, V> extends ConcurrentMap<K, V>, BaseMap<K, V> {
      * <p>
      *     When this method is invoked using a hazelcast-client instance, the {@code mappingFunction} is always executed locally
      * </p>
+     *
+     * @since 4.1
      */
     V computeIfAbsent(@Nonnull K key, @Nonnull Function<? super K, ? extends V> mappingFunction);
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p> </p>
+     * <p>
+     *     If the supplied {@code action} is a lambda, anonymous class or an inner class,
+     *     it would be executed locally. Same would happen if it is not serializable.
+     *     This may result in multiple round-trips between hazelcast nodes, as all map entries
+     *     will need to be pulled into the local node
+     *</p>
+     * <p>
+     *     Otherwise (i.e. if it is a top-level class or a member class, and it is serializable), the function <i>may be</i> sent
+     *     to the servers which own the partitions/keys. This results in a much less number of remote calls.
+     *     Note that in this case, side effects of the {@code action} may not be visible to the local JVM.
+     *     If users intend to install the changed value in the map entry, the {@link IMap#executeOnEntries(EntryProcessor)}
+     *     method can be used instead
+     * </p>
+     * <p>
+     *     When this method is invoked using a hazelcast-client instance, the {@code action} is always executed locally
+     * </p>
+     */
+    default void forEach(@Nonnull BiConsumer<? super K, ? super V> action) {
+        ConcurrentMap.super.forEach(action);
+    }
 
 }
