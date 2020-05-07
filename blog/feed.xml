@@ -2,21 +2,21 @@
 <rss version="2.0">
     <channel>
         <title>Hazelcast IMDG Blog</title>
-        <link>https://jet-start.sh/blog</link>
+        <link>https://hazelcast.github.io/hazelcast/blog</link>
         <description>The best place to stay up-to-date with the latest Hazelcast IMDG news and events.</description>
         <lastBuildDate>Tue, 28 Jan 2020 06:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <image>
             <title>Hazelcast IMDG Blog</title>
-            <url>https://jet-start.sh/img/logo-dark.svg</url>
-            <link>https://jet-start.sh/blog</link>
+            <url>https://hazelcast.github.io/hazelcast/img/logo-dark.svg</url>
+            <link>https://hazelcast.github.io/hazelcast/blog</link>
         </image>
         <copyright>Copyright © 2020 Hazelcast Inc.</copyright>
         <item>
             <title><![CDATA[Announcing New Documentation Website]]></title>
-            <link>https://jet-start.sh/blog/2020/01/28/new-website.html</link>
-            <guid>https://jet-start.sh/blog/2020/01/28/new-website.html</guid>
+            <link>https://hazelcast.github.io/hazelcast/blog/2020/01/28/new-website.html</link>
+            <guid>https://hazelcast.github.io/hazelcast/blog/2020/01/28/new-website.html</guid>
             <pubDate>Tue, 28 Jan 2020 06:00:00 GMT</pubDate>
             <description><![CDATA[<p>We are excited to tell you that we've just launched a new website for Hazelcast IMDG, where we share technical content regarding the project including how-to-guides and technical design documents.</p> <p>We'll keep this website frequently updated. Stay tune...</p>]]></description>
         </item>
