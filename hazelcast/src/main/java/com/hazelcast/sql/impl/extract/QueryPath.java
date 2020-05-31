@@ -16,18 +16,39 @@
 
 package com.hazelcast.sql.impl.extract;
 
+import com.hazelcast.nio.ObjectDataInput;
+import com.hazelcast.nio.ObjectDataOutput;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
+
+import java.io.IOException;
+
 import static com.hazelcast.query.QueryConstants.KEY_ATTRIBUTE_NAME;
 import static com.hazelcast.query.QueryConstants.THIS_ATTRIBUTE_NAME;
 
-public final class QueryPath {
+/**
+ * Represent a path to the attribute within a key-value pair.
+ */
+public final class QueryPath implements IdentifiedDataSerializable {
 
     public static final String KEY = KEY_ATTRIBUTE_NAME.value();
     public static final String VALUE = THIS_ATTRIBUTE_NAME.value();
 
-    private final boolean key;
-    private final String path;
+    public static final QueryPath KEY_PATH = new QueryPath(null, true);
+    public static final QueryPath VALUE_PATH = new QueryPath(null, false);
 
-    private QueryPath(String path, boolean key) {
+    private static final String KEY_PREFIX = KEY + ".";
+    private static final String VALUE_PREFIX = VALUE + ".";
+
+    private boolean key;
+    private String path;
+
+    public QueryPath() {
+        // No-op.
+    }
+
+    public QueryPath(String path, boolean key) {
         this.path = path;
         this.key = key;
     }
@@ -41,43 +62,101 @@ public final class QueryPath {
     }
 
     public boolean isTop() {
-        return path != null;
+        return path == null;
     }
 
     public static QueryPath create(String originalPath) {
-        String path;
-        boolean key;
-
-        if (KEY.equals(originalPath)) {
-            path = null;
-            key = true;
-        } else if (VALUE.equals(originalPath)) {
-            path = null;
-            key = false;
-        } else {
-            String keyPath = extractKeyPath(originalPath);
-
-            if (keyPath != null) {
-                path = keyPath;
-                key = true;
-            } else {
-                path = originalPath;
-                key = false;
-            }
+        if (isEmpty(originalPath)) {
+            throw badPathException(originalPath);
         }
 
-        return new QueryPath(path, key);
+        if (KEY.equals(originalPath)) {
+            return KEY_PATH;
+        } else if (VALUE.equals(originalPath)) {
+            return VALUE_PATH;
+        }
+
+        if (originalPath.startsWith(KEY_PREFIX)) {
+            String path = originalPath.substring(KEY_PREFIX.length());
+
+            if (isEmpty(path)) {
+                throw badPathException(originalPath);
+            }
+
+            return new QueryPath(path, true);
+        } else if (originalPath.startsWith(VALUE_PREFIX)) {
+            String path = originalPath.substring(VALUE_PREFIX.length());
+
+            if (isEmpty(path)) {
+                throw badPathException(originalPath);
+            }
+
+            return new QueryPath(path, false);
+        } else {
+            return new QueryPath(originalPath, false);
+        }
     }
 
-    /**
-     * Extract child path from the complex key-based path. E.g. "__key.field" => "field".
-     *
-     * @param path Original path.
-     * @return Path without the key attribute or {@code null} if not a key.
-     */
-    public static String extractKeyPath(String path) {
-        String prefix = KEY_ATTRIBUTE_NAME.value() + ".";
+    private static boolean isEmpty(String path) {
+        return path == null || path.isEmpty();
+    }
 
-        return path.startsWith(prefix) ? path.substring(prefix.length()) : null;
+    private static QueryException badPathException(String path) {
+        throw QueryException.error("Field cannot be empty: " + path);
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.QUERY_PATH;
+    }
+
+    @Override
+    public void writeData(ObjectDataOutput out) throws IOException {
+        out.writeBoolean(key);
+        out.writeUTF(path);
+    }
+
+    @Override
+    public void readData(ObjectDataInput in) throws IOException {
+        key = in.readBoolean();
+        path = in.readUTF();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        QueryPath path1 = (QueryPath) o;
+
+        if (key != path1.key) {
+            return false;
+        }
+
+        return path != null ? path.equals(path1.path) : path1.path == null;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = key ? 1 : 0;
+
+        result = 31 * result + (path != null ? path.hashCode() : 0);
+
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return (key ? KEY : VALUE) + (path != null ? "." + path : "");
     }
 }

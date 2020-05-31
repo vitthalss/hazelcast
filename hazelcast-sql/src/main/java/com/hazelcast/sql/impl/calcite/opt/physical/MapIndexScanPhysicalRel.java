@@ -16,12 +16,11 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical;
 
-import com.hazelcast.sql.impl.calcite.cost.CostUtils;
-import com.hazelcast.sql.impl.calcite.opt.AbstractScanRel;
+import com.hazelcast.sql.impl.calcite.opt.AbstractMapScanRel;
+import com.hazelcast.sql.impl.calcite.opt.cost.CostUtils;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PhysicalRelVisitor;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTableIndex;
 import com.hazelcast.sql.impl.exec.scan.index.IndexFilter;
+import com.hazelcast.sql.impl.schema.map.MapTableIndex;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
@@ -37,9 +36,9 @@ import java.util.List;
 /**
  * Map index scan operator.
  */
-public class MapIndexScanPhysicalRel extends AbstractScanRel implements PhysicalRel {
+public class MapIndexScanPhysicalRel extends AbstractMapScanRel implements PhysicalRel {
     /** Target index. */
-    private final HazelcastTableIndex index;
+    private final MapTableIndex index;
 
     /** Index filter. */
     private final IndexFilter indexFilter;
@@ -47,28 +46,24 @@ public class MapIndexScanPhysicalRel extends AbstractScanRel implements Physical
     /** Remainder filter. */
     private final RexNode remainderFilter;
 
-    /** Original filter. */
-    private final RexNode originalFilter;
-
     public MapIndexScanPhysicalRel(
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelOptTable table,
         List<Integer> projects,
-        HazelcastTableIndex index,
+        MapTableIndex index,
         IndexFilter indexFilter,
         RexNode remainderFilter,
         RexNode originalFilter
     ) {
-        super(cluster, traitSet, table, projects);
+        super(cluster, traitSet, table, projects, originalFilter);
 
         this.index = index;
         this.indexFilter = indexFilter;
         this.remainderFilter = remainderFilter;
-        this.originalFilter = originalFilter;
     }
 
-    public HazelcastTableIndex getIndex() {
+    public MapTableIndex getIndex() {
         return index;
     }
 
@@ -90,7 +85,7 @@ public class MapIndexScanPhysicalRel extends AbstractScanRel implements Physical
             index,
             indexFilter,
             remainderFilter,
-            originalFilter
+            filter
         );
     }
 
@@ -113,12 +108,12 @@ public class MapIndexScanPhysicalRel extends AbstractScanRel implements Physical
         // 1. Get cost of the scan itself. For replicated map cost is multiplied by the number of nodes.
         RelOptCost scanCost = super.computeSelfCost(planner, mq);
 
-        if (table.unwrap(HazelcastTable.class).isReplicated()) {
-            scanCost = scanCost.multiplyBy(getHazelcastCluster().getMemberCount());
+        if (isReplicated()) {
+            scanCost = scanCost.multiplyBy(getMemberCount());
         }
 
         // 2. Get cost of the project taking in count filter and number of expressions. Project never produces IO.
-        double filterSelectivity = mq.getSelectivity(this, originalFilter);
+        double filterSelectivity = mq.getSelectivity(this, filter);
         double filterRowCount = scanCost.getRows() * filterSelectivity;
 
         int expressionCount = getProjects().size();

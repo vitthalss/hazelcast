@@ -16,20 +16,18 @@
 
 package com.hazelcast.sql.impl.calcite.validate;
 
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.runtime.Resources;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlOperatorTable;
-import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.validate.SqlConformance;
 import org.apache.calcite.sql.validate.SqlValidatorCatalogReader;
 import org.apache.calcite.sql.validate.SqlValidatorImpl;
 
+/**
+ * Hazelcast-specific SQL validator.
+ */
 public class HazelcastSqlValidator extends SqlValidatorImpl {
-    private static final HazelcastResource HZ_RESOURCE = Resources.create(HazelcastResource.class);
-
     public HazelcastSqlValidator(
         SqlOperatorTable opTab,
         SqlValidatorCatalogReader catalogReader,
@@ -37,17 +35,16 @@ public class HazelcastSqlValidator extends SqlValidatorImpl {
         SqlConformance conformance
     ) {
         super(opTab, catalogReader, typeFactory, conformance);
+
         setTypeCoercion(new HazelcastTypeCoercion(this));
     }
 
     @Override
-    protected void validateSelect(SqlSelect select, RelDataType targetRowType) {
-        super.validateSelect(select, targetRowType);
-
-        SqlNode from = select.getFrom();
-
-        if (from != null && from.getKind() == SqlKind.UNION)  {
-            throw newValidationError(from, HZ_RESOURCE.unionNotSupported());
+    public SqlNode validate(SqlNode topNode) {
+        if (topNode.getKind().belongsTo(SqlKind.DDL)) {
+            return topNode;
         }
+
+        return super.validate(topNode);
     }
 }

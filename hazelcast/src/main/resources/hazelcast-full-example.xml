@@ -666,12 +666,14 @@
                 <zones>us-east1-b,us-east1-c</zones>
             </gcp>
             <azure enabled="false">
+                <instance-metadata-available>false</instance-metadata-available>
                 <client-id>CLIENT_ID</client-id>
                 <client-secret>CLIENT_SECRET</client-secret>
                 <tenant-id>TENANT_ID</tenant-id>
                 <subscription-id>SUB_ID</subscription-id>
-                <cluster-id>HZLCAST001</cluster-id>
-                <group-name>RESOURCE-GROUP-NAME</group-name>
+                <resource-group>RESOURCE-GROUP-NAME</resource-group>
+                <scale-set>SCALE-SET-NAME</scale-set>
+                <tag>TAG-NAME=HZLCAST001</tag>
             </azure>
             <kubernetes enabled="false">
                 <namespace>MY-KUBERNETES-NAMESPACE</namespace>
@@ -2223,6 +2225,8 @@
                         <user-name-attribute>userNameAttribute</user-name-attribute>
                         <system-user-dn>systemUserDn</system-user-dn>
                         <system-user-password>systemUserPassword</system-user-password>
+                        <system-authentication>simple</system-authentication>
+                        <security-realm>realmName</security-realm>
                         <password-attribute>passwordAttribute</password-attribute>
                         <user-context>userContext</user-context>
                         <user-filter>userFilter</user-filter>
@@ -2253,8 +2257,8 @@
                         <security-realm>krb5Acceptor</security-realm>
                         <ldap>
                             <url>ldap://127.0.0.1/</url>
-                            <system-user-dn>uid=admin,ou=system</system-user-dn>
-                            <system-user-password>secret</system-user-password>
+                            <system-authentication>GSSAPI</system-authentication>
+                            <security-realm>krb5Initiator</security-realm>
                             <skip-authentication>true</skip-authentication>
                             <user-filter>(krb5PrincipalName={login})</user-filter>
                             <role-mapping-attribute>cn</role-mapping-attribute>
@@ -3029,12 +3033,14 @@
                 <zones>us-east1-b,us-east1-c</zones>
             </gcp>
             <azure enabled="false">
+                <instance-metadata-available>false</instance-metadata-available>
                 <client-id>CLIENT_ID</client-id>
                 <client-secret>CLIENT_SECRET</client-secret>
                 <tenant-id>TENANT_ID</tenant-id>
                 <subscription-id>SUB_ID</subscription-id>
-                <cluster-id>HZLCAST001</cluster-id>
-                <group-name>RESOURCE-GROUP-NAME</group-name>
+                <resource-group>RESOURCE-GROUP-NAME</resource-group>
+                <scale-set>SCALE-SET-NAME</scale-set>
+                <tag>TAG-NAME=HZLCAST001</tag>
             </azure>
             <kubernetes enabled="false">
                 <namespace>MY-KUBERNETES-NAMESPACE</namespace>

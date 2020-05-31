@@ -18,16 +18,15 @@ package com.hazelcast.sql.impl.calcite.opt.physical;
 
 import com.hazelcast.config.IndexType;
 import com.hazelcast.internal.util.BiTuple;
-import com.hazelcast.sql.impl.calcite.HazelcastConventions;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionField;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionTrait;
+import com.hazelcast.sql.impl.calcite.opt.HazelcastConventions;
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTrait;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTraitDef;
 import com.hazelcast.sql.impl.calcite.opt.logical.MapScanLogicalRel;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTableIndex;
 import com.hazelcast.sql.impl.exec.scan.index.IndexFilter;
 import com.hazelcast.sql.impl.exec.scan.index.IndexFilterType;
-import com.hazelcast.sql.impl.extract.QueryPath;
+import com.hazelcast.sql.impl.schema.map.MapTableIndex;
+import com.hazelcast.sql.impl.schema.map.PartitionedMapTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelOptUtil;
@@ -36,7 +35,6 @@ import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
@@ -51,12 +49,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.hazelcast.sql.impl.calcite.distribution.DistributionType.PARTITIONED;
-
 /**
  * Convert logical map scan to either replicated or partitioned physical scan.
  */
-public final class MapScanPhysicalRule extends AbstractPhysicalRule {
+public final class MapScanPhysicalRule extends RelOptRule {
     public static final RelOptRule INSTANCE = new MapScanPhysicalRule();
 
     private MapScanPhysicalRule() {
@@ -67,13 +63,13 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
     }
 
     @Override
-    public void onMatch0(RelOptRuleCall call) {
+    public void onMatch(RelOptRuleCall call) {
         MapScanLogicalRel scan = call.rel(0);
 
         if (scan.isReplicated()) {
             PhysicalRel newScan = new ReplicatedMapScanPhysicalRel(
                 scan.getCluster(),
-                OptUtils.toPhysicalConvention(scan.getTraitSet(), DistributionTrait.REPLICATED_DIST),
+                OptUtils.toPhysicalConvention(scan.getTraitSet(), OptUtils.getDistributionDef(scan).getTraitReplicated()),
                 scan.getTable(),
                 scan.getProjects(),
                 scan.getFilter()
@@ -81,9 +77,13 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
 
             call.transformTo(newScan);
         } else {
-            HazelcastTable table = scan.getTableUnwrapped();
+            PartitionedMapTable table = (PartitionedMapTable) scan.getMap();
 
-            DistributionTrait distribution = getDistributionTrait(table, scan.getProjects());
+            DistributionTrait distribution = getDistributionTrait(
+                OptUtils.getDistributionDef(scan),
+                table,
+                scan.getProjects()
+            );
 
             List<RelNode> transforms = new ArrayList<>(1);
 
@@ -113,7 +113,7 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
     private void addIndexScans(
         MapScanLogicalRel scan,
         DistributionTrait distribution,
-        List<HazelcastTableIndex> indexes,
+        List<MapTableIndex> indexes,
         List<RelNode> transforms
     ) {
         RexNode filter = scan.getFilter();
@@ -140,7 +140,7 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
             return;
         }
 
-        for (HazelcastTableIndex index : indexes) {
+        for (MapTableIndex index : indexes) {
             RelNode transform = tryCreateIndexScan(scan, distribution, index, disjunctions.get(0));
 
             if (transform != null) {
@@ -152,46 +152,20 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
     private RelNode tryCreateIndexScan(
         MapScanLogicalRel scan,
         DistributionTrait distribution,
-        HazelcastTableIndex index,
+        MapTableIndex index,
         RexNode exp
     ) {
-        // Map index fields to scan fields. Since not all index might be involved in
-        List<String> indexAttributes = index.getAttributes();
+        List<Integer> indexFieldOrdinals = index.getFieldOrdinals();
 
-        if (indexAttributes.size() > 1) {
+        if (indexFieldOrdinals.size() > 1) {
             // TODO: Do not support composite index in the prototype for the sake of simplicity. Should be supported in
             //  production implementation.
             return null;
         }
 
-        List<Integer> indexAttributes0 = new ArrayList<>(indexAttributes.size());
-
-        List<String> scanFieldNames = scan.getTable().getRowType().getFieldNames();
-
-        for (String indexAttribute : indexAttributes) {
-            int pos = scanFieldNames.indexOf(indexAttribute);
-
-            if (pos == -1) {
-                break;
-            }
-
-            indexAttributes0.add(pos);
-        }
-
-        // If the very first index attribute is not present in the scan row type, then this field is never requested, and hence
-        // index cannot be used.
-        if (indexAttributes0.isEmpty()) {
-            return null;
-        }
-
-        // If at least one of the fields of hash index is never referred, then it cannot be used for sure.
-        if (index.getType() == IndexType.HASH && indexAttributes0.size() != indexAttributes.size()) {
-            return null;
-        }
-
         BiTuple<IndexFilter, RexNode> filter = tryCreateIndexFilter(
             index.getType(),
-            indexAttributes0,
+            indexFieldOrdinals,
             exp,
             scan.getCluster().getRexBuilder()
         );
@@ -199,8 +173,6 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
         if (filter == null) {
             return null;
         }
-
-
 
         // TODO: We must add collation here (see commented line). Somehow it breaks the planner.
         RelTraitSet traitSet = OptUtils.toPhysicalConvention(scan.getTraitSet(), distribution);
@@ -428,7 +400,7 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
      * @param index Index.
      * @return Collation trait.
      */
-    private static RelCollation createIndexCollation(MapScanLogicalRel scan, HazelcastTableIndex index) {
+    private static RelCollation createIndexCollation(MapScanLogicalRel scan, MapTableIndex index) {
         if (index.getType() == IndexType.HASH) {
             // Hash index doesn't enforce any collation.
             return RelCollations.EMPTY;
@@ -437,29 +409,24 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
         assert index.getType() == IndexType.SORTED;
 
         // Map scan field names to relevant outputs.
-        Map<String, Integer> fieldToProjectIndex = new HashMap<>();
+        Map<Integer, Integer> fieldToProjectIndex = new HashMap<>();
 
-        List<String> scanFieldNames = scan.getTable().getRowType().getFieldNames();
-        List<Integer> scanProjects = scan.getProjects();
-
-        for (int i = 0; i < scanFieldNames.size(); i++) {
-            int projectIndex = scanProjects.indexOf(i);
+        for (int i = 0; i < scan.getMap().getFieldCount(); i++) {
+            int projectIndex = scan.getProjects().indexOf(i);
 
             if (projectIndex == -1) {
                 // Scan field is not projected out.
                 continue;
             }
 
-            String fieldName = scanFieldNames.get(i);
-
-            fieldToProjectIndex.put(fieldName, projectIndex);
+            fieldToProjectIndex.put(i, projectIndex);
         }
 
         // Now add prefix of index attributes.
-        List<RelFieldCollation> fieldCollations = new ArrayList<>(index.getAttributes().size());
+        List<RelFieldCollation> fieldCollations = new ArrayList<>(index.getFieldOrdinals().size());
 
-        for (String attribute : index.getAttributes()) {
-            Integer projectIndex = fieldToProjectIndex.get(attribute);
+        for (Integer indexFieldOrdinal : index.getFieldOrdinals()) {
+            Integer projectIndex = fieldToProjectIndex.get(indexFieldOrdinal);
 
             if (projectIndex == null) {
                 // Collation field is not present in the output. Further sorting is impossible.
@@ -478,83 +445,35 @@ public final class MapScanPhysicalRule extends AbstractPhysicalRule {
     /**
      * Get distribution trait for the given table.
      *
-     * @param hazelcastTable Table.
+     * @param table Table.
      * @param projects Projects.
      * @return Distribution trait.
      */
-    private static DistributionTrait getDistributionTrait(HazelcastTable hazelcastTable, List<Integer> projects) {
-        List<DistributionField> distributionFields = getDistributionFields(hazelcastTable);
+    private static DistributionTrait getDistributionTrait(
+        DistributionTraitDef distributionTraitDef,
+        PartitionedMapTable table,
+        List<Integer> projects
+    ) {
+        if (!table.hasDistributionField()) {
+            return distributionTraitDef.getTraitPartitionedUnknown();
+        }
 
-        if (distributionFields.isEmpty()) {
-            return DistributionTrait.PARTITIONED_UNKNOWN_DIST;
-        } else {
-            // Remap internal scan distribution fields to projected fields.
-            List<DistributionField> res = new ArrayList<>(distributionFields.size());
+        // TODO: Simplify, there is only one field here!
+        List<Integer> distributionFields = Collections.singletonList(table.getDistributionFieldIndex());
 
-            for (DistributionField distributionField : distributionFields) {
-                int distributionFieldIndex = distributionField.getIndex();
+        // Remap internal scan distribution fields to projected fields.
+        List<Integer> res = new ArrayList<>(distributionFields.size());
 
-                int projectIndex = projects.indexOf(distributionFieldIndex);
+        for (Integer distributionField : distributionFields) {
+            int projectIndex = projects.indexOf(distributionField);
 
-                if (projectIndex == -1) {
-                    return DistributionTrait.PARTITIONED_UNKNOWN_DIST;
-                }
-
-                res.add(new DistributionField(projectIndex, distributionField.getNestedField()));
+            if (projectIndex == -1) {
+                return distributionTraitDef.getTraitPartitionedUnknown();
             }
 
-            return DistributionTrait.Builder.ofType(PARTITIONED).addFieldGroup(res).build();
-        }
-    }
-
-    /**
-     * Get distribution field of the given table.
-     *
-     * @param hazelcastTable Table.
-     * @return Distribution field wrapped into a list or an empty list if no distribution field could be determined.
-     */
-    private static List<DistributionField> getDistributionFields(HazelcastTable hazelcastTable) {
-        if (hazelcastTable.isReplicated()) {
-            return Collections.emptyList();
+            res.add(projectIndex);
         }
 
-        String distributionFieldName = hazelcastTable.getDistributionField();
-
-        int index = 0;
-
-        for (RelDataTypeField field : hazelcastTable.getFieldList()) {
-            String path = hazelcastTable.getFieldPath(field.getName());
-
-            if (path.equals(QueryPath.KEY)) {
-                // If there is no distribution field, use the whole key.
-                if (distributionFieldName == null) {
-                    return Collections.singletonList(new DistributionField(index));
-                }
-
-                // TODO: Enable this for nested field support.
-//                // Otherwise try to find desired field as a nested field of the key.
-//                for (RelDataTypeField nestedField : field.getType().getFieldList()) {
-//                    String nestedFieldName = nestedField.getName();
-//
-//                    if (nestedField.getName().equals(distributionField)) {
-//                        return Collections.singletonList(new DistributionField(index, nestedFieldName));
-//                    }
-//                }
-            } else {
-                // Try extracting the field from the key-based path and check if it is the distribution field.
-                // E.g. "field" -> (attribute) -> "__key.distField" -> (strategy) -> "distField".
-                String keyPath = QueryPath.extractKeyPath(path);
-
-                if (keyPath != null) {
-                    if (keyPath.equals(distributionFieldName)) {
-                        return Collections.singletonList(new DistributionField(index));
-                    }
-                }
-            }
-
-            index++;
-        }
-
-        return Collections.emptyList();
+        return distributionTraitDef.createPartitionedTrait(Collections.singletonList(res));
     }
 }

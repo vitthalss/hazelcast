@@ -16,6 +16,8 @@
 
 package com.hazelcast.sql.impl.extract;
 
+import com.hazelcast.internal.serialization.Data;
+import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.type.QueryDataType;
@@ -23,22 +25,64 @@ import com.hazelcast.sql.impl.type.QueryDataType;
 public class JavaClassQueryTarget implements QueryTarget, GenericTargetAccessor {
 
     private final String clazzName;
+    private final InternalSerializationService serializationService;
     private final Extractors extractors;
     private final boolean isKey;
 
     private Class<?> clazz;
-    private Object target;
 
-    public JavaClassQueryTarget(String clazzName, Extractors extractors, boolean isKey) {
+    private Object target;
+    private Object preparedTarget;
+
+    public JavaClassQueryTarget(
+        String clazzName,
+        InternalSerializationService serializationService,
+        Extractors extractors,
+        boolean isKey
+    ) {
         this.clazzName = clazzName;
+        this.serializationService = serializationService;
         this.extractors = extractors;
         this.isKey = isKey;
     }
 
     @Override
     public void setTarget(Object target) {
+        this.target = target;
+        this.preparedTarget = null;
+    }
+
+    @Override
+    public QueryExtractor createExtractor(String path, QueryDataType type) {
+        if (path == null) {
+            return new GenericTargetExtractor(isKey, this, type);
+        } else {
+            return new GenericFieldExtractor(isKey, this, type, extractors, path);
+        }
+    }
+
+    @Override
+    public Object getTarget() {
+        if (preparedTarget == null) {
+            preparedTarget = prepareTarget(target);
+        }
+
+        return preparedTarget;
+    }
+
+    private Object prepareTarget(Object rawTarget) {
+        // Deserialize object if needed.
+        Object preparedTarget;
+
+        if (rawTarget instanceof Data) {
+            preparedTarget = serializationService.toObject(rawTarget);
+        } else {
+            preparedTarget = rawTarget;
+        }
+
+        // Verify expected class.
         if (clazz == null) {
-            Class<?> clazz0 = target.getClass();
+            Class<?> clazz0 = preparedTarget.getClass();
 
             if (clazz0.getName().equals(clazzName)) {
                 clazz = clazz0;
@@ -47,26 +91,13 @@ public class JavaClassQueryTarget implements QueryTarget, GenericTargetAccessor 
                     + ", actual=" + clazz0.getName() + ']');
             }
         } else {
-            if (target.getClass() != clazz) {
+            if (preparedTarget.getClass() != clazz) {
                 throw QueryException.dataException("Unexpected value class [expected=" + clazzName
-                    + ", actual=" + target.getClass().getName() + ']');
+                    + ", actual=" + preparedTarget.getClass().getName() + ']');
             }
         }
 
-        this.target = target;
-    }
-
-    @Override
-    public QueryExtractor createExtractor(String path, QueryDataType type) {
-        if (path == null) {
-            return new GenericTargetExtractor(this, type);
-        } else {
-            return new GenericFieldExtractor(this, type, extractors, path);
-        }
-    }
-
-    @Override
-    public Object getTarget() {
-        return target;
+        // Done
+        return preparedTarget;
     }
 }

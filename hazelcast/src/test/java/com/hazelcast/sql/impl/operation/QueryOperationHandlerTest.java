@@ -508,7 +508,6 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
             Collections.emptyMap(),
             null,
             null,
-            null,
             null
         );
 
@@ -518,8 +517,7 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
             plan,
             null,
             new BlockingRootResultConsumer(),
-            initiatorService.getOperationHandler(),
-            true
+            initiatorService.getOperationHandler()
         ).getQueryId();
 
         testState = new State(queryId);

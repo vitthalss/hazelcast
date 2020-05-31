@@ -17,163 +17,119 @@
 package com.hazelcast.sql.impl.calcite;
 
 import com.google.common.collect.ImmutableList;
-import com.hazelcast.cluster.memberselector.MemberSelectors;
-import com.hazelcast.spi.impl.NodeEngine;
-import com.hazelcast.sql.impl.QueryException;
-import com.hazelcast.sql.SqlErrorCode;
-import com.hazelcast.sql.impl.calcite.cost.CostFactory;
-import com.hazelcast.sql.impl.calcite.cost.metadata.MetadataProvider;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionTrait;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionTraitDef;
-import com.hazelcast.sql.impl.calcite.operators.HazelcastSqlOperatorTable;
-import com.hazelcast.sql.impl.calcite.opt.OptUtils;
-import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRel;
-import com.hazelcast.sql.impl.calcite.opt.logical.LogicalRules;
-import com.hazelcast.sql.impl.calcite.opt.logical.RootLogicalRel;
-import com.hazelcast.sql.impl.calcite.opt.physical.FilterPhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.MapScanPhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
-import com.hazelcast.sql.impl.calcite.opt.physical.ProjectPhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.RootPhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.SortPhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.agg.AggregatePhysicalRule;
-import com.hazelcast.sql.impl.calcite.opt.physical.join.JoinPhysicalRule;
+import com.hazelcast.sql.impl.JetSqlBackend;
+import com.hazelcast.sql.impl.calcite.opt.QueryPlanner;
+import com.hazelcast.sql.impl.calcite.opt.cost.CostFactory;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTraitDef;
+import com.hazelcast.sql.impl.calcite.opt.metadata.HazelcastRelMdRowCount;
+import com.hazelcast.sql.impl.calcite.parse.CasingConfiguration;
+import com.hazelcast.sql.impl.calcite.parse.QueryConverter;
+import com.hazelcast.sql.impl.calcite.parse.QueryParseResult;
+import com.hazelcast.sql.impl.calcite.parse.QueryParser;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastCalciteCatalogReader;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchema;
-import com.hazelcast.sql.impl.calcite.schema.SchemaUtils;
-import com.hazelcast.sql.impl.calcite.statistics.StatisticProvider;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastSchemaUtils;
+import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlConformance;
+import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable;
 import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlValidator;
-import com.hazelcast.sql.impl.optimizer.OptimizerRuleCallTracker;
-import com.hazelcast.sql.impl.schema.SqlSchemaResolver;
+import com.hazelcast.sql.impl.schema.TableResolver;
 import org.apache.calcite.adapter.java.JavaTypeFactory;
-import org.apache.calcite.avatica.util.Casing;
 import org.apache.calcite.config.CalciteConnectionConfig;
-import org.apache.calcite.config.CalciteConnectionConfigImpl;
-import org.apache.calcite.config.CalciteConnectionProperty;
 import org.apache.calcite.jdbc.HazelcastRootCalciteSchema;
 import org.apache.calcite.plan.Contexts;
 import org.apache.calcite.plan.ConventionTraitDef;
 import org.apache.calcite.plan.HazelcastRelOptCluster;
-import org.apache.calcite.plan.RelOptCostImpl;
-import org.apache.calcite.plan.hep.HepPlanner;
-import org.apache.calcite.plan.hep.HepProgramBuilder;
-import org.apache.calcite.plan.volcano.AbstractConverter;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.prepare.Prepare;
+import org.apache.calcite.prepare.Prepare.CatalogReader;
 import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.RelRoot;
-import org.apache.calcite.rel.core.RelFactories;
+import org.apache.calcite.rel.metadata.ChainedRelMetadataProvider;
+import org.apache.calcite.rel.metadata.DefaultRelMetadataProvider;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataProvider;
-import org.apache.calcite.rel.rules.SubQueryRemoveRule;
-import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.SqlOperatorTable;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
-import org.apache.calcite.sql.parser.SqlParser;
 import org.apache.calcite.sql.util.ChainedSqlOperatorTable;
 import org.apache.calcite.sql.validate.SqlValidator;
-import org.apache.calcite.sql2rel.SqlToRelConverter;
-import org.apache.calcite.sql2rel.StandardConvertletTable;
-import org.apache.calcite.tools.Program;
-import org.apache.calcite.tools.Programs;
 import org.apache.calcite.tools.RuleSet;
-import org.apache.calcite.tools.RuleSets;
 
-import java.util.Properties;
+import javax.annotation.Nullable;
+import java.util.List;
 
 /**
  * Optimizer context which holds the whole environment for the given optimization session.
+ * Should not be re-used between optimization sessions.
  */
+@SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "checkstyle:ClassFanOutComplexity"})
 public final class OptimizerContext {
-    /** Converter: whether to convert LogicalTableScan to some physical form immediately or not. We do not need this. */
-    private static final boolean CONVERTER_CONVERT_TABLE_ACCESS = false;
 
-    /**
-     * Converter: whether to expand subqueries. When set to {@code false}, subqueries are left as is in the form of
-     * {@link org.apache.calcite.rex.RexSubQuery}. Otherwise they are expanded into {@link org.apache.calcite.rel.core.Correlate}
-     * instances.
-     * Do not enable this because you may run into https://issues.apache.org/jira/browse/CALCITE-3484. Instead, subquery
-     * elimination rules are executed during logical planning. In addition, resulting plans are slightly better that those
-     * produced by "expand" flag.
-     */
-    private static final boolean CONVERTER_EXPAND = false;
+    private static final RelMetadataProvider METADATA_PROVIDER = ChainedRelMetadataProvider.of(ImmutableList.of(
+        HazelcastRelMdRowCount.SOURCE,
+        DefaultRelMetadataProvider.INSTANCE
+    ));
 
-    /** Converter: whether to trim unused fields. */
-    private static final boolean CONVERTER_TRIM_UNUSED_FIELDS = true;
+    private static final CalciteConnectionConfig CONNECTION_CONFIG = CasingConfiguration.DEFAULT.toConnectionConfig();
 
-    /** Thread-local optimizer config. */
-    private static final ThreadLocal<OptimizerConfig> OPTIMIZER_CONFIG = new ThreadLocal<>();
-
-    /** Optimizer config. */
-    private final OptimizerConfig config;
-
-    /** Cluster. */
-    private final HazelcastRelOptCluster cluster;
-
-    /** Basic Calcite config. */
-    private final VolcanoPlanner planner;
-
-    /** SQL validator. */
-    private final SqlValidator validator;
-
-    /** SQL converter. */
-    private final SqlToRelConverter sqlToRelConverter;
+    private final QueryParser parser;
+    private final QueryConverter converter;
+    private final QueryPlanner planner;
 
     private OptimizerContext(
-        OptimizerConfig config,
-        SqlValidator validator,
-        SqlToRelConverter sqlToRelConverter,
-        HazelcastRelOptCluster cluster,
-        VolcanoPlanner planner
+        QueryParser parser,
+        QueryConverter converter,
+        QueryPlanner planner
     ) {
-        this.config = config;
-        this.validator = validator;
-        this.sqlToRelConverter = sqlToRelConverter;
-        this.cluster = cluster;
+        this.parser = parser;
+        this.converter = converter;
         this.planner = planner;
     }
 
     /**
-     * Create new context for the given node engine.
+     * Create the optimization context.
      *
-     * @param nodeEngine Node engine.
+     * @param tableResolvers Resolver to collect information about tables.
+     * @param currentSearchPaths Search paths to support "current schema" feature.
+     * @param memberCount Number of member that is important for distribution-related rules and converters.
      * @return Context.
      */
     public static OptimizerContext create(
-        NodeEngine nodeEngine,
-        StatisticProvider statisticProvider,
-        SqlSchemaResolver schemaResolver
+        JetSqlBackend jetSqlBackend,
+        List<TableResolver> tableResolvers,
+        List<List<String>> currentSearchPaths,
+        int memberCount
     ) {
-        HazelcastSchema rootSchema = SchemaUtils.createRootSchema(nodeEngine, statisticProvider, schemaResolver);
+        // Prepare search paths.
+        List<List<String>> searchPaths = HazelcastSchemaUtils.prepareSearchPaths(currentSearchPaths, tableResolvers);
 
-        int memberCount = nodeEngine.getClusterService().getSize(MemberSelectors.DATA_MEMBER_SELECTOR);
+        // Resolve tables.
+        HazelcastSchema rootSchema = HazelcastSchemaUtils.createRootSchema(tableResolvers);
 
-        return create(rootSchema, memberCount, getOptimizerConfig());
+        return create(jetSqlBackend, rootSchema, searchPaths, memberCount);
     }
 
-    /**
-     * Create new context for the given schema.
-     *
-     * @param rootSchema Root schema.
-     * @param memberCount Member count.
-     * @return Context.
-     */
-    public static OptimizerContext create(HazelcastSchema rootSchema, int memberCount, OptimizerConfig config) {
-        if (config == null) {
-            config = OptimizerConfig.builder().build();
-        }
+    public static OptimizerContext create(
+        @Nullable JetSqlBackend jetSqlBackend,
+        HazelcastSchema rootSchema,
+        List<List<String>> schemaPaths,
+        int memberCount
+    ) {
+        DistributionTraitDef distributionTraitDef = new DistributionTraitDef(memberCount);
 
         JavaTypeFactory typeFactory = new HazelcastTypeFactory();
-        CalciteConnectionConfig connectionConfig = createConnectionConfig();
-        Prepare.CatalogReader catalogReader = createCatalogReader(typeFactory, connectionConfig, rootSchema);
-        SqlValidator validator = createValidator(typeFactory, catalogReader);
-        VolcanoPlanner planner = createPlanner(connectionConfig);
-        HazelcastRelOptCluster cluster = createCluster(planner, typeFactory, memberCount);
-        SqlToRelConverter sqlToRelConverter = createSqlToRelConverter(catalogReader, validator, cluster);
+        Prepare.CatalogReader catalogReader = createCatalogReader(typeFactory, CONNECTION_CONFIG, rootSchema, schemaPaths);
+        SqlValidator validator = createValidator(jetSqlBackend, typeFactory, catalogReader);
+        VolcanoPlanner volcanoPlanner = createPlanner(CONNECTION_CONFIG, distributionTraitDef);
+        HazelcastRelOptCluster cluster = createCluster(volcanoPlanner, typeFactory, distributionTraitDef);
 
-        return new OptimizerContext(config, validator, sqlToRelConverter, cluster, planner);
+        QueryParser parser = new QueryParser(validator);
+        QueryConverter converter = new QueryConverter(catalogReader, validator, cluster);
+        QueryPlanner planner = new QueryPlanner(volcanoPlanner);
+
+        return new OptimizerContext(parser, converter, planner);
     }
 
     /**
@@ -182,26 +138,8 @@ public final class OptimizerContext {
      * @param sql SQL string.
      * @return SQL tree.
      */
-    public SqlNode parse(String sql) {
-        SqlNode node;
-
-        try {
-            SqlParser.ConfigBuilder parserConfig = SqlParser.configBuilder();
-
-            parserConfig.setCaseSensitive(true);
-            parserConfig.setUnquotedCasing(Casing.UNCHANGED);
-            parserConfig.setQuotedCasing(Casing.UNCHANGED);
-            parserConfig.setConformance(HazelcastSqlConformance.INSTANCE);
-
-            SqlParser parser = SqlParser.create(sql, parserConfig.build());
-
-            node = parser.parseStmt();
-
-            // TODO: Get column names through SqlSelect.selectList[i].toString() (and, possibly, origins?)
-            return validator.validate(node);
-        } catch (Exception e) {
-            throw QueryException.error(SqlErrorCode.PARSING, e.getMessage(), e);
-        }
+    public QueryParseResult parse(String sql) {
+        return parser.parse(sql);
     }
 
     /**
@@ -211,157 +149,60 @@ public final class OptimizerContext {
      * @return Relational tree.
      */
     public RelNode convert(SqlNode node) {
-        // 1. Perform initial conversion.
-        RelRoot root = sqlToRelConverter.convertQuery(node, false, true);
-
-        // 2. Remove subquery expressions, converting them to Correlate nodes.
-        RelNode relNoSubqueries = rewriteSubqueries(root.rel);
-
-        // 3. Perform decorrelation, i.e. rewrite a nested loop where the right side depends on the value of the left side,
-        // to a variation of joins, semijoins and aggregations, which could be executed much more efficiently.
-        // See "Unnesting Arbitrary Queries", Thomas Neumann and Alfons Kemper.
-        RelNode relDecorrelated = sqlToRelConverter.decorrelate(node, relNoSubqueries);
-
-        // 4. The side effect of subquery rewrite and decorrelation in Apache Calcite is a number of unnecessary fields,
-        // primarily in projections. This steps removes unused fields from the tree.
-        RelNode relTrimmed = sqlToRelConverter.trimUnusedFields(true, relDecorrelated);
-
-        return relTrimmed;
+        return converter.convert(node);
     }
 
     /**
-     * Special substep of an initial query conversion which eliminates correlated subqueries, converting them to various forms
-     * of joins. It is used instead of "expand" flag due to bugs in Calcite (see {@link #CONVERTER_EXPAND}).
+     * Apply the given rules to the node.
      *
-     * @param rel Initial relation.
-     * @return Resulting relation.
+     * @param node Node.
+     * @param rules Rules.
+     * @param traitSet Required trait set.
+     * @return Optimized node.
      */
-    private RelNode rewriteSubqueries(RelNode rel) {
-        HepProgramBuilder hepPgmBldr = new HepProgramBuilder();
-
-        hepPgmBldr.addRuleInstance(SubQueryRemoveRule.FILTER);
-        hepPgmBldr.addRuleInstance(SubQueryRemoveRule.PROJECT);
-        hepPgmBldr.addRuleInstance(SubQueryRemoveRule.JOIN);
-
-        HepPlanner planner = new HepPlanner(hepPgmBldr.build(), Contexts.empty(), true, null, RelOptCostImpl.FACTORY);
-
-        planner.setRoot(rel);
-
-        return planner.findBestExp();
-    }
-
-    /**
-     * Perform logical optimization.
-     *
-     * @param rel Original logical tree.
-     * @return Optimized logical tree.
-     */
-    public LogicalRel optimizeLogical(RelNode rel) {
-        RuleSet rules = LogicalRules.getRuleSet();
-        Program program = Programs.of(rules);
-
-        RelNode res = program.run(
-            planner,
-            rel,
-            OptUtils.toLogicalConvention(rel.getTraitSet()),
-            ImmutableList.of(),
-            ImmutableList.of()
-        );
-
-        return new RootLogicalRel(res.getCluster(), res.getTraitSet(), res);
-    }
-
-    /**
-     * Perform physical optimization. This is where proper access methods and algorithms for joins and aggregations are chosen.
-     *
-     * @param rel Optimized logical tree.
-     * @return Optimized physical tree.
-     */
-    public PhysicalRel optimizePhysical(RelNode rel, OptimizerRuleCallTracker ruleCallTracker) {
-        RuleSet rules = RuleSets.ofList(
-            SortPhysicalRule.INSTANCE,
-            RootPhysicalRule.INSTANCE,
-            FilterPhysicalRule.INSTANCE,
-            ProjectPhysicalRule.INSTANCE,
-            MapScanPhysicalRule.INSTANCE,
-            AggregatePhysicalRule.INSTANCE,
-            JoinPhysicalRule.INSTANCE,
-
-            new AbstractConverter.ExpandConversionRule(RelFactories.LOGICAL_BUILDER)
-        );
-
-        Program program = Programs.of(rules);
-
-        try {
-            cluster.startPhysicalOptimization(ruleCallTracker);
-
-            if (ruleCallTracker != null) {
-                ruleCallTracker.onStart();
-            }
-
-            RelNode res = program.run(
-                planner,
-                rel,
-                OptUtils.toPhysicalConvention(rel.getTraitSet(), DistributionTrait.ROOT_DIST),
-                ImmutableList.of(),
-                ImmutableList.of()
-            );
-
-            if (ruleCallTracker != null) {
-                ruleCallTracker.onDone();
-            }
-
-            return (PhysicalRel) res;
-        } finally {
-            cluster.finishPhysicalOptimization();
-        }
-    }
-
-    public RelDataType getParameterRowType(SqlNode sqlNode) {
-        return validator.getParameterRowType(sqlNode);
-    }
-
-    public OptimizerConfig getConfig() {
-        return config;
-    }
-
-    private static CalciteConnectionConfig createConnectionConfig() {
-        Properties properties = new Properties();
-
-        properties.put(CalciteConnectionProperty.CASE_SENSITIVE.camelName(), Boolean.TRUE.toString());
-        properties.put(CalciteConnectionProperty.UNQUOTED_CASING.camelName(), Casing.UNCHANGED.toString());
-        properties.put(CalciteConnectionProperty.QUOTED_CASING.camelName(), Casing.UNCHANGED.toString());
-
-        return new CalciteConnectionConfigImpl(properties);
+    public RelNode optimize(RelNode node, RuleSet rules, RelTraitSet traitSet) {
+        return planner.optimize(node, rules, traitSet);
     }
 
     private static Prepare.CatalogReader createCatalogReader(
         JavaTypeFactory typeFactory,
         CalciteConnectionConfig config,
-        HazelcastSchema rootSchema
+        HazelcastSchema rootSchema,
+        List<List<String>> schemaPaths
     ) {
         return new HazelcastCalciteCatalogReader(
             new HazelcastRootCalciteSchema(rootSchema),
+            schemaPaths,
             typeFactory,
             config
         );
     }
 
-    private static SqlValidator createValidator(JavaTypeFactory typeFactory, Prepare.CatalogReader catalogReader) {
+    private static SqlValidator createValidator(JetSqlBackend jetSqlBackend, JavaTypeFactory typeFactory,
+                                                CatalogReader catalogReader) {
         SqlOperatorTable opTab = ChainedSqlOperatorTable.of(
             HazelcastSqlOperatorTable.instance(),
             SqlStdOperatorTable.instance()
         );
 
-        return new HazelcastSqlValidator(
-            opTab,
-            catalogReader,
-            typeFactory,
-            HazelcastSqlConformance.INSTANCE
-        );
+        if (jetSqlBackend != null) {
+            return (SqlValidator) jetSqlBackend.createValidator(
+                opTab,
+                catalogReader,
+                typeFactory,
+                HazelcastSqlConformance.INSTANCE
+            );
+        } else {
+            return new HazelcastSqlValidator(
+                opTab,
+                catalogReader,
+                typeFactory,
+                HazelcastSqlConformance.INSTANCE
+            );
+        }
     }
 
-    private static VolcanoPlanner createPlanner(CalciteConnectionConfig config) {
+    private static VolcanoPlanner createPlanner(CalciteConnectionConfig config, DistributionTraitDef distributionTraitDef) {
         VolcanoPlanner planner = new VolcanoPlanner(
             CostFactory.INSTANCE,
             Contexts.of(config)
@@ -369,55 +210,26 @@ public final class OptimizerContext {
 
         planner.clearRelTraitDefs();
         planner.addRelTraitDef(ConventionTraitDef.INSTANCE);
-        planner.addRelTraitDef(DistributionTraitDef.INSTANCE);
         planner.addRelTraitDef(RelCollationTraitDef.INSTANCE);
+        planner.addRelTraitDef(distributionTraitDef);
 
         return planner;
     }
 
-    private static HazelcastRelOptCluster createCluster(VolcanoPlanner planner, JavaTypeFactory typeFactory, int memberCount) {
-        // TODO: Use CachingRelMetadataProvider instead?
-        RelMetadataProvider relMetadataProvider = JaninoRelMetadataProvider.of(MetadataProvider.INSTANCE);
+    private static HazelcastRelOptCluster createCluster(
+        VolcanoPlanner planner,
+        JavaTypeFactory typeFactory,
+        DistributionTraitDef distributionTraitDef
+    ) {
+        HazelcastRelOptCluster cluster = HazelcastRelOptCluster.create(
+            planner,
+            new RexBuilder(typeFactory),
+            distributionTraitDef
+        );
 
-        HazelcastRelOptCluster cluster = HazelcastRelOptCluster.create(planner, new RexBuilder(typeFactory), memberCount);
-        cluster.setMetadataProvider(relMetadataProvider);
+        // Wire up custom metadata providers.
+        cluster.setMetadataProvider(JaninoRelMetadataProvider.of(METADATA_PROVIDER));
 
         return cluster;
-    }
-
-    private static SqlToRelConverter createSqlToRelConverter(
-        Prepare.CatalogReader catalogReader,
-        SqlValidator validator,
-        HazelcastRelOptCluster cluster
-    ) {
-        SqlToRelConverter.ConfigBuilder sqlToRelConfigBuilder = SqlToRelConverter.configBuilder()
-            .withConvertTableAccess(CONVERTER_CONVERT_TABLE_ACCESS)
-            .withTrimUnusedFields(CONVERTER_TRIM_UNUSED_FIELDS)
-            .withExpand(CONVERTER_EXPAND);
-
-        return new SqlToRelConverter(
-            null,
-            validator,
-            catalogReader,
-            cluster,
-            StandardConvertletTable.INSTANCE,
-            sqlToRelConfigBuilder.build()
-        );
-    }
-
-    private static OptimizerConfig getOptimizerConfig() {
-        OptimizerConfig res = OPTIMIZER_CONFIG.get();
-
-        if (res != null) {
-            OPTIMIZER_CONFIG.remove();
-        } else {
-            res = OptimizerConfig.builder().build();
-        }
-
-        return res;
-    }
-
-    public static void setOptimizerConfig(OptimizerConfig optimizerConfig) {
-        OPTIMIZER_CONFIG.set(optimizerConfig);
     }
 }

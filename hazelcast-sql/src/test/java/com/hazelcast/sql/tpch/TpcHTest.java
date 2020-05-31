@@ -25,10 +25,7 @@ import com.hazelcast.partition.strategy.DeclarativePartitioningStrategy;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.SqlCursorImpl;
-import com.hazelcast.sql.impl.calcite.OptimizerConfig;
-import com.hazelcast.sql.impl.calcite.OptimizerContext;
-import com.hazelcast.sql.impl.row.Row;
-import com.hazelcast.sql.support.SqlTestSupport;
+import com.hazelcast.sql.support.CalciteSqlTestSupport;
 import com.hazelcast.sql.tpch.model.ModelConfig;
 import com.hazelcast.sql.tpch.model.ModelLoader;
 import com.hazelcast.test.TestHazelcastInstanceFactory;
@@ -38,21 +35,25 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static junit.framework.TestCase.fail;
 
 /**
- * Tests of TPC-H benchmark queries.
+ * Tests for TPC-H benchmark queries.
+ * <p>
+ * In order to run the test you need to generate 1Gb of TPC-H (scale factor 1) and put it into the "tpch" directory of the
+ * hazelcast-sql project. The directory could be overridden with a system property {@link #DATA_DIR_PROPERTY}.
  */
-@Ignore
 @SuppressWarnings({"checkstyle:OperatorWrap", "unused"})
-public class TpcHTest extends SqlTestSupport {
-    // TODO: Externalize data location.
-    private static final String DATA_DIR = "/home/devozerov/code/tpch/2.18.0_rc2/dbgen";
+public class TpcHTest extends CalciteSqlTestSupport {
+    private static final String DATA_DIR_PROPERTY = "hazelcast.sql.test.tpch_dir";
+    private static final String DATA_DIR_DEFAULT = "tpch";
     private static final int DOWNSCALE = 10;
 
     private static TestHazelcastInstanceFactory factory;
@@ -60,6 +61,14 @@ public class TpcHTest extends SqlTestSupport {
 
     @BeforeClass
     public static void beforeClass() {
+        String dir = System.getProperty(DATA_DIR_PROPERTY, DATA_DIR_DEFAULT);
+
+        Path dataDir = Paths.get(dir).toAbsolutePath().normalize();
+
+        if (!Files.exists(dataDir)) {
+            throw new RuntimeException("Generated data is not found in " + dataDir);
+        }
+
         factory = new TestHazelcastInstanceFactory(2);
 
         member = factory.newHazelcastInstance(prepareConfig());
@@ -75,7 +84,7 @@ public class TpcHTest extends SqlTestSupport {
         member.getReplicatedMap("nation");
         member.getReplicatedMap("region");
 
-        ModelConfig modelConfig = ModelConfig.builder().setDirectory(DATA_DIR).setDownscale(DOWNSCALE).build();
+        ModelConfig modelConfig = ModelConfig.builder().setDirectory(dataDir.toString()).setDownscale(DOWNSCALE).build();
         ModelLoader.load(modelConfig, member);
     }
 
@@ -87,18 +96,25 @@ public class TpcHTest extends SqlTestSupport {
         config.addReplicatedMapConfig(new ReplicatedMapConfig("region"));
 
         // Customer-order
-        config.addMapConfig(new MapConfig("customer"));
+        config.addMapConfig(new MapConfig("customer").setPartitioningStrategyConfig(partitioning()));
         config.addMapConfig(new MapConfig("orders").setPartitioningStrategyConfig(partitioning("o_custkey")));
 
         // Part-supplier
         config.addReplicatedMapConfig(new ReplicatedMapConfig("supplier"));
-        config.addMapConfig(new MapConfig("part"));
+        config.addMapConfig(new MapConfig("part").setPartitioningStrategyConfig(partitioning()));
         config.addMapConfig(new MapConfig("partsupp").setPartitioningStrategyConfig(partitioning("ps_partkey")));
 
         // Line item
         config.addMapConfig(new MapConfig("lineitem").setPartitioningStrategyConfig(partitioning("l_partkey")));
 
         return config;
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static PartitioningStrategyConfig partitioning() {
+        DeclarativePartitioningStrategy strategy = new DeclarativePartitioningStrategy();
+
+        return new PartitioningStrategyConfig().setPartitioningStrategy(strategy);
     }
 
     @SuppressWarnings("rawtypes")
@@ -116,7 +132,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ1() {
+    public void testQ01() {
         LocalDate date = LocalDate.parse("1998-12-01").minusDays(90);
 
         List<SqlRow> rows = execute(
@@ -145,12 +161,13 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ2() {
+    @Ignore("VO: fails with empty result, investigate")
+    public void testQ02() {
         int size = 15;
         String type = "BRASS";
         String region = "EUROPE";
 
-        // TODO: NLJ is generate at the moment because join order is [part, supplier, ...] and there is no condition
+        // TODO: NLJ is generated at the moment because join order is [part, supplier, ...] and there is no condition
         //  between them, hence we treat the relation as cross-join.
 
         // TODO: Notice broadcasts in the plan. This is because we do not have a cost model for exchanges yet, so the
@@ -211,7 +228,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ3() {
+    public void testQ03() {
         String segment = "BUILDING";
         LocalDate date = LocalDate.parse("1995-03-15");
 
@@ -242,7 +259,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ4() {
+    public void testQ04() {
         LocalDate date = LocalDate.parse("1993-07-01");
 
         List<SqlRow> rows = execute(
@@ -271,7 +288,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ5() {
+    public void testQ05() {
         String region = "ASIA";
         LocalDate date = LocalDate.parse("1994-01-01");
 
@@ -304,7 +321,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ6() {
+    public void testQ06() {
         LocalDate date = LocalDate.parse("1994-01-01");
         BigDecimal discount = new BigDecimal("0.06");
         BigDecimal quantity = new BigDecimal("24");
@@ -323,7 +340,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ7() {
+    public void testQ07() {
         String nation1 = "FRANCE";
         String nation2 = "GERMANY";
 
@@ -369,7 +386,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ8() {
+    public void testQ08() {
         String region = "AMERICA";
         String type = "ECONOMY ANODIZED STEEL";
 
@@ -415,7 +432,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
-    public void testQ9() {
+    public void testQ09() {
         String color = "%green%";
 
         List<SqlRow> rows = execute(
@@ -493,6 +510,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
+    @Ignore("VO: fails with empty result, investigate")
     public void testQ11() {
         String nation = "GERMANY";
         BigDecimal fraction = new BigDecimal("0.0001");
@@ -611,13 +629,13 @@ public class TpcHTest extends SqlTestSupport {
         , -1, date, date.plusMonths(1));
     }
 
-    @Ignore
+    @Ignore("Require views")
     @Test
     public void testQ15() {
         fail("Require views");
     }
 
-    @Ignore
+    @Ignore("Requires COUNT(DISTINCT) aggregate support")
     @Test
     public void testQ16() {
         fail("Requires COUNT(DISTINCT) aggregate support");
@@ -689,7 +707,7 @@ public class TpcHTest extends SqlTestSupport {
         , 100, quantity);
     }
 
-    @Ignore
+    @Ignore("Requires OR-to-UNION, otherwise it is too long")
     @Test
     public void testQ19() {
         int quantity1 = 1;
@@ -741,6 +759,7 @@ public class TpcHTest extends SqlTestSupport {
     }
 
     @Test
+    @Ignore("VO: fails with empty result, investigate")
     public void testQ20() {
         String color = "forest%";
         LocalDate date = LocalDate.parse("1994-01-01");
@@ -887,21 +906,14 @@ public class TpcHTest extends SqlTestSupport {
             rowCount = 100;
         }
 
-        OptimizerContext.setOptimizerConfig(OptimizerConfig.builder().setStatisticsEnabled(true).build());
-
         SqlCursorImpl res = (SqlCursorImpl) member.getSqlService().query(sql, args);
         Plan plan = res.getPlan();
 
         System.out.println(">>> Explain:");
-        for (Row explainRow : res.getPlan().getExplain().asRows()) {
-            System.out.println("\t" + explainRow.get(0));
+        for (SqlRow explainRow : res.getPlan().getExplain().asRows()) {
+            System.out.println("\t" + explainRow.getObject(0));
         }
         System.out.println();
-
-        System.out.println("\n>>> Optimizer statistics (" + plan.getStatistics().getDuration() + " ms):");
-        for (Map.Entry<String, Integer> entry : plan.getStatistics().getPhysicalRuleCalls().getRuleCalls().entrySet()) {
-            System.out.println("\t" + entry.getKey() + " -> " + entry.getValue());
-        }
 
         List<SqlRow> rows = new ArrayList<>();
 

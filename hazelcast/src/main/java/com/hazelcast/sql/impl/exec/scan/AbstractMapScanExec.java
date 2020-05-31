@@ -19,11 +19,11 @@ package com.hazelcast.sql.impl.exec.scan;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
 import com.hazelcast.sql.impl.exec.AbstractExec;
+import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.worker.QueryFragmentContext;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.row.HeapRow;
-import com.hazelcast.sql.impl.row.KeyValueRow;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 import java.util.List;
@@ -36,19 +36,19 @@ public abstract class AbstractMapScanExec extends AbstractExec {
     protected final String mapName;
     protected final QueryTargetDescriptor keyDescriptor;
     protected final QueryTargetDescriptor valueDescriptor;
-    protected final List<String> fieldNames;
+    protected final List<QueryPath> fieldPaths;
     protected final List<QueryDataType> fieldTypes;
     protected final List<Integer> projects;
     protected final Expression<Boolean> filter;
     private final InternalSerializationService serializationService;
-    private KeyValueRow keyValueRow;
+    private MapScanRow row;
 
     protected AbstractMapScanExec(
         int id,
         String mapName,
         QueryTargetDescriptor keyDescriptor,
         QueryTargetDescriptor valueDescriptor,
-        List<String> fieldNames,
+        List<QueryPath> fieldPaths,
         List<QueryDataType> fieldTypes,
         List<Integer> projects,
         Expression<Boolean> filter,
@@ -59,7 +59,7 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         this.mapName = mapName;
         this.keyDescriptor = keyDescriptor;
         this.valueDescriptor = valueDescriptor;
-        this.fieldNames = fieldNames;
+        this.fieldPaths = fieldPaths;
         this.fieldTypes = fieldTypes;
         this.projects = projects;
         this.filter = filter;
@@ -68,10 +68,10 @@ public abstract class AbstractMapScanExec extends AbstractExec {
 
     @Override
     protected final void setup0(QueryFragmentContext ctx) {
-        keyValueRow = KeyValueRow.create(
+        row = MapScanRow.create(
             keyDescriptor,
             valueDescriptor,
-            fieldNames,
+            fieldPaths,
             fieldTypes,
             createExtractors(),
             serializationService
@@ -89,11 +89,20 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         return true;
     }
 
-    protected HeapRow prepareRow(Object rawkey, Object rawValue) {
-        keyValueRow.setKeyValue(rawkey, rawValue);
+    /**
+     * Prepare the row for the given key and value:
+     * 1) Check filter
+     * 2) Extract projections
+     *
+     * @param rawKey Key (data or object)
+     * @param rawValue Value (data or object)
+     * @return Row that is ready for processing by parent operators or {@code null} if the row hasn't passed the filter.
+     */
+    protected HeapRow prepareRow(Object rawKey, Object rawValue) {
+        row.setKeyValue(rawKey, rawValue);
 
         // Filter.
-        if (filter != null && !filter.eval(keyValueRow, ctx)) {
+        if (filter != null && !filter.eval(row, ctx)) {
             return null;
         }
 
@@ -101,7 +110,7 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         HeapRow row = new HeapRow(projects.size());
 
         for (int j = 0; j < projects.size(); j++) {
-            Object projectRes = keyValueRow.get(projects.get(j));
+            Object projectRes = this.row.get(projects.get(j));
 
             row.set(j, projectRes);
         }
@@ -112,7 +121,7 @@ public abstract class AbstractMapScanExec extends AbstractExec {
     /**
      * Create extractors for the given operator.
      *
-     * @return Extractors for map.
+     * @return Extractors.
      */
     protected abstract Extractors createExtractors();
 
@@ -124,8 +133,8 @@ public abstract class AbstractMapScanExec extends AbstractExec {
         return valueDescriptor;
     }
 
-    public List<String> getFieldNames() {
-        return fieldNames;
+    public List<QueryPath> getFieldPaths() {
+        return fieldPaths;
     }
 
     public List<QueryDataType> getFieldTypes() {

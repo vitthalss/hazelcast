@@ -17,7 +17,6 @@
 package com.hazelcast.internal.ascii;
 
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.map.IMap;
 import com.hazelcast.instance.impl.Node;
 import com.hazelcast.instance.impl.OutOfMemoryErrorDispatcher;
 import com.hazelcast.internal.ascii.memcache.BulkGetCommandProcessor;
@@ -37,13 +36,14 @@ import com.hazelcast.internal.ascii.rest.HttpGetCommandProcessor;
 import com.hazelcast.internal.ascii.rest.HttpHeadCommandProcessor;
 import com.hazelcast.internal.ascii.rest.HttpPostCommandProcessor;
 import com.hazelcast.internal.ascii.rest.RestValue;
-import com.hazelcast.logging.ILogger;
-import com.hazelcast.internal.server.AggregateServerConnectionManager;
-import com.hazelcast.internal.server.ServerConnectionManager;
-import com.hazelcast.internal.server.Server;
+import com.hazelcast.internal.nio.Protocols;
 import com.hazelcast.internal.nio.ascii.TextEncoder;
 import com.hazelcast.internal.serialization.Data;
+import com.hazelcast.internal.server.Server;
+import com.hazelcast.internal.server.ServerConnectionManager;
 import com.hazelcast.internal.util.Clock;
+import com.hazelcast.logging.ILogger;
+import com.hazelcast.map.IMap;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.nio.ByteBuffer;
@@ -174,13 +174,11 @@ public class TextCommandServiceImpl implements TextCommandService {
         stats.setIncrMisses(incrementMisses.get());
         stats.setDecrHits(decrementHits.get());
         stats.setDecrMisses(decrementMisses.get());
-        Server server = node.server;
+        Server server = node.getServer();
         ServerConnectionManager cm = server.getConnectionManager(MEMCACHE);
-        int totalText = (cm != null ? cm.getActiveConnections().size() : 0);
-
-        AggregateServerConnectionManager aem = server.getAggregateConnectionManager();
-        stats.setCurrConnections(totalText);
-        stats.setTotalConnections(aem.getActiveConnections().size());
+        int memcachedCount = cm == null ? 0 : cm.connectionCount(c -> Protocols.MEMCACHE.equals(c.getConnectionType()));
+        stats.setCurrConnections(memcachedCount);
+        stats.setTotalConnections(server.connectionCount());
         return stats;
     }
 

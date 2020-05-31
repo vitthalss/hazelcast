@@ -16,13 +16,14 @@
 
 package com.hazelcast.internal.server;
 
-import com.hazelcast.instance.EndpointQualifier;
-import com.hazelcast.internal.util.concurrent.ThreadFactoryImpl;
 import com.hazelcast.cluster.Address;
+import com.hazelcast.instance.EndpointQualifier;
 import com.hazelcast.internal.nio.Connection;
 import com.hazelcast.internal.nio.ConnectionListener;
 import com.hazelcast.internal.nio.Packet;
+import com.hazelcast.internal.util.concurrent.ThreadFactoryImpl;
 
+import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
@@ -48,11 +49,11 @@ public class FirewallingServer
 
     private final ScheduledExecutorService scheduledExecutor
             = newSingleThreadScheduledExecutor(new ThreadFactoryImpl("FirewallingConnectionManager"));
-    private final Set<Address> blockedAddresses = newSetFromMap(new ConcurrentHashMap<Address, Boolean>());
+    private final Set<Address> blockedAddresses = newSetFromMap(new ConcurrentHashMap<>());
 
     private final Server delegate;
     private final Consumer<Packet> packetConsumer;
-    private AtomicReference<ServerConnectionManager> endpointManagerRef = new AtomicReference<ServerConnectionManager>(null);
+    private AtomicReference<ServerConnectionManager> connectionManagerRef = new AtomicReference<ServerConnectionManager>(null);
 
     @SuppressWarnings("unchecked")
     public FirewallingServer(Server delegate, Set<Address> initiallyBlockedAddresses) {
@@ -67,9 +68,18 @@ public class FirewallingServer
     }
 
     @Override
-    public AggregateServerConnectionManager getAggregateConnectionManager() {
-        final AggregateServerConnectionManager delegateAggregateEndpointManager = this.delegate.getAggregateConnectionManager();
-        return new FirewallingAggregateConnectionManager(delegateAggregateEndpointManager);
+    public @Nonnull Collection getConnections() {
+        return delegate.getConnections();
+    }
+
+    @Override
+    public void addConnectionListener(ConnectionListener listener) {
+        delegate.addConnectionListener(listener);
+    }
+
+    @Override
+    public Map<EndpointQualifier, NetworkStats> getNetworkStats() {
+        return delegate.getNetworkStats();
     }
 
     @Override
@@ -79,13 +89,13 @@ public class FirewallingServer
 
     @Override
     public ServerConnectionManager getConnectionManager(EndpointQualifier qualifier) {
-        if (endpointManagerRef.get() == null) {
+        if (connectionManagerRef.get() == null) {
             final ServerConnectionManager delegateServerConnectionManager = this.delegate.getConnectionManager(MEMBER);
-            endpointManagerRef.compareAndSet(null, new FirewallingEndpointManager(delegateServerConnectionManager));
+            connectionManagerRef.compareAndSet(null, new FirewallingServerConnectionManager(delegateServerConnectionManager));
         }
 
         //TODO (TK) : Hint this manager was also delegating getClientConnections etc. I removed them, are they needed (verify during test)
-        return endpointManagerRef.get();
+        return connectionManagerRef.get();
     }
 
     @Override
@@ -154,45 +164,15 @@ public class FirewallingServer
         }
     }
 
-    public class FirewallingAggregateConnectionManager
-            implements AggregateServerConnectionManager {
-
-        final AggregateServerConnectionManager delegate;
-
-        FirewallingAggregateConnectionManager(AggregateServerConnectionManager delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public Collection getActiveConnections() {
-            return delegate.getActiveConnections();
-        }
-
-        @Override
-        public Collection getConnections() {
-            return delegate.getConnections();
-        }
-
-        @Override
-        public void addConnectionListener(ConnectionListener listener) {
-            delegate.addConnectionListener(listener);
-        }
-
-        @Override
-        public Map<EndpointQualifier, NetworkStats> getNetworkStats() {
-            return delegate.getNetworkStats();
-        }
-    }
-
-    public class FirewallingEndpointManager
+    public class FirewallingServerConnectionManager
             implements ServerConnectionManager {
 
-        private volatile PacketFilter   packetFilter;
+        private volatile PacketFilter packetFilter;
         private volatile PacketDelayProps delayProps = new PacketDelayProps(500, 5000);
 
         final ServerConnectionManager delegate;
 
-        FirewallingEndpointManager(ServerConnectionManager delegate) {
+        FirewallingServerConnectionManager(ServerConnectionManager delegate) {
             this.delegate = delegate;
         }
 
@@ -206,10 +186,6 @@ public class FirewallingServer
             delegate.accept(packet);
         }
 
-        @Override
-        public synchronized ServerConnection getOrConnect(Address address, boolean silent) {
-            return getOrConnect(address);
-        }
 
         public synchronized void blockNewConnection(Address address) {
             blockedAddresses.add(address);
@@ -301,13 +277,8 @@ public class FirewallingServer
         }
 
         @Override
-        public Collection<ServerConnection> getConnections() {
+        public @Nonnull Collection<ServerConnection> getConnections() {
             return delegate.getConnections();
-        }
-
-        @Override
-        public Collection<ServerConnection> getActiveConnections() {
-            return delegate.getActiveConnections();
         }
 
         @Override
@@ -316,7 +287,7 @@ public class FirewallingServer
         }
 
         @Override
-        public ServerConnection getOrConnect(Address address) {
+        public synchronized ServerConnection getOrConnect(Address address, boolean silent) {
             return delegate.getOrConnect(address);
         }
 

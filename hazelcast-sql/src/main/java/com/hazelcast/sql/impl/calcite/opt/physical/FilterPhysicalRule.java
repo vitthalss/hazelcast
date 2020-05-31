@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical;
 
-import com.hazelcast.sql.impl.calcite.HazelcastConventions;
+import com.hazelcast.sql.impl.calcite.opt.HazelcastConventions;
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
 import com.hazelcast.sql.impl.calcite.opt.logical.FilterLogicalRel;
 import org.apache.calcite.plan.RelOptRule;
@@ -29,7 +29,7 @@ import java.util.Collections;
 /**
  * Convert logical filter to physical filter.
  */
-public final class FilterPhysicalRule extends AbstractPhysicalRule {
+public final class FilterPhysicalRule extends RelOptRule {
     public static final RelOptRule INSTANCE = new FilterPhysicalRule();
 
     private FilterPhysicalRule() {
@@ -40,7 +40,7 @@ public final class FilterPhysicalRule extends AbstractPhysicalRule {
     }
 
     @Override
-    public void onMatch0(RelOptRuleCall call) {
+    public void onMatch(RelOptRuleCall call) {
         FilterLogicalRel filter = call.rel(0);
         RelNode input = filter.getInput();
 

@@ -26,6 +26,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -36,7 +37,7 @@ public abstract class AbstractScanRel extends TableScan {
     protected final List<Integer> projects;
 
     protected AbstractScanRel(RelOptCluster cluster, RelTraitSet traitSet, RelOptTable table, List<Integer> projects) {
-        super(cluster, traitSet, table);
+        super(cluster, traitSet, Collections.emptyList(), table);
 
         this.projects = projects;
     }
@@ -45,15 +46,8 @@ public abstract class AbstractScanRel extends TableScan {
         return projects != null ? projects : identity();
     }
 
-    /**
-     * @return Unwrapped Hazelcast table.
-     */
     public HazelcastTable getTableUnwrapped() {
         return table.unwrap(HazelcastTable.class);
-    }
-
-    public boolean isReplicated() {
-        return getTableUnwrapped().isReplicated();
     }
 
     @Override

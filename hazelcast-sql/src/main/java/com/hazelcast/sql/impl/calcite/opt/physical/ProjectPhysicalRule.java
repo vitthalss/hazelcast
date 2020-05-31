@@ -16,11 +16,11 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical;
 
-import com.hazelcast.sql.impl.calcite.HazelcastConventions;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionField;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionTrait;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionType;
+import com.hazelcast.sql.impl.calcite.opt.HazelcastConventions;
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTrait;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTraitDef;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType;
 import com.hazelcast.sql.impl.calcite.opt.logical.ProjectLogicalRel;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
@@ -30,7 +30,6 @@ import org.apache.calcite.rel.RelCollationTraitDef;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rex.RexFieldAccess;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
 
@@ -41,13 +40,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static com.hazelcast.sql.impl.calcite.distribution.DistributionType.PARTITIONED;
+import static com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType.PARTITIONED;
 
 /**
  * This rule converts logical projection into physical projection. Physical projection inherits distribution of the
  * underlying operator.
  */
-public final class ProjectPhysicalRule extends AbstractPhysicalRule {
+public final class ProjectPhysicalRule extends RelOptRule {
     public static final RelOptRule INSTANCE = new ProjectPhysicalRule();
 
     private ProjectPhysicalRule() {
@@ -58,7 +57,7 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
     }
 
     @Override
-    public void onMatch0(RelOptRuleCall call) {
+    public void onMatch(RelOptRuleCall call) {
         ProjectLogicalRel logicalProject = call.rel(0);
         RelNode input = logicalProject.getInput();
 
@@ -91,7 +90,7 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
         List<InputAndTraitSet> res = new ArrayList<>(1);
 
         // Get mapping of project input fields to an index of related expression in the projection.
-        Map<DistributionField, Integer> candDistFields = getCandidateDistributionFields(logicalProject);
+        Map<Integer, Integer> candDistFields = getCandidateDistributionFields(logicalProject);
         Map<Integer, Integer> candCollationFields = getCandidateCollationFields(logicalProject);
 
         Collection<RelNode> physicalInputs = OptUtils.getPhysicalRelsFromSubset(convertedInput);
@@ -124,7 +123,7 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
      */
     private static RelTraitSet createPhysicalTraitSet(
         RelNode physicalInput,
-        Map<DistributionField, Integer> candDistFields,
+        Map<Integer, Integer> candDistFields,
         Map<Integer, Integer> candCollationFields
     ) {
         DistributionTrait finalDist = deriveDistribution(physicalInput, candDistFields);
@@ -141,9 +140,9 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
      * @return Distribution which should be used by project.
      */
     @SuppressWarnings("checkstyle:RegexpSingleline")
-    private static DistributionTrait deriveDistribution(RelNode physicalInput,
-        Map<DistributionField, Integer> projectFieldMap) {
+    private static DistributionTrait deriveDistribution(RelNode physicalInput, Map<Integer, Integer> projectFieldMap) {
         DistributionTrait physicalInputDist = OptUtils.getDistribution(physicalInput);
+        DistributionTraitDef distributionTraitDef = (DistributionTraitDef) physicalInputDist.getTraitDef();
 
         DistributionType type = physicalInputDist.getType();
 
@@ -175,18 +174,18 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
         // an input is partitioned by fields [a, b]. However, when one of this fields are lost during projection,
         // the input is no longer partitioned on any attribute. E.g MEMBER_1([a1, b1]), MEMBER_2([a1, b2]) becomes
         // MEMBER_1([a1]), MEMBER_2([a1]) after projection, so both members may contains the same value.
-        DistributionTrait.Builder builder = DistributionTrait.Builder.ofType(PARTITIONED);
+        List<List<Integer>> newFieldGroups = new ArrayList<>(1);
 
-        for (List<DistributionField> fieldGroup : physicalInputDist.getFieldGroups()) {
+        for (List<Integer> fieldGroup : physicalInputDist.getFieldGroups()) {
             boolean valid = true;
-            List<DistributionField> newFieldGroup = new ArrayList<>(fieldGroup.size());
+            List<Integer> newFieldGroup = new ArrayList<>(fieldGroup.size());
 
-            for (DistributionField field : fieldGroup) {
+            for (Integer field : fieldGroup) {
                 Integer idx = projectFieldMap.get(field);
 
                 if (idx != null) {
                     // The field is still in the project, continue.
-                    newFieldGroup.add(new DistributionField(idx));
+                    newFieldGroup.add(idx);
                 } else {
                     // Distribution field is not in the project. We cannot use this field group any more.
                     valid = false;
@@ -196,11 +195,11 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
             }
 
             if (valid) {
-                builder.addFieldGroup(newFieldGroup);
+                newFieldGroups.add(newFieldGroup);
             }
         }
 
-        return builder.build();
+        return distributionTraitDef.createPartitionedTrait(newFieldGroups);
     }
 
     /**
@@ -281,8 +280,8 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
      * @param project Projection.
      * @return Result.
      */
-    private static Map<DistributionField, Integer> getCandidateDistributionFields(ProjectLogicalRel project) {
-        Map<DistributionField, Integer> res = new HashMap<>();
+    private static Map<Integer, Integer> getCandidateDistributionFields(ProjectLogicalRel project) {
+        Map<Integer, Integer> res = new HashMap<>();
 
         int idx = 0;
 
@@ -290,17 +289,7 @@ public final class ProjectPhysicalRule extends AbstractPhysicalRule {
             if (node instanceof RexInputRef) {
                 RexInputRef node0 = (RexInputRef) node;
 
-                res.put(new DistributionField(node0.getIndex()), idx);
-            } else if (node instanceof RexFieldAccess) {
-                RexFieldAccess node0 = (RexFieldAccess) node;
-
-                if (node0.getReferenceExpr() instanceof RexInputRef) {
-                    RexInputRef nestedNode = (RexInputRef) node0.getReferenceExpr();
-
-                    String nestedFieldName = node0.getField().getName();
-
-                    res.put(new DistributionField(nestedNode.getIndex(), nestedFieldName), idx);
-                }
+                res.put(node0.getIndex(), idx);
             }
 
             idx++;

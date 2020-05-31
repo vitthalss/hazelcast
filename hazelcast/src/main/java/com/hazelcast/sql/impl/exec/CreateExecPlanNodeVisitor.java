@@ -46,11 +46,11 @@ import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
 import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
 import com.hazelcast.sql.impl.plan.node.FilterPlanNode;
 import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
-import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.MaterializedInputPlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNodeVisitor;
@@ -77,7 +77,7 @@ import java.util.UUID;
 /**
  * Visitor which builds an executor for every observed physical node.
  */
- @SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "ClassFanOutComplexity"})
+@SuppressWarnings({"checkstyle:ClassDataAbstractionCoupling", "ClassFanOutComplexity"})
 public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     /** Operation handler. */
     private final QueryOperationHandler operationHandler;
@@ -246,7 +246,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                 pop(),
                 outboxes,
                 node.getPartitioner(),
-                partitionOutboxIndexes
+                partitionOutboxIndexes,
+                serializationService
             ));
         }
     }
@@ -304,6 +305,28 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     }
 
     @Override
+    public void onProjectNode(ProjectPlanNode node) {
+        Exec res = new ProjectExec(
+            node.getId(),
+            pop(),
+            node.getProjects()
+        );
+
+        push(res);
+    }
+
+    @Override
+    public void onFilterNode(FilterPlanNode node) {
+        Exec res = new FilterExec(
+            node.getId(),
+            pop(),
+            node.getFilter()
+        );
+
+        push(res);
+    }
+
+    @Override
     public void onMapScanNode(MapScanPlanNode node) {
         Exec res;
 
@@ -323,7 +346,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                     localParts,
                     node.getKeyDescriptor(),
                     node.getValueDescriptor(),
-                    node.getFieldNames(),
+                    node.getFieldPaths(),
                     node.getFieldTypes(),
                     node.getProjects(),
                     node.getFilter(),
@@ -355,7 +378,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                     localParts,
                     node.getKeyDescriptor(),
                     node.getValueDescriptor(),
-                    node.getFieldNames(),
+                    node.getFieldPaths(),
                     node.getFieldTypes(),
                     node.getProjects(),
                     node.getFilter(),
@@ -380,7 +403,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             map,
             node.getKeyDescriptor(),
             node.getValueDescriptor(),
-            node.getFieldNames(),
+            node.getFieldPaths(),
             node.getFieldTypes(),
             node.getProjects(),
             node.getFilter(),
@@ -399,28 +422,6 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             node.getAscs(),
             node.getFetch(),
             node.getOffset()
-        );
-
-        push(res);
-    }
-
-    @Override
-    public void onProjectNode(ProjectPlanNode node) {
-        Exec res = new ProjectExec(
-            node.getId(),
-            pop(),
-            node.getProjects()
-        );
-
-        push(res);
-    }
-
-    @Override
-    public void onFilterNode(FilterPlanNode node) {
-        Exec res = new FilterExec(
-            node.getId(),
-            pop(),
-            node.getFilter()
         );
 
         push(res);
@@ -496,7 +497,8 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
                 node.getId(),
                 upstream,
                 node.getPartitioner(),
-                localParts
+                localParts,
+                serializationService
             );
         }
 

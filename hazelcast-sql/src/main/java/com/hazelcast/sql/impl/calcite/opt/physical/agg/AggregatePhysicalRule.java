@@ -16,15 +16,14 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical.agg;
 
-import com.hazelcast.sql.impl.calcite.HazelcastConventions;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionTrait;
-import com.hazelcast.sql.impl.calcite.distribution.DistributionType;
+import com.hazelcast.sql.impl.calcite.opt.HazelcastConventions;
 import com.hazelcast.sql.impl.calcite.opt.OptUtils;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTrait;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTraitDef;
 import com.hazelcast.sql.impl.calcite.opt.logical.AggregateLogicalRel;
-import com.hazelcast.sql.impl.calcite.opt.physical.AbstractPhysicalRule;
 import com.hazelcast.sql.impl.calcite.opt.physical.exchange.BroadcastExchangePhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.exchange.UnicastExchangePhysicalRel;
-import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.HazelcastRelOptCluster;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
@@ -32,13 +31,14 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.util.ImmutableBitSet;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * Rule for physical aggregate optimization.
  */
 // TODO: Handle distinct aggregates - how - accumulate all entries locally, and then redistribute?
-public final class AggregatePhysicalRule extends AbstractPhysicalRule {
+public final class AggregatePhysicalRule extends RelOptRule {
     public static final RelOptRule INSTANCE = new AggregatePhysicalRule();
 
     private AggregatePhysicalRule() {
@@ -49,7 +49,7 @@ public final class AggregatePhysicalRule extends AbstractPhysicalRule {
     }
 
     @Override
-    public void onMatch0(RelOptRuleCall call) {
+    public void onMatch(RelOptRuleCall call) {
         AggregateLogicalRel logicalAgg = call.rel(0);
         RelNode input = logicalAgg.getInput();
 
@@ -130,7 +130,8 @@ public final class AggregatePhysicalRule extends AbstractPhysicalRule {
         );
 
         // 2. Prepare local aggregate.
-        RelOptCluster cluster = logicalAgg.getCluster();
+        HazelcastRelOptCluster cluster = OptUtils.getCluster(logicalAgg);
+        DistributionTraitDef distributionTraitDef = cluster.getDistributionTraitDef();
 
         RelTraitSet localTraitSet = OptUtils.traitPlus(
             physicalInput.getTraitSet(),
@@ -156,14 +157,13 @@ public final class AggregatePhysicalRule extends AbstractPhysicalRule {
         if (broadcast) {
             exchange = new BroadcastExchangePhysicalRel(
                 cluster,
-                OptUtils.toPhysicalConvention(cluster.traitSet(), DistributionTrait.REPLICATED_DIST),
+                OptUtils.toPhysicalConvention(cluster.traitSet(), distributionTraitDef.getTraitReplicated()),
                 localAgg
             );
         } else {
             List<Integer> hashFields = localAgg.getGroupSet().toList();
 
-            DistributionTrait distribution =
-                DistributionTrait.Builder.ofType(DistributionType.PARTITIONED).addFieldGroupPlain(hashFields).build();
+            DistributionTrait distribution = distributionTraitDef.createPartitionedTrait(Collections.singletonList(hashFields));
 
             exchange = new UnicastExchangePhysicalRel(
                 cluster,

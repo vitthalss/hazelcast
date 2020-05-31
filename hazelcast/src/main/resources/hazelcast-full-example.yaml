@@ -639,12 +639,14 @@ hazelcast:
         zones: us-east1-b,us-east1-c
       azure:
         enabled: false
+        instance-metadata-available: false
         client-id: CLIENT_ID
-        client-secret: CLIENT_SECRET
         tenant-id: TENANT_ID
+        client-secret: CLIENT_SECRET
         subscription-id: SUB_ID
-        cluster-id: HZLCAST001
-        group-name: RESOURCE-GROUP-NAME
+        resource-group: RESOURCE-GROUP-NAME
+        scale-set: SCALE-SET-NAME
+        tag: TAG-NAME=HZLCAST001
       kubernetes:
         enabled: false
         namespace: MY-KUBERNETES-NAMESPACE
@@ -2189,6 +2191,8 @@ hazelcast:
              user-name-attribute: userNameAttribute
              system-user-dn: systemUserDn
              system-user-password: systemUserPassword
+             system-authentication: simple
+             security-realm: realmName
              password-attribute: passwordAttribute
              user-context: userContext
              user-filter: userFilter
@@ -2215,8 +2219,8 @@ hazelcast:
             security-realm: krb5Acceptor
             ldap:
               url: ldap://127.0.0.1/
-              system-user-dn: uid=admin,ou=system
-              system-user-password: secret
+              system-authentication: GSSAPI
+              security-realm: krb5Initiator
               skip-authentication: true
               user-filter: "(krb5PrincipalName={login})"
               role-mapping-attribute: cn
@@ -2932,12 +2936,14 @@ hazelcast:
         zones: us-east1-b,us-east1-c
       azure:
         enabled: false
+        instance-metadata-available: false
         client-id: CLIENT_ID
-        client-secret: CLIENT_SECRET
         tenant-id: TENANT_ID
+        client-secret: CLIENT_SECRET
         subscription-id: SUB_ID
-        cluster-id: HZLCAST001
-        group-name: RESOURCE-GROUP-NAME
+        resource-group: RESOURCE-GROUP-NAME
+        scale-set: SCALE-SET-NAME
+        tag: TAG-NAME=HZLCAST001
       kubernetes:
         enabled: false
         namespace: MY-KUBERNETES-NAMESPACE
