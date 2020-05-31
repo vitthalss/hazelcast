@@ -34,7 +34,7 @@ import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitorCallback;
 import com.hazelcast.sql.impl.exec.Exec;
 import com.hazelcast.sql.impl.exec.IterationResult;
 import com.hazelcast.sql.impl.exec.root.BlockingRootResultConsumer;
-import com.hazelcast.sql.impl.optimizer.NoOpSqlOptimizer;
+import com.hazelcast.sql.impl.optimizer.DisabledSqlOptimizer;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNodeVisitor;
@@ -603,7 +603,7 @@ public class QueryOperationHandlerTest extends SqlTestSupport {
             1000,
             stateCheckFrequency,
             Long.MAX_VALUE,
-            new CompilerManager(new NoOpSqlOptimizer())
+            new CompilerManager(new DisabledSqlOptimizer())
         );
 
         internalService.start();

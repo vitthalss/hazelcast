@@ -29,7 +29,6 @@ import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlService;
 import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
-import com.hazelcast.sql.impl.optimizer.NoOpSqlOptimizer;
 import com.hazelcast.sql.impl.explain.QueryExplainCursor;
 import com.hazelcast.sql.impl.optimizer.DisabledSqlOptimizer;
 import com.hazelcast.sql.impl.optimizer.OptimizationTask;

@@ -368,6 +368,7 @@ public class CreateExecPlanNodeVisitorTest extends SqlTestSupport {
 
         QueryExecuteOperationFragment fragment = new QueryExecuteOperationFragment(
             downstreamNode,
+            UUID.randomUUID().toString(),
             EXPLICIT,
             Collections.singletonList(membedId1)
         );

@@ -62,10 +62,10 @@ public final class CompilerUtils {
     public static final Method C_EXEC__M_GET_ID;
 
     public static final Method C_MAP_SCAN_EXEC__M_GET_MAP;
-    public static final Method C_MAP_SCAN_EXEC__M_GET_PARTS;
+    public static final Method C_MAP_SCAN_EXEC__M_GET_PARTITIONS;
     public static final Method C_MAP_SCAN_EXEC__M_GET_KEY_DESCRIPTOR;
     public static final Method C_MAP_SCAN_EXEC__M_GET_VALUE_DESCRIPTOR;
-    public static final Method C_MAP_SCAN_EXEC__M_GET_FIELD_NAMES;
+    public static final Method C_MAP_SCAN_EXEC__M_GET_FIELD_PATHS;
     public static final Method C_MAP_SCAN_EXEC__M_GET_FIELD_TYPES;
     public static final Method C_MAP_SCAN_EXEC__M_GET_PROJECTS;
     public static final Method C_MAP_SCAN_EXEC__M_GET_FILTER;
@@ -97,10 +97,10 @@ public final class CompilerUtils {
             C_EXEC__M_GET_ID = Exec.class.getDeclaredMethod("getId");
 
             C_MAP_SCAN_EXEC__M_GET_MAP = MapScanExec.class.getMethod("getMap");
-            C_MAP_SCAN_EXEC__M_GET_PARTS = MapScanExec.class.getMethod("getParts");
+            C_MAP_SCAN_EXEC__M_GET_PARTITIONS = MapScanExec.class.getMethod("getPartitions");
             C_MAP_SCAN_EXEC__M_GET_KEY_DESCRIPTOR = MapScanExec.class.getMethod("getKeyDescriptor");
             C_MAP_SCAN_EXEC__M_GET_VALUE_DESCRIPTOR = MapScanExec.class.getMethod("getValueDescriptor");
-            C_MAP_SCAN_EXEC__M_GET_FIELD_NAMES = MapScanExec.class.getMethod("getFieldNames");
+            C_MAP_SCAN_EXEC__M_GET_FIELD_PATHS = MapScanExec.class.getMethod("getFieldPaths");
             C_MAP_SCAN_EXEC__M_GET_FIELD_TYPES = MapScanExec.class.getMethod("getFieldTypes");
             C_MAP_SCAN_EXEC__M_GET_PROJECTS = MapScanExec.class.getMethod("getProjects");
             C_MAP_SCAN_EXEC__M_GET_FILTER = MapScanExec.class.getMethod("getFilter");

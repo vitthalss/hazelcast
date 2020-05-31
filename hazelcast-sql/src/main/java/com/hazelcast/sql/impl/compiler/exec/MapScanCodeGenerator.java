@@ -41,12 +41,12 @@ import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC_ITER
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC_ITERATOR__M_GET_VALUES;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC_ITERATOR__M_TRY_ADVANCE;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC_UTILS__M_CREATE_ITERATOR;
-import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_FIELD_NAMES;
+import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_FIELD_PATHS;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_FIELD_TYPES;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_FILTER;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_KEY_DESCRIPTOR;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_MAP;
-import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_PARTS;
+import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_PARTITIONS;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_PROJECTS;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.C_MAP_SCAN_EXEC__M_GET_VALUE_DESCRIPTOR;
 import static com.hazelcast.sql.impl.compiler.CompilerUtils.invoke;
@@ -86,7 +86,7 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
         ExecVariable varParts = addExecVariableWithPrepare(
             compiler,
             CompilerExecVariableType.MAP_SCAN_PARTS,
-            (clazz, method) -> method.add(invoke(C_COMPILED_EXEC__M_PREPARE__V_EXEC, C_MAP_SCAN_EXEC__M_GET_PARTS))
+            (clazz, method) -> method.add(invoke(C_COMPILED_EXEC__M_PREPARE__V_EXEC, C_MAP_SCAN_EXEC__M_GET_PARTITIONS))
         );
 
         // Type metadata.
@@ -104,8 +104,8 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
 
         addExecVariableWithPrepare(
             compiler,
-            CompilerExecVariableType.MAP_SCAN_FIELD_NAMES,
-            (clazz, method) -> method.add(invoke(C_COMPILED_EXEC__M_PREPARE__V_EXEC, C_MAP_SCAN_EXEC__M_GET_FIELD_NAMES))
+            CompilerExecVariableType.MAP_SCAN_FIELD_PATHS,
+            (clazz, method) -> method.add(invoke(C_COMPILED_EXEC__M_PREPARE__V_EXEC, C_MAP_SCAN_EXEC__M_GET_FIELD_PATHS))
         );
 
         addExecVariableWithPrepare(
@@ -211,13 +211,13 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
 
     private List<LocalVariable> extractFields(EmitableMethod method) {
         // Initialize fields.
-        List<String> fieldPaths = node.getFieldNames();
+        List<QueryPath> fieldPaths = node.getFieldPaths();
         List<QueryDataType> fieldTypes = node.getFieldTypes();
 
         List<LocalVariable> fields = new ArrayList<>(fieldPaths.size());
 
         for (int i = 0; i < fieldPaths.size(); i++) {
-            String fieldPath = fieldPaths.get(i);
+            QueryPath fieldPath = fieldPaths.get(i);
             QueryDataType fieldType = fieldTypes.get(i);
 
             LocalVariable field = extractJavaField(method, fieldPath, fieldType);
@@ -228,25 +228,23 @@ public class MapScanCodeGenerator extends CodeGenerator<MapScanPlanNode> {
         return fields;
     }
 
-    private LocalVariable extractJavaField(EmitableMethod method, String fieldPath, QueryDataType fieldType) {
+    private LocalVariable extractJavaField(EmitableMethod method, QueryPath fieldPath, QueryDataType fieldType) {
         // TODO: Custom extractors are not supported at the moment. We need Extractor's instance for this.
-        QueryPath path = QueryPath.create(fieldPath);
-
-        if (path.isTop()) {
-            return extractJavaTopObject(method, path.isKey());
+        if (fieldPath.isTop()) {
+            return extractJavaTopObject(method, fieldPath.isKey());
         }
 
         // Get parent object.
-        LocalVariable targetVar = extractJavaTopObject(method, path.isKey());
+        LocalVariable targetVar = extractJavaTopObject(method, fieldPath.isKey());
 
         // Register local variable.
-        String varName = getScanFieldVariableName(fieldPath);
+        String varName = getScanFieldVariableName(fieldPath.getPath());
         Class<?> varClass = fieldType.getConverter().getValueClass();
 
         LocalVariable fieldVar = method.addLocalVariable(varName, varClass);
 
         // Emit the code
-        String methodName = getGetterName(fieldPath, fieldType);
+        String methodName = getGetterName(fieldPath.getPath(), fieldType);
 
         method.addContent(fieldVar.getClassName(), C_SPACE, fieldVar.getName(), C_SPACE, C_EQUALS, C_SPACE)
             .add(invoke(targetVar.getName(), methodName)).addContent(C_SEMICOLON).addNewLine();

@@ -20,6 +20,7 @@ import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.MapContainer;
 import com.hazelcast.sql.impl.exec.scan.MapScanExecIterator;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
@@ -30,7 +31,7 @@ public enum CompilerExecVariableType {
     MAP_SCAN_PARTS(PartitionIdSet.class),
     MAP_SCAN_KEY_DESCRIPTOR(QueryTargetDescriptor.class),
     MAP_SCAN_VALUE_DESCRIPTOR(QueryTargetDescriptor.class),
-    MAP_SCAN_FIELD_NAMES(List.class, String.class),
+    MAP_SCAN_FIELD_PATHS(List.class, QueryPath.class),
     MAP_SCAN_FIELD_TYPES(List.class, QueryDataType.class),
     MAP_SCAN_PROJECTS(List.class, Integer.class),
     MAP_SCAN_FILTER(Expression.class, Boolean.class),

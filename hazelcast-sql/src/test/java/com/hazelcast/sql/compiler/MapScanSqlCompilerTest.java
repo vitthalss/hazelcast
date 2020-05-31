@@ -16,6 +16,7 @@
 
 package com.hazelcast.sql.compiler;
 
+import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.compiler.CodeGeneratorPlanNodeVisitor;
 import com.hazelcast.sql.impl.compiler.CompilerManager;
 import com.hazelcast.sql.impl.compiler.CompilerResult;
@@ -29,7 +30,7 @@ import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
 import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.RootPlanNode;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.test.HazelcastTestSupport;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,13 +38,13 @@ import java.util.Arrays;
 
 import static junit.framework.TestCase.assertNotNull;
 
-public class MapScanSqlCompilerTest extends HazelcastTestSupport {
+public class MapScanSqlCompilerTest extends SqlTestSupport {
     @BeforeClass
     public static void beforeClass() {
         CompilerManager.TEST_ENABLED = true;
     }
 
-    @BeforeClass
+    @AfterClass
     public static void afterClass() {
         CompilerManager.TEST_ENABLED = false;
     }
@@ -55,7 +56,7 @@ public class MapScanSqlCompilerTest extends HazelcastTestSupport {
             "MyMap",
             new JavaClassQueryTargetDescriptor(CompilerPersonKey.class.getName()),
             new JavaClassQueryTargetDescriptor(CompilerPerson.class.getName()),
-            Arrays.asList("fieldC", "fieldD"),
+            Arrays.asList(valuePath("fieldC"), valuePath("fieldD")),
             Arrays.asList(QueryDataType.INT, QueryDataType.INT),
             Arrays.asList(0, 1),
             ComparisonPredicate.create(
