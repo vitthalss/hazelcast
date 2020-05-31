@@ -25,7 +25,7 @@ import com.hazelcast.nio.serialization.PortableReader;
 import com.hazelcast.nio.serialization.PortableWriter;
 import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.QueryException;
-import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
+import com.hazelcast.sql.impl.extract.JavaClassQueryTargetDescriptor;
 import com.hazelcast.sql.impl.schema.TableField;
 import com.hazelcast.sql.impl.schema.map.MapSchemaTestSupport;
 import com.hazelcast.sql.impl.schema.map.MapTableField;
@@ -109,16 +109,16 @@ public class MapSampleMetadataResolverTest extends MapSchemaTestSupport {
     @Test
     public void testPortableObject() {
         InternalSerializationService ss = new DefaultSerializationServiceBuilder()
-            .addPortableFactory(1, classId -> {
-                if (classId == 2) {
-                    return new PortableParent();
-                } else if (classId == 3) {
-                    return new PortableChild();
-                }
+                                              .addPortableFactory(1, classId -> {
+                                                  if (classId == 2) {
+                                                      return new PortableParent();
+                                                  } else if (classId == 3) {
+                                                      return new PortableChild();
+                                                  }
 
-                throw new IllegalArgumentException("Invalid class ID: " + classId);
-            })
-            .build();
+                                                  throw new IllegalArgumentException("Invalid class ID: " + classId);
+                                              })
+                                              .build();
 
         // Test key.
         MapSampleMetadata metadata = MapSampleMetadataResolver.resolve(ss, ss.toData(new PortableParent()), false, true);
@@ -432,7 +432,7 @@ public class MapSampleMetadataResolverTest extends MapSchemaTestSupport {
 
         MapSampleMetadata metadata = MapSampleMetadataResolver.resolve(getSerializationService(), object, false, key);
 
-        assertEquals(GenericQueryTargetDescriptor.INSTANCE, metadata.getDescriptor());
+        assertEquals(new JavaClassQueryTargetDescriptor(expectedClass.getName()), metadata.getDescriptor());
 
         checkFields(
             metadata,
