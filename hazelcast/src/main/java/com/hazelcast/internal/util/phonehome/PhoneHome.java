@@ -41,21 +41,27 @@ public class PhoneHome {
 
     private static final int TIMEOUT = 1000;
 
-
-    private static final String BASE_PHONE_HOME_URL = "http://phonehome.hazelcast.com/ping";
     private static final String FALSE = "false";
+    private static final String DEFAULT_BASE_PHONE_HOME_URL = "http://phonehome.hazelcast.com/ping";
 
     volatile ScheduledFuture<?> phoneHomeFuture;
     private final ILogger logger;
+    private final String basePhoneHomeUrl;
 
     private final Node hazelcastNode;
     private final List<MetricsCollector> metricsCollectorList = Arrays.asList(new BuildInfoCollector(),
             new ClusterInfoCollector(), new ClientInfoCollector(), new MapInfoCollector(), new OSInfoCollector());
 
     public PhoneHome(Node node) {
+        this(node, DEFAULT_BASE_PHONE_HOME_URL);
+    }
+
+    PhoneHome(Node node, String baseurl) {
         hazelcastNode = node;
         logger = hazelcastNode.getLogger(com.hazelcast.internal.util.phonehome.PhoneHome.class);
+        basePhoneHomeUrl = baseurl;
     }
+
 
     public void check() {
         if (!hazelcastNode.getProperties().getBoolean(ClusterProperty.PHONE_HOME_ENABLED)) {
@@ -92,7 +98,7 @@ public class PhoneHome {
         PhoneHomeParameterCreator parameterCreator = createParameters();
 
         if (!pretend) {
-            String urlStr = BASE_PHONE_HOME_URL + parameterCreator.build();
+            String urlStr = basePhoneHomeUrl + parameterCreator.build();
             fetchWebService(urlStr);
         }
 
