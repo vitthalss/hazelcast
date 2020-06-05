@@ -36,7 +36,6 @@ import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.compiler.CompilerResult;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
-import com.hazelcast.sql.impl.calcite.opt.physical.visitor.SqlToQueryType;
 import com.hazelcast.sql.impl.calcite.parse.QueryParseResult;
 import com.hazelcast.sql.impl.calcite.parse.SqlCreateExternalTable;
 import com.hazelcast.sql.impl.calcite.parse.SqlDropExternalTable;

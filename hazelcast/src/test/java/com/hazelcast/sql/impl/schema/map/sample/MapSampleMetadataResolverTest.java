@@ -17,6 +17,7 @@
 package com.hazelcast.sql.impl.schema.map.sample;
 
 import com.hazelcast.core.HazelcastJsonValue;
+import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuilder;
 import com.hazelcast.nio.serialization.Portable;
@@ -111,16 +112,15 @@ public class MapSampleMetadataResolverTest extends MapSchemaTestSupport {
     @Test
     public void testPortableObject() {
         InternalSerializationService ss = new DefaultSerializationServiceBuilder()
-                                              .addPortableFactory(1, classId -> {
-                                                  if (classId == 2) {
-                                                      return new PortableParent();
-                                                  } else if (classId == 3) {
-                                                      return new PortableChild();
-                                                  }
+            .addPortableFactory(1, classId -> {
+                if (classId == 2) {
+                    return new PortableParent();
+                } else if (classId == 3) {
+                    return new PortableChild();
+                }
 
-                                                  throw new IllegalArgumentException("Invalid class ID: " + classId);
-                                              })
-                                              .build();
+                    throw new IllegalArgumentException("Invalid class ID: " + classId);
+            }).build();
 
         // Test key.
         MapSampleMetadata metadata = MapSampleMetadataResolver.resolve(ss, ss.toData(new PortableParent()), false, true);
@@ -430,7 +430,9 @@ public class MapSampleMetadataResolverTest extends MapSchemaTestSupport {
     }
 
     private void checkJavaTypes(Object object, boolean key) {
-        MapSampleMetadata metadata = MapSampleMetadataResolver.resolve(getSerializationService(), object, true, key);
+        Class<?> expectedClass = (object instanceof Data ? getSerializationService().toObject(object) : object).getClass();
+
+        MapSampleMetadata metadata = MapSampleMetadataResolver.resolve(getSerializationService(), object, false, key);
 
         assertEquals(new JavaClassQueryTargetDescriptor(expectedClass.getName()), metadata.getDescriptor());
 
