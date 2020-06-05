@@ -28,6 +28,7 @@ import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.metadata.RelMdUtil;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexNode;
 
@@ -37,30 +38,27 @@ import java.util.List;
  * Map index scan operator.
  */
 public class MapIndexScanPhysicalRel extends AbstractMapScanRel implements PhysicalRel {
-    /** Target index. */
+
     private final MapTableIndex index;
-
-    /** Index filter. */
     private final IndexFilter indexFilter;
-
-    /** Remainder filter. */
-    private final RexNode remainderFilter;
+    private final RexNode indexExp;
+    private final RexNode remainderExp;
 
     public MapIndexScanPhysicalRel(
         RelOptCluster cluster,
         RelTraitSet traitSet,
         RelOptTable table,
-        List<Integer> projects,
         MapTableIndex index,
         IndexFilter indexFilter,
-        RexNode remainderFilter,
-        RexNode originalFilter
+        RexNode indexExp,
+        RexNode remainderExp
     ) {
-        super(cluster, traitSet, table, projects, originalFilter);
+        super(cluster, traitSet, table);
 
         this.index = index;
         this.indexFilter = indexFilter;
-        this.remainderFilter = remainderFilter;
+        this.indexExp = indexExp;
+        this.remainderExp = remainderExp;
     }
 
     public MapTableIndex getIndex() {
@@ -71,8 +69,8 @@ public class MapIndexScanPhysicalRel extends AbstractMapScanRel implements Physi
         return indexFilter;
     }
 
-    public RexNode getRemainderFilter() {
-        return remainderFilter;
+    public RexNode getRemainderExp() {
+        return remainderExp;
     }
 
     @Override
@@ -81,11 +79,10 @@ public class MapIndexScanPhysicalRel extends AbstractMapScanRel implements Physi
             getCluster(),
             traitSet,
             getTable(),
-            projects,
             index,
             indexFilter,
-            remainderFilter,
-            filter
+            indexExp,
+            remainderExp
         );
     }
 
@@ -97,36 +94,50 @@ public class MapIndexScanPhysicalRel extends AbstractMapScanRel implements Physi
     @Override
     public RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw)
-           .item("index", index)
-           .item("indexFilter", indexFilter)
-           .item("remainderFilter", remainderFilter);
+           .item("index", index.getName())
+           .item("indexExp", indexExp)
+           .item("remainderExp", remainderExp);
     }
 
-    // TODO: Dedup with logical scan
     @Override
-    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
-        // 1. Get cost of the scan itself. For replicated map cost is multiplied by the number of nodes.
-        RelOptCost scanCost = super.computeSelfCost(planner, mq);
+    public double estimateRowCount(RelMetadataQuery mq) {
+        double rowCount = table.getRowCount();
 
-        if (isReplicated()) {
-            scanCost = scanCost.multiplyBy(getMemberCount());
+        if (indexExp != null) {
+            rowCount = CostUtils.adjustFilteredRowCount(rowCount, RelMdUtil.guessSelectivity(indexExp));
         }
 
-        // 2. Get cost of the project taking in count filter and number of expressions. Project never produces IO.
-        double filterSelectivity = mq.getSelectivity(this, filter);
-        double filterRowCount = scanCost.getRows() * filterSelectivity;
+        if (remainderExp != null) {
+            rowCount = CostUtils.adjustFilteredRowCount(rowCount, RelMdUtil.guessSelectivity(remainderExp));
+        }
 
-        int expressionCount = getProjects().size();
+        return rowCount;
+    }
 
-        double projectCpu = CostUtils.adjustProjectCpu(filterRowCount * expressionCount, true);
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        // Get the number of rows being scanned. This is either the whole index (scan), or only part of the index (lookup)
+        double scanRowCount = table.getRowCount();
 
-        // 3. Finally, return sum of both scan and project. Note that we decrease the cost of the scan by selectivity factor.
-        RelOptCost totalCost = planner.getCostFactory().makeCost(
+        if (indexExp != null) {
+            scanRowCount = CostUtils.adjustFilteredRowCount(scanRowCount, RelMdUtil.guessSelectivity(indexExp));
+        }
+
+        // Get the number of rows that we expect after the remainder filter is applied.
+        boolean hasFilter = remainderExp != null;
+
+        double filterRowCount = scanRowCount;
+
+        if (hasFilter) {
+            filterRowCount = CostUtils.adjustFilteredRowCount(filterRowCount, RelMdUtil.guessSelectivity(remainderExp));
+        }
+
+        return computeSelfCost(
+            planner,
+            scanRowCount,
+            CostUtils.INDEX_SCAN_CPU_MULTIPLIER, hasFilter,
             filterRowCount,
-            scanCost.getCpu() * filterSelectivity + projectCpu,
-            scanCost.getIo()
+            getTableUnwrapped().getProjects().size()
         );
-
-        return totalCost;
     }
 }

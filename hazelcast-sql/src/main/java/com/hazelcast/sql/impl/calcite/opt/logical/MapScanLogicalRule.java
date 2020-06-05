@@ -24,6 +24,9 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.convert.ConverterRule;
 import org.apache.calcite.rel.logical.LogicalTableScan;
 
+/**
+ * Converts abstract map scan into logical map scan.
+ */
 public final class MapScanLogicalRule extends ConverterRule {
     public static final RelOptRule INSTANCE = new MapScanLogicalRule();
 
@@ -38,9 +41,7 @@ public final class MapScanLogicalRule extends ConverterRule {
         return new MapScanLogicalRel(
             scan.getCluster(),
             OptUtils.toLogicalConvention(scan.getTraitSet()),
-            scan.getTable(),
-            null,
-            null
+            scan.getTable()
         );
     }
 }

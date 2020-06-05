@@ -21,7 +21,6 @@ import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rex.RexNode;
 
 import java.util.List;
 
@@ -31,23 +30,21 @@ import java.util.List;
  * Traits:
  * <ul>
  *     <li><b>Collation</b>: empty, as map is not sorted</li>
- *     <li><b>Distribution</b>: PARTITIONED</li>
+ *     <li><b>Distribution</b>: PARTITIONED or REPLICATED depending on the map type</li>
  * </ul>
  */
 public class MapScanPhysicalRel extends AbstractMapScanPhysicalRel {
     public MapScanPhysicalRel(
         RelOptCluster cluster,
         RelTraitSet traitSet,
-        RelOptTable table,
-        List<Integer> projects,
-        RexNode filter
+        RelOptTable table
     ) {
-        super(cluster, traitSet, table, projects, filter);
+        super(cluster, traitSet, table);
     }
 
     @Override
     public final RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
-        return new MapScanPhysicalRel(getCluster(), traitSet, getTable(), projects, filter);
+        return new MapScanPhysicalRel(getCluster(), traitSet, getTable());
     }
 
     @Override

@@ -18,6 +18,7 @@ package com.hazelcast.spi.impl.operationservice.impl;
 
 import com.hazelcast.client.impl.ClientBackupAwareResponse;
 import com.hazelcast.cluster.Address;
+import com.hazelcast.cluster.ClusterState;
 import com.hazelcast.cluster.Member;
 import com.hazelcast.core.HazelcastInstanceNotActiveException;
 import com.hazelcast.core.MemberLeftException;
@@ -210,7 +211,7 @@ public abstract class Invocation<T> extends BaseInvocation implements OperationR
         this.tryPauseMillis = tryPauseMillis;
         this.callTimeoutMillis = getCallTimeoutMillis(callTimeoutMillis);
         this.future = new InvocationFuture(this, deserialize);
-        this.connectionManager = getEndpointManager(connectionManager);
+        this.connectionManager = getConnectionManager(connectionManager);
     }
 
     @Override
@@ -507,10 +508,15 @@ public abstract class Invocation<T> extends BaseInvocation implements OperationR
             return true;
         }
 
-        boolean allowed = state == NodeState.PASSIVE && (op instanceof AllowedDuringPassiveState);
-        if (!allowed) {
+        boolean allowed = true;
+        if (state == NodeState.SHUT_DOWN) {
             notifyError(new HazelcastInstanceNotActiveException("State: " + state + " Operation: " + op.getClass()));
-            remote = false;
+            allowed = false;
+        } else if (!(op instanceof AllowedDuringPassiveState)
+                && context.clusterService.getClusterState() == ClusterState.PASSIVE) {
+            // Similar to OperationRunnerImpl.checkNodeState(op)
+            notifyError(new IllegalStateException("Cluster is in " + ClusterState.PASSIVE + " state! Operation: " + op));
+            allowed = false;
         }
         return allowed;
     }
@@ -610,7 +616,7 @@ public abstract class Invocation<T> extends BaseInvocation implements OperationR
         return "Packet not sent to -> " + targetAddress + " over " + connection;
     }
 
-    private ServerConnectionManager getEndpointManager(ServerConnectionManager connectionManager) {
+    private ServerConnectionManager getConnectionManager(ServerConnectionManager connectionManager) {
         return connectionManager != null ? connectionManager : context.defaultServerConnectionManager;
     }
 

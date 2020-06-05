@@ -23,12 +23,15 @@ import com.hazelcast.sql.impl.calcite.opt.OptUtils;
 import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTrait;
 import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionTraitDef;
 import com.hazelcast.sql.impl.calcite.opt.logical.MapScanLogicalRel;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastRelOptTable;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.exec.scan.index.IndexFilter;
 import com.hazelcast.sql.impl.exec.scan.index.IndexFilterType;
 import com.hazelcast.sql.impl.schema.map.MapTableIndex;
 import com.hazelcast.sql.impl.schema.map.PartitionedMapTable;
 import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
@@ -70,9 +73,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
             PhysicalRel newScan = new ReplicatedMapScanPhysicalRel(
                 scan.getCluster(),
                 OptUtils.toPhysicalConvention(scan.getTraitSet(), OptUtils.getDistributionDef(scan).getTraitReplicated()),
-                scan.getTable(),
-                scan.getProjects(),
-                scan.getFilter()
+                scan.getTable()
             );
 
             call.transformTo(newScan);
@@ -82,7 +83,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
             DistributionTrait distribution = getDistributionTrait(
                 OptUtils.getDistributionDef(scan),
                 table,
-                scan.getProjects()
+                scan.getTableUnwrapped().getProjects()
             );
 
             List<RelNode> transforms = new ArrayList<>(1);
@@ -91,9 +92,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
             transforms.add(new MapScanPhysicalRel(
                 scan.getCluster(),
                 OptUtils.toPhysicalConvention(scan.getTraitSet(), distribution),
-                scan.getTable(),
-                scan.getProjects(),
-                scan.getFilter()
+                scan.getTable()
             ));
 
             // Try adding index scans.
@@ -116,7 +115,11 @@ public final class MapScanPhysicalRule extends RelOptRule {
         List<MapTableIndex> indexes,
         List<RelNode> transforms
     ) {
-        RexNode filter = scan.getFilter();
+        if (indexes == null || indexes.isEmpty()) {
+            return;
+        }
+
+        RexNode filter = scan.getTableUnwrapped().getFilter();
 
         if (filter == null) {
             return;
@@ -163,14 +166,14 @@ public final class MapScanPhysicalRule extends RelOptRule {
             return null;
         }
 
-        BiTuple<IndexFilter, RexNode> filter = tryCreateIndexFilter(
+        IndexFilterDescriptor indexFilterDescriptor = tryCreateIndexFilter(
             index.getType(),
             indexFieldOrdinals,
             exp,
             scan.getCluster().getRexBuilder()
         );
 
-        if (filter == null) {
+        if (indexFilterDescriptor == null) {
             return null;
         }
 
@@ -180,15 +183,23 @@ public final class MapScanPhysicalRule extends RelOptRule {
 //        RelCollation collation = createIndexCollation(scan, index);
 //        RelTraitSet traitSet = RuleUtils.toPhysicalConvention(scan.getTraitSet(), distribution).plus(collation);
 
+        HazelcastRelOptTable originalRelTable = (HazelcastRelOptTable) scan.getTable();
+        HazelcastTable originalHazelcastTable = OptUtils.getHazelcastTable(scan);
+
+        RelOptTable newRelTable = OptUtils.createRelTable(
+            originalRelTable,
+            originalHazelcastTable.withFilter(null),
+            scan.getCluster().getTypeFactory()
+        );
+
         return new MapIndexScanPhysicalRel(
             scan.getCluster(),
             traitSet,
-            scan.getTable(),
-            scan.getProjects(),
+            newRelTable,
             index,
-            filter.element1(),
-            filter.element2(),
-            scan.getFilter()
+            indexFilterDescriptor.getIndexFilter(),
+            indexFilterDescriptor.getIndexExp(),
+            indexFilterDescriptor.getRemainderExp()
         );
     }
 
@@ -200,7 +211,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
      * @param baseExp Base conjunctive expression.
      * @return Index filter or {@code null} if an expression cannot be used with the given index.
      */
-    private BiTuple<IndexFilter, RexNode> tryCreateIndexFilter(
+    private IndexFilterDescriptor tryCreateIndexFilter(
         IndexType indexType,
         List<Integer> indexAttributes,
         RexNode baseExp,
@@ -224,6 +235,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
             indexFilters.add(null);
         }
 
+        List<RexNode> filterExps = new ArrayList<>(Math.min(exps.size() - 1, 1));
         List<RexNode> remainderExps = new ArrayList<>(Math.min(exps.size() - 1, 1));
 
         for (RexNode exp : exps) {
@@ -253,6 +265,8 @@ public final class MapScanPhysicalRule extends RelOptRule {
 
             if (remainder) {
                 remainderExps.add(exp);
+            } else {
+                filterExps.add(exp);
             }
         }
 
@@ -260,12 +274,15 @@ public final class MapScanPhysicalRule extends RelOptRule {
         IndexFilter finalIndexFilter = composeIndexConditions(indexFilters);
 
         if (finalIndexFilter == null) {
+            // TODO: VO: This is wrong! We do not consider index scans, while they may still provide better overall cost
+            //  thanks to collation.  Fix it!
             return null;
         }
 
+        RexNode finalIndexExp = RexUtil.composeConjunction(rexBuilder, filterExps);
         RexNode finalRemainderExp = RexUtil.composeConjunction(rexBuilder, remainderExps);
 
-        return BiTuple.of(finalIndexFilter, finalRemainderExp);
+        return new IndexFilterDescriptor(finalIndexFilter, finalIndexExp, finalRemainderExp);
     }
 
     private static IndexFilter composeIndexConditions(List<IndexFilter> indexFilters) {
@@ -412,7 +429,7 @@ public final class MapScanPhysicalRule extends RelOptRule {
         Map<Integer, Integer> fieldToProjectIndex = new HashMap<>();
 
         for (int i = 0; i < scan.getMap().getFieldCount(); i++) {
-            int projectIndex = scan.getProjects().indexOf(i);
+            int projectIndex = scan.getTableUnwrapped().getProjects().indexOf(i);
 
             if (projectIndex == -1) {
                 // Scan field is not projected out.
@@ -475,5 +492,29 @@ public final class MapScanPhysicalRule extends RelOptRule {
         }
 
         return distributionTraitDef.createPartitionedTrait(Collections.singletonList(res));
+    }
+
+    private static final class IndexFilterDescriptor {
+        private final IndexFilter indexFilter;
+        private final RexNode indexExp;
+        private final RexNode remainderExp;
+
+        private IndexFilterDescriptor(IndexFilter indexFilter, RexNode indexExp, RexNode remainderExp) {
+            this.indexFilter = indexFilter;
+            this.indexExp = indexExp;
+            this.remainderExp = remainderExp;
+        }
+
+        public IndexFilter getIndexFilter() {
+            return indexFilter;
+        }
+
+        public RexNode getIndexExp() {
+            return indexExp;
+        }
+
+        public RexNode getRemainderExp() {
+            return remainderExp;
+        }
     }
 }

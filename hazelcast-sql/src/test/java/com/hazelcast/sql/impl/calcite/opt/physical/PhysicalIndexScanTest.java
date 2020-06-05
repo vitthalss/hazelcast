@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.optimizer;
+package com.hazelcast.sql.impl.calcite.opt.physical;
 
 import com.hazelcast.config.IndexType;
+import com.hazelcast.sql.impl.calcite.opt.OptimizerTestSupport;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchema;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.schema.map.MapTableIndex;
-import com.hazelcast.sql.optimizer.support.PhysicalOptimizerTestSupport;
-import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.schema.Table;
 import org.junit.Test;
 
@@ -34,15 +33,15 @@ import static com.hazelcast.sql.impl.type.QueryDataType.INT;
 /**
  * Tests for physical index path selection.
  */
-public class PhysicalOptimizerIndexScanTest extends PhysicalOptimizerTestSupport {
+public class PhysicalIndexScanTest extends OptimizerTestSupport {
     @Override
     protected HazelcastSchema createDefaultSchema() {
         Map<String, Table> tableMap = new HashMap<>();
 
-        HazelcastTable pTable = partitionedTable(
+        HazelcastTable pTable = OptimizerTestSupport.partitionedTable(
             "p",
-            fields("f1", INT, "f2", INT, "f3", INT),
-            Collections.singletonList(new MapTableIndex("idx1", IndexType.SORTED, list(0))),
+            OptimizerTestSupport.fields("f1", INT, "f2", INT, "f3", INT),
+            Collections.singletonList(new MapTableIndex("idx1", IndexType.SORTED, Collections.singletonList(0))),
             100
         );
 
@@ -53,8 +52,12 @@ public class PhysicalOptimizerIndexScanTest extends PhysicalOptimizerTestSupport
 
     @Test
     public void testAnd() {
-        RelNode rootInput = optimizePhysical("SELECT f1, f2 FROM p WHERE 1 < f1 AND f2 < 3 AND f3 = 5");
-
-        System.out.println("Done");
+        assertPlan(
+            optimizePhysical("SELECT f1, f2 FROM p WHERE 1 < f1 AND f2 < 3 AND f3 = 5"),
+            plan(
+                planRow(0, RootPhysicalRel.class, "", 3.8),
+                planRow(1, MapIndexScanPhysicalRel.class, "table=[[hazelcast, p[projects=[0, 1]]]], index=[idx1], indexExp=[<(1, $0)], remainderExp=[AND(<($1, 3), =($2, 5))]", 3.8)
+            )
+        );
     }
 }

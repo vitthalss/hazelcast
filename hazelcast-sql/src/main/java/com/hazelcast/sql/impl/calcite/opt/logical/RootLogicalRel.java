@@ -16,15 +16,17 @@
 
 package com.hazelcast.sql.impl.calcite.opt.logical;
 
+import com.hazelcast.sql.impl.calcite.opt.AbstractRootRel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.RelWriter;
-import org.apache.calcite.rel.SingleRel;
 
 import java.util.List;
 
-public class RootLogicalRel extends SingleRel implements LogicalRel {
+/**
+ * Logical root node. Installed on top of logical relational tree manually at the end of logical optimization phase.
+ */
+public class RootLogicalRel extends AbstractRootRel implements LogicalRel {
     public RootLogicalRel(RelOptCluster cluster, RelTraitSet traits, RelNode input) {
         super(cluster, traits, input);
     }
@@ -32,10 +34,5 @@ public class RootLogicalRel extends SingleRel implements LogicalRel {
     @Override
     public final RelNode copy(RelTraitSet traitSet, List<RelNode> inputs) {
         return new RootLogicalRel(getCluster(), traitSet, sole(inputs));
-    }
-
-    @Override
-    public final RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw);
     }
 }

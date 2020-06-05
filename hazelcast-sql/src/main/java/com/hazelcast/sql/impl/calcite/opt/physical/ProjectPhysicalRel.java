@@ -16,11 +16,11 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical;
 
+import com.hazelcast.sql.impl.calcite.opt.AbstractProjectRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PhysicalRelVisitor;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexNode;
@@ -32,11 +32,11 @@ import java.util.List;
  * <p>
  * Traits:
  * <ul>
- *     <li><b>Collation</b>: propagated from input if prefix of sort fields are still there; destroyed otherwise</li>
- *     <li><b>Distribution</b>: derived from input if all distribution fields are still there; destroyed otherwise</li>
+ *     <li><b>Collation</b>: propagated from input if the prefix of sort fields is preserved; destroyed otherwise</li>
+ *     <li><b>Distribution</b>: derived from input if all distribution fields are preserved; destroyed otherwise</li>
  * </ul>
  */
-public class ProjectPhysicalRel extends Project implements PhysicalRel {
+public class ProjectPhysicalRel extends AbstractProjectRel implements PhysicalRel {
     public ProjectPhysicalRel(
         RelOptCluster cluster,
         RelTraitSet traits,
@@ -50,11 +50,6 @@ public class ProjectPhysicalRel extends Project implements PhysicalRel {
     @Override
     public final Project copy(RelTraitSet traitSet, RelNode input, List<RexNode> projects, RelDataType rowType) {
         return new ProjectPhysicalRel(getCluster(), traitSet, input, projects, rowType);
-    }
-
-    @Override
-    public final RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw);
     }
 
     @Override

@@ -24,10 +24,9 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.rel.RelNode;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
- * Convert logical filter to physical filter.
+ * Converts logical filter to physical filter. Collation and distribution are inherited from the input.
  */
 public final class FilterPhysicalRule extends RelOptRule {
     public static final RelOptRule INSTANCE = new FilterPhysicalRule();
@@ -60,19 +59,7 @@ public final class FilterPhysicalRule extends RelOptRule {
         }
     }
 
-    /**
-     * Get inputs which should be used for transformation.
-     *
-     * @param convertedInput Original input in physical convention.
-     * @return Inputs which should be used for transformation.
-     */
     private Collection<RelNode> getInputTransforms(RelNode convertedInput) {
-        Collection<RelNode> res = OptUtils.getPhysicalRelsFromSubset(convertedInput);
-
-        if (res.isEmpty()) {
-            res = Collections.singletonList(convertedInput);
-        }
-
-        return res;
+        return OptUtils.getPhysicalRelsFromSubset(convertedInput);
     }
 }

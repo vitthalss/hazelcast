@@ -14,19 +14,15 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.optimizer;
+package com.hazelcast.sql.impl.calcite.opt.logical;
 
-import com.hazelcast.sql.impl.calcite.opt.logical.AggregateLogicalRel;
-import com.hazelcast.sql.impl.calcite.opt.logical.JoinLogicalRel;
-import com.hazelcast.sql.impl.calcite.opt.logical.ProjectLogicalRel;
+import com.hazelcast.sql.impl.calcite.opt.OptimizerTestSupport;
+import com.hazelcast.sql.impl.calcite.opt.PlanRow;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchema;
-import com.hazelcast.sql.impl.expression.predicate.ComparisonMode;
-import com.hazelcast.sql.impl.expression.predicate.IsNotNullPredicate;
-import com.hazelcast.sql.optimizer.support.LogicalOptimizerTestSupport;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.schema.Table;
+import org.apache.calcite.sql.SqlExplainLevel;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -35,13 +31,13 @@ import java.util.Map;
 import static com.hazelcast.sql.impl.type.QueryDataType.INT;
 
 // TODO: Tests with SINGLE_VALUE decorrelations (i.e. when the subquery is in the SELECT or WHERE, etc)
-public class LogicalOptimizerSubQueriesTest extends LogicalOptimizerTestSupport {
+public class LogicalSubQueriesTest extends OptimizerTestSupport {
     @Override
     protected HazelcastSchema createDefaultSchema() {
         Map<String, Table> tableMap = new HashMap<>();
 
-        tableMap.put("r", partitionedTable("r", fields("r", INT, "r1", INT, "r2", INT, "r3", INT), null, 100));
-        tableMap.put("s", partitionedTable("s", fields("s", INT, "s1", INT, "s2", INT, "s3", INT), null, 100));
+        tableMap.put("r", OptimizerTestSupport.partitionedTable("r", OptimizerTestSupport.fields("r", INT, "r1", INT, "r2", INT, "r3", INT), null, 100));
+        tableMap.put("s", OptimizerTestSupport.partitionedTable("s", OptimizerTestSupport.fields("s", INT, "s1", INT, "s2", INT, "s3", INT), null, 100));
 
         return new HazelcastSchema(tableMap);
     }
@@ -53,42 +49,16 @@ public class LogicalOptimizerSubQueriesTest extends LogicalOptimizerTestSupport 
      */
     @Test
     public void testInCorrelated() {
-        RelNode rootNode = optimizeLogical(
-            "SELECT r.r3 FROM r WHERE r.r1 IN (SELECT s.s1 FROM s WHERE s.s2 = r.r2)"
-        );
-
-        ProjectLogicalRel project = assertProject(
-            rootNode,
-            list(column(2))
-        );
-
-        JoinLogicalRel join = assertJoin(
-            project.getInput(),
-            JoinRelType.INNER,
-            and(
-                compareColumnsEquals(1, 4), // r2=s2
-                compareColumnsEquals(0, 3)  // r1=s1
+        assertPlan(
+            optimizeLogical("SELECT r.r3 FROM r WHERE r.r1 IN (SELECT s.s1 FROM s WHERE s.s2 = r.r2)"),
+            plan(
+                new PlanRow(0, RootLogicalRel.class, "", 20.2d),
+                new PlanRow(1, ProjectLogicalRel.class, "r3=[$2]", 20.2),
+                new PlanRow(2, JoinLogicalRel.class, "condition=[AND(=($1, $4), =($0, $3))], joinType=[inner]", 20.2d),
+                new PlanRow(3, MapScanLogicalRel.class, "table=[[hazelcast, r[projects=[1, 2, 3]]]]", 100d),
+                new PlanRow(3, AggregateLogicalRel.class, "group=[{0, 1}]", 9d),
+                new PlanRow(4, MapScanLogicalRel.class, "table=[[hazelcast, s[projects=[1, 2], filter=IS NOT NULL($2)]]]", 90d)
             )
-        );
-
-        assertScan(
-            join.getLeft(),
-            "r",
-            list(1, 2, 3),
-            null
-        );
-
-        AggregateLogicalRel rightAgg = assertAggregate(
-            join.getRight(),
-            list(0, 1),
-            list()
-        );
-
-        assertScan(
-            rightAgg.getInput(),
-            "s",
-            list(1, 2),
-            IsNotNullPredicate.create(column(2))
         );
     }
 
@@ -97,36 +67,16 @@ public class LogicalOptimizerSubQueriesTest extends LogicalOptimizerTestSupport 
      */
     @Test
     public void testInNotCorrelated() {
-        RelNode rootNode = optimizeLogical(
-            "SELECT r.r2 FROM r WHERE r.r1 IN (SELECT s.s1 FROM s WHERE s.s2 < 50)"
+        assertPlan(
+            optimizeLogical("SELECT r.r2 FROM r WHERE r.r1 IN (SELECT s.s1 FROM s WHERE s.s2 < 50)"),
+            plan(
+                new PlanRow(0, RootLogicalRel.class, "", 100d),
+                new PlanRow(1, ProjectLogicalRel.class, "r2=[$1]", 100d),
+                new PlanRow(2, JoinLogicalRel.class, "condition=[=($0, $2)], joinType=[semi]", 100d),
+                new PlanRow(3, MapScanLogicalRel.class, "table=[[hazelcast, r[projects=[1, 2]]]]", 100d),
+                new PlanRow(3, MapScanLogicalRel.class, "table=[[hazelcast, s[projects=[1], filter=<($2, 50)]]]", 50d)
+            )
         );
-
-        ProjectLogicalRel project = assertProject(
-            rootNode,
-            list(column(1))
-        );
-
-        JoinLogicalRel join = assertJoin(
-            project.getInput(),
-            JoinRelType.SEMI,
-            compareColumnsEquals(0, 2)
-        );
-
-        assertScan(
-            join.getLeft(),
-            "r",
-            list(1, 2),
-            null
-        );
-
-        assertScan(
-            join.getRight(),
-            "s",
-            list(1),
-            compare(column(2), constant(50), ComparisonMode.LESS_THAN)
-        );
-
-        System.out.println(RelOptUtil.toString(rootNode));
     }
 
     @Test
@@ -204,6 +154,6 @@ public class LogicalOptimizerSubQueriesTest extends LogicalOptimizerTestSupport 
         // TODO: Implemented in the same way as correlated NOT EXISTS: dedup S, then do r LEFT OUTER JOIN s. The problem is that
         //  this is a cross join! Are there any better strategies to handle this?
 
-        System.out.println(RelOptUtil.toString(rel));
+        System.out.println(RelOptUtil.toString(rel, SqlExplainLevel.ALL_ATTRIBUTES));
     }
 }

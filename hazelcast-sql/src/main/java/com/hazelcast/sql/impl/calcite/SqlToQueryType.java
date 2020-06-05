@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
+package com.hazelcast.sql.impl.calcite;
 
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
@@ -78,23 +78,18 @@ public final class SqlToQueryType {
         HZ_TO_CALCITE.put(QueryDataTypeFamily.OBJECT, SqlTypeName.ANY);
         CALCITE_TO_HZ.put(SqlTypeName.ANY, QueryDataType.OBJECT);
 
-        HZ_TO_CALCITE.put(QueryDataTypeFamily.OBJECT, SqlTypeName.ANY);
-        CALCITE_TO_HZ.put(SqlTypeName.ANY, QueryDataType.OBJECT);
-
         HZ_TO_CALCITE.put(QueryDataTypeFamily.NULL, SqlTypeName.NULL);
         CALCITE_TO_HZ.put(SqlTypeName.NULL, QueryDataType.NULL);
     }
 
     private SqlToQueryType() {
+        // No-op.
     }
 
     public static SqlTypeName map(QueryDataTypeFamily family) {
         return HZ_TO_CALCITE.get(family);
     }
 
-    /**
-     * Maps the given {@link SqlTypeName} to {@link QueryDataType}.
-     */
     public static QueryDataType map(SqlTypeName sqlTypeName) {
         QueryDataType queryDataType = CALCITE_TO_HZ.get(sqlTypeName);
         if (queryDataType == null) {
@@ -103,9 +98,6 @@ public final class SqlToQueryType {
         return queryDataType;
     }
 
-    /**
-     * Maps the given Calcite's row type to {@link QueryDataType} row type.
-     */
     public static QueryDataType[] mapRowType(RelDataType rowType) {
         List<RelDataTypeField> fields = rowType.getFieldList();
 

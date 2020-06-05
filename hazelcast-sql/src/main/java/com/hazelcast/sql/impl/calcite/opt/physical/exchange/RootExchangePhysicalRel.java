@@ -16,17 +16,28 @@
 
 package com.hazelcast.sql.impl.calcite.opt.physical.exchange;
 
+import com.hazelcast.sql.impl.calcite.opt.cost.CostUtils;
+import com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType;
 import com.hazelcast.sql.impl.calcite.opt.physical.PhysicalRel;
 import com.hazelcast.sql.impl.calcite.opt.physical.visitor.PhysicalRelVisitor;
 import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.plan.RelOptCost;
+import org.apache.calcite.plan.RelOptPlanner;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
+import org.apache.calcite.rel.metadata.RelMetadataQuery;
 
 import java.util.List;
 
 /**
- * Exchange for root node.
+ * Exchange for root node. Collects results from the input on a single node.
+ * <p>
+ * Traits:
+ * <ul>
+ *     <li><b>Collation</b>: none, since the order of receive from input is undefined</li>
+ *     <li><b>Distribution</b>: always {@link DistributionType#ROOT}, since there is only one node consuming the input</li>
+ * </ul>
  */
 public class RootExchangePhysicalRel extends AbstractExchangePhysicalRel {
     public RootExchangePhysicalRel(RelOptCluster cluster, RelTraitSet traits, RelNode input) {
@@ -48,5 +59,14 @@ public class RootExchangePhysicalRel extends AbstractExchangePhysicalRel {
     @Override
     public final RelWriter explainTerms(RelWriter pw) {
         return super.explainTerms(pw);
+    }
+
+    @Override
+    public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        double rows = mq.getRowCount(getInput());
+        double cpu = rows;
+        double network = rows * CostUtils.getEstimatedRowWidth(getInput());
+
+        return planner.getCostFactory().makeCost(rows, cpu, network);
     }
 }

@@ -16,7 +16,6 @@
 
 package com.hazelcast.sql.impl.schema;
 
-import com.hazelcast.sql.impl.schema.ExternalTable.ExternalField;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 /**
@@ -27,14 +26,12 @@ public class TableField {
 
     protected final String name;
     protected final QueryDataType type;
+    protected final boolean hidden;
 
-    public TableField(ExternalField externalField) {
-        this(externalField.name(), externalField.type());
-    }
-
-    public TableField(String name, QueryDataType type) {
+    public TableField(String name, QueryDataType type, boolean hidden) {
         this.name = name;
         this.type = type;
+        this.hidden = hidden;
     }
 
     public String getName() {
@@ -43,5 +40,9 @@ public class TableField {
 
     public QueryDataType getType() {
         return type;
+    }
+
+    public boolean isHidden() {
+        return hidden;
     }
 }
