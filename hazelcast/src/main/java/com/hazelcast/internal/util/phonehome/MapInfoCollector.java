@@ -15,6 +15,7 @@
  */
 package com.hazelcast.internal.util.phonehome;
 
+import com.hazelcast.config.MapConfig;
 import com.hazelcast.core.DistributedObject;
 
 import java.util.Collection;
@@ -39,7 +40,18 @@ class MapInfoCollector implements MetricsCollector {
         Map<String, String> mapInfo = new HashMap<>();
 
         mapInfo.put("mpct", String.valueOf(maps.size()));
+        mapInfo.put("mpbrct", String.valueOf(countMapWithBackupReadEnabled(hazelcastNode)));
 
         return mapInfo;
+    }
+
+    private long countMapWithBackupReadEnabled(Node node) {
+        return maps.stream().filter(distributedObject -> {
+            MapConfig config = node.getConfig().getMapConfig(distributedObject.getName());
+            if (config != null) {
+                return config.isReadBackupData();
+            }
+            return false;
+        }).count();
     }
 }

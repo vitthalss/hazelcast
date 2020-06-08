@@ -15,15 +15,14 @@
  */
 package com.hazelcast.internal.util.phonehome;
 
-import com.hazelcast.config.Config;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.instance.BuildInfoProvider;
 import com.hazelcast.instance.impl.Node;
-import com.hazelcast.spi.properties.ClusterProperty;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.HazelcastTestSupport;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
@@ -35,24 +34,27 @@ import java.util.Map;
 import java.util.UUID;
 
 import static com.hazelcast.test.Accessors.getNode;
-import static java.lang.System.getenv;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assume.assumeFalse;
 
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
 public class PhoneHomeTest extends HazelcastTestSupport {
 
+    private Node node;
+    private PhoneHome phoneHome;
+
+    @Before
+    public void initialise() {
+        HazelcastInstance hz = createHazelcastInstance();
+        node = getNode(hz);
+        phoneHome = new PhoneHome(node);
+    }
+
     @Test
     public void testPhoneHomeParameters() {
-        HazelcastInstance hz = createHazelcastInstance();
-        Node node = getNode(hz);
-        PhoneHome phoneHome = new PhoneHome(node);
         sleepAtLeastMillis(1);
         Map<String, String> parameters = phoneHome.phoneHome(true);
         RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
@@ -83,38 +85,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         assertEquals(parameters.get("jvmv"), System.getProperty("java.version"));
     }
 
-    @Test
-    public void testScheduling_whenPhoneHomeIsDisabled() {
-        Config config = new Config()
-                .setProperty(ClusterProperty.PHONE_HOME_ENABLED.getName(), "false");
-
-        HazelcastInstance hz = createHazelcastInstance(config);
-        Node node = getNode(hz);
-
-        PhoneHome phoneHome = new PhoneHome(node);
-        phoneHome.check();
-        assertNull(phoneHome.phoneHomeFuture);
-    }
-
-    @Test
-    public void testShutdown() {
-        assumeFalse("Skipping. The PhoneHome is disabled by the Environment variable",
-                "false".equals(getenv("HZ_PHONE_HOME_ENABLED")));
-        Config config = new Config()
-                .setProperty(ClusterProperty.PHONE_HOME_ENABLED.getName(), "true");
-
-        HazelcastInstance hz = createHazelcastInstance(config);
-        Node node = getNode(hz);
-
-        PhoneHome phoneHome = new PhoneHome(node);
-        phoneHome.check();
-        assertNotNull(phoneHome.phoneHomeFuture);
-        assertFalse(phoneHome.phoneHomeFuture.isDone());
-        assertFalse(phoneHome.phoneHomeFuture.isCancelled());
-
-        phoneHome.shutdown();
-        assertTrue(phoneHome.phoneHomeFuture.isCancelled());
-    }
 
     @Test
     public void testConvertToLetter() {
@@ -132,18 +102,30 @@ public class PhoneHomeTest extends HazelcastTestSupport {
 
     @Test
     public void testMapCount() {
-        HazelcastInstance hz = createHazelcastInstance();
-        Node node = getNode(hz);
-        PhoneHome phoneHome = new PhoneHome(node);
         Map<String, String> parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "0");
-        Map<String, String> map1 = hz.getMap("hazelcast");
-        Map<String, String> map2 = hz.getMap("phonehome");
+        Map<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
+        Map<String, String> map2 = node.hazelcastInstance.getMap("phonehome");
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "2");
-        Map<String, String> map3 = hz.getMap("maps");
+        Map<String, String> map3 = node.hazelcastInstance.getMap("maps");
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "3");
+    }
+
+    @Test
+    public void testMapCountWithBackupReadEnabled() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpbrct"), "0");
+
+        Map<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpbrct"), "0");
+
+        node.getConfig().getMapConfig("hazelcast").setReadBackupData(true);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpbrct"), "1");
     }
 }
 
