@@ -15,6 +15,8 @@
  */
 package com.hazelcast.internal.util.phonehome;
 
+import com.hazelcast.config.IndexConfig;
+import com.hazelcast.config.IndexType;
 import com.hazelcast.config.QueryCacheConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.instance.BuildInfoProvider;
@@ -165,6 +167,44 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").addQueryCacheConfig(cacheConfig);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpaoqcct"), "1");
+
+    }
+
+    @Test
+    public void testMapCountWithAtleastOneIndex() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpaoict"), "0");
+
+        Map<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpaoict"), "0");
+
+        IndexConfig config = new IndexConfig(IndexType.SORTED, "hazelcast");
+        node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(config);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpaoict"), "1");
+
+        config = new IndexConfig(IndexType.HASH, "phonehome");
+        node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(config);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpaoict"), "1");
+
+    }
+
+    @Test
+    public void testMapCountWithHotRestartEnabled() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mphect"), "0");
+
+        Map<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mphect"), "0");
+
+        node.getConfig().getMapConfig("hazelcast").getHotRestartConfig().setEnabled(true);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mphect"), "1");
 
     }
 }

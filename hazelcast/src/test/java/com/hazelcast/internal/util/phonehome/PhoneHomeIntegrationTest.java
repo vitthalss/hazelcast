@@ -16,6 +16,7 @@
 package com.hazelcast.internal.util.phonehome;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
+import com.hazelcast.config.IndexConfig;
 import com.hazelcast.config.QueryCacheConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.instance.impl.Node;
@@ -50,6 +51,9 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").setReadBackupData(true);
         node.getConfig().getMapConfig("phonehome").getMapStoreConfig().setEnabled(true);
         node.getConfig().getMapConfig("hazelcast").addQueryCacheConfig(new QueryCacheConfig("queryconfig"));
+        node.getConfig().getMapConfig("hazelcast").getHotRestartConfig().setEnabled(true);
+        node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(new IndexConfig());
+
 
         stubFor(get(urlPathEqualTo("/ping"))
                 .willReturn(aResponse()
@@ -60,7 +64,9 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
         verify(1, getRequestedFor(urlPathEqualTo("/ping")).withQueryParam("mpct", equalTo("2"))
                 .withQueryParam("mpbrct", equalTo("1"))
                 .withQueryParam("mpmsct", equalTo("1"))
-                .withQueryParam("mpaoqcct", equalTo("1")));
+                .withQueryParam("mpaoqcct", equalTo("1"))
+                .withQueryParam("mpaoict", equalTo("1"))
+                .withQueryParam("mphect", equalTo("1")));
 
     }
 
