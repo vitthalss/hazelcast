@@ -15,10 +15,19 @@
  */
 package com.hazelcast.internal.util.phonehome;
 
-import com.hazelcast.config.*;
+import com.hazelcast.collection.IList;
+import com.hazelcast.collection.IQueue;
+import com.hazelcast.collection.ISet;
+import com.hazelcast.config.AttributeConfig;
+import com.hazelcast.config.IndexConfig;
+import com.hazelcast.config.IndexType;
+import com.hazelcast.config.QueryCacheConfig;
+import com.hazelcast.config.WanReplicationRef;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.instance.BuildInfoProvider;
 import com.hazelcast.instance.impl.Node;
+import com.hazelcast.multimap.MultiMap;
+import com.hazelcast.ringbuffer.Ringbuffer;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.HazelcastTestSupport;
 import com.hazelcast.test.annotation.ParallelJVMTest;
@@ -240,6 +249,89 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpaocct"), "1");
 
+    }
+
+    @Test
+    public void testSetCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("sect"), "0");
+
+        ISet<String> set1 = node.hazelcastInstance.getSet("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("sect"), "1");
+
+        ISet<Object> set2 = node.hazelcastInstance.getSet("phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("sect"), "2");
+
+        set2.destroy();
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("sect"), "1");
+    }
+
+    @Test
+    public void testQueueCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("quct"), "0");
+
+        IQueue<Object> queue1 = node.hazelcastInstance.getQueue("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("quct"), "1");
+
+        IQueue<String> queue2 = node.hazelcastInstance.getQueue("phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("quct"), "2");
+
+        queue2.destroy();
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("quct"), "1");
+    }
+
+    @Test
+    public void testMultimapCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mmct"), "0");
+
+        MultiMap<Object, Object> multimap1 = node.hazelcastInstance.getMultiMap("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mmct"), "1");
+
+        MultiMap<Object, Object> multimap2 = node.hazelcastInstance.getMultiMap("phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mmct"), "2");
+    }
+
+    @Test
+    public void testListCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("lict"), "0");
+
+        IList<Object> list1 = node.hazelcastInstance.getList("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("lict"), "1");
+
+        IList<Object> list2 = node.hazelcastInstance.getList("phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("lict"), "2");
+    }
+
+    @Test
+    public void testRingBufferCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("rbct"), "0");
+
+        Ringbuffer<Object> ringbuffer1 = node.hazelcastInstance.getRingbuffer("hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("rbct"), "1");
+
+        Ringbuffer<Object> ringbuffer2 = node.hazelcastInstance.getRingbuffer("phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("rbct"), "2");
     }
 
 }
