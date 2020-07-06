@@ -22,6 +22,7 @@ import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.ListRowBatch;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 
 import java.util.ArrayList;
 
@@ -72,6 +73,7 @@ public abstract class CompiledExec extends AbstractExec {
         return false;
     }
 
+    @SuppressFBWarnings(value = "EI_EXPOSE_REP")
     public int[] getSubsumedIds() {
         return subsumedIds;
     }

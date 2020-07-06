@@ -404,7 +404,11 @@ public class QueryOperationHandlerImpl implements QueryOperationHandler, QuerySt
             template = compilerManager.getTemplate(node);
 
             if (template != null) {
-                compiledFragments.put(signature, template);
+                CompiledFragmentTemplate oldTemplate = compiledFragments.putIfAbsent(signature, template);
+
+                if (oldTemplate != null) {
+                    template = oldTemplate;
+                }
             }
         }
 
