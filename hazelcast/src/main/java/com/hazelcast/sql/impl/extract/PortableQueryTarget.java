@@ -19,6 +19,7 @@ package com.hazelcast.sql.impl.extract;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.internal.serialization.impl.portable.DefaultPortableReader;
+import com.hazelcast.nio.serialization.Portable;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
@@ -47,27 +48,32 @@ public class PortableQueryTarget implements QueryTarget {
     @Override
     public void setTarget(Object target) {
         try {
-            if (target instanceof Data) {
-                Data target0 = (Data) target;
-
-                if (target0.isPortable()) {
-                    DefaultPortableReader reader = (DefaultPortableReader) serializationService.createPortableReader(target0);
-
-                    if (factoryId != reader.getFactoryId()) {
-                        throw QueryException.dataException("Unexpected portable class factory ID ["
-                                                               + "expected=" + factoryId + ", actual=" + reader.getFactoryId() + ']');
-                    }
-
-                    if (classId != reader.getClassId()) {
-                        throw QueryException.dataException("Unexpected portable class ID ["
-                                                               + "expected=" + classId + ", actual=" + reader.getClassId() + ']');
-                    }
-
-                    this.target = target0;
-                    this.reader = reader;
+            // Normalize Portable to data
+            if (!(target instanceof Data)) {
+                if (target instanceof Portable) {
+                    target = serializationService.toData(target);
                 } else {
                     throw QueryException.dataException("Object is not Portable");
                 }
+            }
+
+            Data target0 = (Data) target;
+
+            if (target0.isPortable()) {
+                DefaultPortableReader reader = (DefaultPortableReader) serializationService.createPortableReader(target0);
+
+                if (factoryId != reader.getFactoryId()) {
+                    throw QueryException.dataException("Unexpected portable class factory ID ["
+                        + "expected=" + factoryId + ", actual=" + reader.getFactoryId() + ']');
+                }
+
+                if (classId != reader.getClassId()) {
+                    throw QueryException.dataException("Unexpected portable class ID ["
+                        + "expected=" + classId + ", actual=" + reader.getClassId() + ']');
+                }
+
+                this.target = target0;
+                this.reader = reader;
             } else {
                 throw QueryException.dataException("Object is not Portable");
             }

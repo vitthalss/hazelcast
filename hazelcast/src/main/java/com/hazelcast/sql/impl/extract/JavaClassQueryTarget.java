@@ -19,8 +19,8 @@ package com.hazelcast.sql.impl.extract;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.query.impl.getters.Extractors;
-import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.type.QueryDataType;
+import com.hazelcast.sql.impl.type.QueryDataTypeMismatchException;
 
 public class JavaClassQueryTarget implements QueryTarget, GenericTargetAccessor {
 
@@ -87,13 +87,16 @@ public class JavaClassQueryTarget implements QueryTarget, GenericTargetAccessor 
             if (clazz0.getName().equals(clazzName)) {
                 clazz = clazz0;
             } else {
-                throw QueryException.dataException("Unexpected value class [expected=" + clazzName
-                                                       + ", actual=" + clazz0.getName() + ']');
+                try {
+                    throw new QueryDataTypeMismatchException(Class.forName(clazzName), clazz0);
+                } catch (ReflectiveOperationException e) {
+                    // TODO: Remove forName completely - class name is sufficient
+                    throw new RuntimeException("Failed to get class instance: " + clazzName);
+                }
             }
         } else {
             if (preparedTarget.getClass() != clazz) {
-                throw QueryException.dataException("Unexpected value class [expected=" + clazzName
-                                                       + ", actual=" + preparedTarget.getClass().getName() + ']');
+                throw new QueryDataTypeMismatchException(clazz, preparedTarget.getClass());
             }
         }
 
