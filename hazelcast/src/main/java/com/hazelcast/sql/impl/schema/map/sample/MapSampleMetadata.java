@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 /**
  * Metadata from sample resolution.
  */
+// TODO: deduplicate with MapOptionsMetadata ?
 public class MapSampleMetadata {
 
     private final QueryTargetDescriptor descriptor;

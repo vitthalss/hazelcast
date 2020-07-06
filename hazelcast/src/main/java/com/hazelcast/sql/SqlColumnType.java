@@ -16,61 +16,99 @@
 
 package com.hazelcast.sql;
 
+import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 
+/**
+ * SQL column type.
+ */
 public enum SqlColumnType {
-    /** VARCHAR type. */
-    VARCHAR(String.class),
+    /** VARCHAR type, represented by {@link java.lang.String} */
+    VARCHAR(0, String.class),
 
-    /** BOOLEAN type. */
-    BOOLEAN(Boolean.class),
+    /** BOOLEAN type, represented by {@link java.lang.Boolean} */
+    BOOLEAN(1, Boolean.class),
 
-    /** TINYINT type. */
-    TINYINT(Short.class),
+    /** TINYINT type, represented by {@link java.lang.Byte} */
+    TINYINT(2, Byte.class),
 
-    /** SMALLINT type. */
-    SMALLINT(Short.class),
+    /** SMALLINT type, represented by {@link java.lang.Short} */
+    SMALLINT(3, Short.class),
 
-    /** INT type. */
-    INT(Integer.class),
+    /** INT type, represented by {@link java.lang.Integer} */
+    INT(4, Integer.class),
 
-    /** BIGINT type. */
-    BIGINT(Long.class),
+    /** BIGINT type, represented by {@link java.lang.Long} */
+    BIGINT(5, Long.class),
 
-    /** DECIMAL type. */
-    DECIMAL(BigDecimal.class),
+    /** DECIMAL type, represented by {@link java.math.BigDecimal} */
+    DECIMAL(6, BigDecimal.class),
 
-    /** REAL type. */
-    REAL(Float.class),
+    /** REAL type, represented by {@link java.lang.Float} */
+    REAL(7, Float.class),
 
-    /** DOUBLE type. */
-    DOUBLE(Double.class),
+    /** DOUBLE type, represented by {@link java.lang.Double} */
+    DOUBLE(8, Double.class),
 
-    /** DATE type. */
-    DATE(LocalDate.class),
+    /** DATE type, represented by {@link java.time.LocalDate} */
+    DATE(9, LocalDate.class),
 
-    /** TIME type. */
-    TIME(LocalTime.class),
+    /** TIME type, represented by {@link java.time.LocalTime} */
+    TIME(10, LocalTime.class),
 
-    /** TIMESTAMP type. */
-    TIMESTAMP(LocalDateTime.class),
+    /** TIMESTAMP type,, represented by {@link java.time.LocalDateTime} */
+    TIMESTAMP(11, LocalDateTime.class),
 
-    /** TIMESTAMP_WITH_TIME_ZONE type. */
-    TIMESTAMP_WITH_TIME_ZONE(OffsetDateTime.class),
+    /** TIMESTAMP_WITH_TIME_ZONE type, represented by {@link java.time.OffsetDateTime} */
+    TIMESTAMP_WITH_TIME_ZONE(12, OffsetDateTime.class),
 
-    /** OBJECT type. */
-    OBJECT(Object.class);
+    /** OBJECT type, could be represented by any Java class. */
+    OBJECT(13, Object.class);
 
+    private static final SqlColumnType[] CACHED_VALUES = values();
+
+    private final int id;
     private final Class<?> valueClass;
 
-    SqlColumnType(Class<?> valueClass) {
+    SqlColumnType(int id, Class<?> valueClass) {
+        this.id = id;
         this.valueClass = valueClass;
     }
 
+    /**
+     * Returns the IndexType as an enum.
+     *
+     * @return the IndexType as an enum
+     */
+    public static SqlColumnType getById(final int id) {
+        for (SqlColumnType type : CACHED_VALUES) {
+            if (type.id == id) {
+                return type;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Gets the ID for the given {@link SqlColumnType}.
+     *
+     * @return the ID
+     */
+    public int getId() {
+        return id;
+    }
+
+    /**
+     * Gets the Java class of the value of this SQL type.
+     *
+     * @return the Java class of the value of this SQL type
+     */
+    @Nonnull
     public Class<?> getValueClass() {
         return valueClass;
     }

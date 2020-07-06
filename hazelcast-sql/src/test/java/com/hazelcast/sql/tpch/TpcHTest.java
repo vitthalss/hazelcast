@@ -24,7 +24,7 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.partition.strategy.DeclarativePartitioningStrategy;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.impl.plan.Plan;
-import com.hazelcast.sql.impl.SqlCursorImpl;
+import com.hazelcast.sql.impl.SqlResultImpl;
 import com.hazelcast.sql.support.CalciteSqlTestSupport;
 import com.hazelcast.sql.tpch.model.ModelConfig;
 import com.hazelcast.sql.tpch.model.ModelLoader;
@@ -387,6 +387,7 @@ public class TpcHTest extends CalciteSqlTestSupport {
 
     @Test
     public void testQ08() {
+        String nation = "BRAZIL";
         String region = "AMERICA";
         String type = "ECONOMY ANODIZED STEEL";
 
@@ -394,9 +395,9 @@ public class TpcHTest extends CalciteSqlTestSupport {
             "select\n" +
                 "    o_year,\n" +
                 "    sum(case\n" +
-                "        when nation = 'BRAZIL'\n" + // TODO: Calcite doesn't support ? in CASE, so inline
+                "        when nation = ?\n" +
                 "        then volume\n" +
-                "        else 0.0\n" + // TODO: Had to adjust 0 -> 0.0 to avoid numerous ClassCast problems, BigDecimal-int clash
+                "        else 0\n" +
                 "    end) / sum(volume) as mkt_share\n" +
                 "from (\n" +
                 "    select\n" +
@@ -428,7 +429,7 @@ public class TpcHTest extends CalciteSqlTestSupport {
                 "    o_year\n" +
                 "order by\n" +
                 "    o_year"
-        , -1, region, type);
+        , -1, nation, region, type);
     }
 
     @Test
@@ -658,7 +659,11 @@ public class TpcHTest extends CalciteSqlTestSupport {
                 "    and p.p_container = ?\n" +
                 "    and l.l_quantity < (\n" +
                 "        select\n" +
-                "            0.2 * avg(l2.l_quantity)\n" +
+                             // TODO:
+                             // Remove cast to double once AverageAggregateExpression
+                             // and AverageAggregateCollector would support other
+                             // types than DOUBLE; l2.l_quantity is DECIMAL.
+                "            0.2 * cast(avg(l2.l_quantity) as double)\n" +
                 "        from\n" +
                 "            lineitem l2\n" +
                 "        where\n" +
@@ -759,7 +764,6 @@ public class TpcHTest extends CalciteSqlTestSupport {
     }
 
     @Test
-    @Ignore("VO: fails with empty result, investigate")
     public void testQ20() {
         String color = "forest%";
         LocalDate date = LocalDate.parse("1994-01-01");
@@ -878,7 +882,10 @@ public class TpcHTest extends CalciteSqlTestSupport {
                 "        substring(c.c_phone from 1 for 2) in (?, ?, ?, ?, ?, ?, ?)\n" +
                 "        and c.c_acctbal > (\n" +
                 "            select\n" +
-                "                avg(c2.c_acctbal)\n" +
+                                 // TODO:
+                                 // Remove cast to double once DistributedAverageAggregateExpression
+                                 // would support other types than DOUBLE; c2.c_acctbal is DECIMAL.
+                "                cast(avg(c2.c_acctbal) as double)\n" +
                 "            from\n" +
                 "                customer c2\n" +
                 "            where\n" +
@@ -906,7 +913,7 @@ public class TpcHTest extends CalciteSqlTestSupport {
             rowCount = 100;
         }
 
-        SqlCursorImpl res = (SqlCursorImpl) member.getSqlService().query(sql, args);
+        SqlResultImpl res = (SqlResultImpl) member.getSql().query(sql, args);
         Plan plan = res.getPlan();
 
         System.out.println(">>> Explain:");

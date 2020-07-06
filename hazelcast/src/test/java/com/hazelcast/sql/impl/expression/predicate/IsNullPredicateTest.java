@@ -34,12 +34,16 @@ import static org.junit.Assert.assertTrue;
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
 public class IsNullPredicateTest extends SqlTestSupport {
+
+    // NOTE: This test class verifies only basic functionality, look for more
+    // extensive tests in hazelcast-sql module.
+
     @Test
     public void testIsNullPredicate() {
         IsNullPredicate predicate = IsNullPredicate.create(ColumnExpression.create(0, QueryDataType.VARCHAR));
 
         assertFalse(predicate.eval(row("test"), SimpleExpressionEvalContext.create()));
-        assertTrue(predicate.eval(row(new Object[] { null }), SimpleExpressionEvalContext.create()));
+        assertTrue(predicate.eval(row(new Object[]{null}), SimpleExpressionEvalContext.create()));
     }
 
     @Test
@@ -58,4 +62,5 @@ public class IsNullPredicateTest extends SqlTestSupport {
 
         checkEquals(original, restored, true);
     }
+
 }

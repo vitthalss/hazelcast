@@ -16,31 +16,74 @@
 
 package com.hazelcast.sql.impl.connector;
 
+import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.schema.ExternalTable.ExternalField;
+import com.hazelcast.sql.impl.schema.TableField;
+import com.hazelcast.sql.impl.schema.map.options.MapOptionsMetadata;
+import com.hazelcast.sql.impl.schema.map.options.MapOptionsMetadataResolver;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+
+import static java.lang.String.format;
+import static java.util.Objects.requireNonNull;
 
 public abstract class SqlKeyValueConnector implements SqlConnector {
 
-    /**
-     * A key in the table options (TO).
-     * <p>
-     * Specifies the key class in the entry. Can be omitted if "__key" is one
-     * of the columns.
-     */
-    public static final String TO_KEY_CLASS = "keyClass";
+    public static final String TO_SERIALIZATION_KEY_FORMAT = "serialization.key.format";
+    public static final String TO_SERIALIZATION_VALUE_FORMAT = "serialization.value.format";
 
-    /**
-     * A key in the table options (TO).
-     * <p>
-     * Specifies the value class in the entry. Can be omitted if "this" is one
-     * of the columns.
-     */
-    public static final String TO_VALUE_CLASS = "valueClass";
+    public static final String TO_KEY_CLASS = "serialization.key.java.class";
+    public static final String TO_VALUE_CLASS = "serialization.value.java.class";
 
-    protected String keyClass(Map<String, String> options) {
-        return options.get(TO_KEY_CLASS);
+    public static final String TO_KEY_FACTORY_ID = "serialization.key.portable.factoryId";
+    public static final String TO_KEY_CLASS_ID = "serialization.key.portable.classId";
+    public static final String TO_KEY_CLASS_VERSION = "serialization.key.portable.classVersion";
+    public static final String TO_VALUE_FACTORY_ID = "serialization.value.portable.factoryId";
+    public static final String TO_VALUE_CLASS_ID = "serialization.value.portable.classId";
+    public static final String TO_VALUE_CLASS_VERSION = "serialization.value.portable.classVersion";
+
+    protected abstract Map<String, MapOptionsMetadataResolver> supportedResolvers();
+
+    protected MapOptionsMetadata resolveMetadata(
+            List<ExternalField> externalFields,
+            Map<String, String> options,
+            boolean isKey,
+            InternalSerializationService serializationService
+    ) {
+        String format = resolveFormat(options, isKey);
+        MapOptionsMetadataResolver resolver = supportedResolvers().get(format);
+        if (resolver == null) {
+            throw QueryException.error(format("Unsupported serialization format - '%s'", format));
+        }
+        return requireNonNull(resolver.resolve(externalFields, options, isKey, serializationService));
     }
 
-    protected String valueClass(Map<String, String> options) {
-        return options.get(TO_VALUE_CLASS);
+    private static String resolveFormat(Map<String, String> options, boolean isKey) {
+        String option = isKey ? TO_SERIALIZATION_KEY_FORMAT : TO_SERIALIZATION_VALUE_FORMAT;
+        String format = options.get(option);
+        if (format == null) {
+            throw QueryException.error(format("Missing '%s' option", option));
+        }
+        return format;
+    }
+
+    // TODO: deduplicate with AbstractMapTableResolver
+    protected static List<TableField> mergeFields(
+            Map<String, TableField> keyFields,
+            Map<String, TableField> valueFields
+    ) {
+        Map<String, TableField> fields = new LinkedHashMap<>(keyFields);
+
+        // value fields do not override key fields.
+        for (Entry<String, TableField> valueFieldEntry : valueFields.entrySet()) {
+            fields.putIfAbsent(valueFieldEntry.getKey(), valueFieldEntry.getValue());
+        }
+
+        return new ArrayList<>(fields.values());
     }
 }

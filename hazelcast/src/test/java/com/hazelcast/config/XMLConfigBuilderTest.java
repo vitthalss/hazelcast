@@ -224,6 +224,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "        <kerberos>"
                 + "          <skip-role>false</skip-role>"
                 + "          <relax-flags-check>true</relax-flags-check>"
+                + "          <use-name-without-realm>true</use-name-without-realm>"
                 + "          <security-realm>krb5Acceptor</security-realm>"
                 + "          <ldap>"
                 + "            <url>ldap://127.0.0.1</url>"
@@ -234,6 +235,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "        <kerberos>"
                 + "          <realm>HAZELCAST.COM</realm>"
                 + "          <security-realm>krb5Initializer</security-realm>"
+                + "          <use-canonical-hostname>true</use-canonical-hostname>"
                 + "        </kerberos>"
                 + "      </identity>"
                 + "    </realm>"
@@ -302,6 +304,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
         assertNotNull(kerbIdentity);
         assertEquals("HAZELCAST.COM", kerbIdentity.getRealm());
         assertEquals("krb5Initializer", kerbIdentity.getSecurityRealm());
+        assertTrue(kerbIdentity.getUseCanonicalHostname());
 
         KerberosAuthenticationConfig kerbAuthentication = kerberosRealm.getKerberosAuthenticationConfig();
         assertNotNull(kerbAuthentication);
@@ -309,6 +312,7 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
         assertEquals(Boolean.FALSE, kerbAuthentication.getSkipRole());
         assertNull(kerbAuthentication.getSkipIdentity());
         assertEquals("krb5Acceptor", kerbAuthentication.getSecurityRealm());
+        assertTrue(kerbAuthentication.getUseNameWithoutRealm());
 
         LdapAuthenticationConfig kerbLdapAuthentication = kerbAuthentication.getLdapAuthenticationConfig();
         assertNotNull(kerbLdapAuthentication);
@@ -3473,5 +3477,22 @@ public class XMLConfigBuilderTest extends AbstractConfigBuilderTest {
         assertTrue(metricsConfig.isEnabled());
         assertTrue(metricsConfig.getManagementCenterConfig().isEnabled());
         assertFalse(metricsConfig.getJmxConfig().isEnabled());
+    }
+
+    @Override
+    @Test
+    public void testSqlConfig() {
+        String xml = HAZELCAST_START_TAG
+            + "<sql>\n"
+            + "  <executor-pool-size>10</executor-pool-size>\n"
+            + "  <operation-pool-size>20</operation-pool-size>\n"
+            + "  <query-timeout-millis>30</query-timeout-millis>\n"
+            + "</sql>"
+            + HAZELCAST_END_TAG;
+        Config config = new InMemoryXmlConfig(xml);
+        SqlConfig sqlConfig = config.getSqlConfig();
+        assertEquals(10, sqlConfig.getExecutorPoolSize());
+        assertEquals(20, sqlConfig.getOperationPoolSize());
+        assertEquals(30L, sqlConfig.getQueryTimeoutMillis());
     }
 }

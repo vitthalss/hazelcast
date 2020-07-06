@@ -37,6 +37,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static junit.framework.TestCase.assertEquals;
@@ -45,7 +46,7 @@ import static junit.framework.TestCase.assertEquals;
 @Category({QuickTest.class, ParallelJVMTest.class})
 public class JoinSqlJdbcTest extends CalciteSqlTestSupport {
     /** Make sure that we fetch several pages. */
-    private static final int PERSON_CNT = SqlQuery.DEFAULT_PAGE_SIZE * 2;
+    private static final int PERSON_CNT = SqlQuery.DEFAULT_CURSOR_BUFFER_SIZE * 2;
 
     private static HazelcastInstance client;
 
@@ -68,7 +69,7 @@ public class JoinSqlJdbcTest extends CalciteSqlTestSupport {
         String sql = "SELECT p.name, p.deptTitle FROM person p INNER JOIN department d ON p.deptTitle = d.title";
 
         // Execute normal query.
-        SqlCursor cursor = executeQuery(client, sql);
+        SqlResult cursor = executeQuery(client, sql);
         List<SqlRow> rows = getQueryRows(cursor);
 
         // Execute JDBC query.
@@ -85,7 +86,12 @@ public class JoinSqlJdbcTest extends CalciteSqlTestSupport {
                         row.set(0, name);
                         row.set(1, deptTitle);
 
-                        jdbcRows.add(new SqlRowImpl(row));
+                        SqlRowMetadata rowMetadata = new SqlRowMetadata(Arrays.asList(
+                            new SqlColumnMetadata("name", SqlColumnType.VARCHAR),
+                            new SqlColumnMetadata("deptTitle", SqlColumnType.VARCHAR)
+                        ));
+
+                        jdbcRows.add(new SqlRowImpl(rowMetadata, row));
                     }
                 }
             }

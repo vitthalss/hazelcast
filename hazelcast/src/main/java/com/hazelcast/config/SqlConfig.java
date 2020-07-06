@@ -16,66 +16,144 @@
 
 package com.hazelcast.config;
 
+import com.hazelcast.sql.SqlQuery;
+
+import static com.hazelcast.internal.util.Preconditions.checkNotNegative;
+import static com.hazelcast.internal.util.Preconditions.checkPositive;
+
 /**
  * SQL service configuration.
  */
 public class SqlConfig {
-    /** Default number of threads responsible for fragment execution. */
-    public static final int DFLT_THREAD_COUNT = Runtime.getRuntime().availableProcessors();
+    /** Default number of threads responsible for query execution. */
+    public static final int DEFAULT_EXECUTOR_POOL_SIZE = -1;
 
-    /** Default number of threads responsible for operation processing. */
-    public static final int DFLT_OPERATION_THREAD_COUNT = Math.min(8, Runtime.getRuntime().availableProcessors());
+    /** Default number of threads responsible for network operations processing. */
+    public static final int DEFAULT_OPERATION_POOL_SIZE = -1;
+
+    /** Default timeout in milliseconds that is applied to queries without explicit timeout. */
+    public static final int DEFAULT_QUERY_TIMEOUT = 0;
 
     // TODO: Evaluate this default carefully.
     /** Default max memory. */
-    public static final long DFLT_MAX_MEMORY = Runtime.getRuntime().maxMemory() / 2;
+    public static final long DEFAULT_MAX_MEMORY = Runtime.getRuntime().maxMemory() / 2;
 
-    /** Number of threads responsible for query processing. */
-    private int threadCount = DFLT_THREAD_COUNT;
+    /** Number of threads responsible for query execution. */
+    private int executorPoolSize = DEFAULT_EXECUTOR_POOL_SIZE;
 
-    /** Number of threads responsible for query operation handling. */
-    private int operationThreadCount = DFLT_OPERATION_THREAD_COUNT;
+    /** Number of threads responsible for network operations processing. */
+    private int operationPoolSize = DEFAULT_OPERATION_POOL_SIZE;
+
+    /** Timeout in milliseconds that is applied to queries without an explicit timeout. */
+    private long queryTimeoutMillis = DEFAULT_QUERY_TIMEOUT;
 
     /** Max memory in bytes for SQL processing. */
-    private long maxMemory = DFLT_MAX_MEMORY;
+    private long maxMemory = DEFAULT_MAX_MEMORY;
 
     /**
-     * Gets the number of threads responsible for query processing.
+     * Gets the number of threads responsible for query execution.
      *
-     * @return Number of threads responsible for query processing.
+     * @return Number of threads responsible for query execution.
      */
-    public int getThreadCount() {
-        return threadCount;
+    public int getExecutorPoolSize() {
+        return executorPoolSize;
     }
 
     /**
-     * Sets the number of threads responsible for query processing.
+     * Sets the number of threads responsible for query execution.
+     * <p>
+     * The default value {@code -1} sets the pool size equal to the number of CPU cores, and should be good enough
+     * for the most workloads.
+     * <p>
+     * Setting the value to less than the number of CPU cores will limit the degree of parallelism of the SQL subsystem. This
+     * may be beneficial if you would like to prioritize other CPU-intensive workloads on the same machine.
+     * <p>
+     * It is not recommended to set the value of this parameter greater than the number of CPU cores because it may decrease
+     * the system's overall performance due to excessive context switches.
+     * <p>
+     * Defaults to {@code -1}.
      *
-     * @param threadCount Number of threads responsible for query processing.
+     * @param executorPoolSize Number of threads responsible for query execution.
      * @return This instance for chaining.
      */
-    public SqlConfig setThreadCount(int threadCount) {
-        this.threadCount = threadCount;
+    public SqlConfig setExecutorPoolSize(int executorPoolSize) {
+        if (executorPoolSize < DEFAULT_EXECUTOR_POOL_SIZE || executorPoolSize == 0) {
+            checkPositive(executorPoolSize, "Executor pool size should be positive or -1: " + executorPoolSize);
+        }
+
+        this.executorPoolSize = executorPoolSize;
+
         return this;
     }
 
     /**
-     * Gets the number of threads responsible for query operation handling.
+     * Gets the number of threads responsible for network operations processing.
      *
-     * @return Number of threads responsible for query operation handling.
+     * @return Number of threads responsible for network operations processing.
      */
-    public int getOperationThreadCount() {
-        return operationThreadCount;
+    public int getOperationPoolSize() {
+        return operationPoolSize;
     }
 
     /**
-     * Sets the number of threads responsible for query operation handling.
+     * Sets the number of threads responsible for network operations processing.
+     * <p>
+     * When Hazelcast members execute a query, they send commands to each other over the network to coordinate the execution.
+     * This includes requests to start or stop query execution, or a request to process a batch of data. These commands are
+     * processed in a separate operation thread pool, to avoid frequent interruption of running query fragments.
+     * <p>
+     * The default value {@code -1} sets the pool size equal to the number of CPU cores, and should be good enough
+     * for the most workloads.
+     * <p>
+     * Setting the value to less than the number of CPU cores may improve the overall performance on machines
+     * with large CPU count, because it will decrease the number of context switches.
+     * <p>
+     * It is not recommended to set the value of this parameter greater than the number of CPU cores because it
+     * may decrease the system's overall performance due to excessive context switches.
+     * <p>
+     * Defaults to {@code -1}.
      *
-     * @param operationThreadCount Number of threads responsible for query operation handling.
+     * @param operationPoolSize Number of threads responsible for network operations processing.
      * @return This instance for chaining.
      */
-    public SqlConfig setOperationThreadCount(int operationThreadCount) {
-        this.operationThreadCount = operationThreadCount;
+    public SqlConfig setOperationPoolSize(int operationPoolSize) {
+        if (operationPoolSize < DEFAULT_OPERATION_POOL_SIZE || operationPoolSize == 0) {
+            checkPositive(operationPoolSize, "Operation pool size should be positive or -1: " + operationPoolSize);
+        }
+
+        this.operationPoolSize = operationPoolSize;
+
+        return this;
+    }
+
+    /**
+     * Gets the timeout in milliseconds that is applied to queries without an explicit timeout.
+     *
+     * @return Timeout in milliseconds.
+     */
+    public long getQueryTimeoutMillis() {
+        return queryTimeoutMillis;
+    }
+
+    /**
+     * Sets the timeout in milliseconds that is applied to queries without an explicit timeout.
+     * <p>
+     * It is possible to set a query timeout through the {@link SqlQuery#setTimeoutMillis(long)} method. If the query timeout is
+     * not set, then the value of this parameter will be used.
+     * <p>
+     * Zero value means no timeout. Negative values are prohibited.
+     * <p>
+     * Defaults to {@link #DEFAULT_QUERY_TIMEOUT}.
+     *
+     * @see SqlQuery#setTimeoutMillis(long)
+     * @param queryTimeout Timeout in milliseconds.
+     * @return This instance for chaining.
+     */
+    public SqlConfig setQueryTimeoutMillis(long queryTimeout) {
+        checkNotNegative(queryTimeout, "Query timeout cannot be negative");
+
+        this.queryTimeoutMillis = queryTimeout;
+
         return this;
     }
 
@@ -83,7 +161,7 @@ public class SqlConfig {
      * Gets the maximum amount of memory in bytes SQL engine is allowed to use for query processing. When the threshold is
      * reached, the engine may attempt to spill intermediate results to disk, or to cancel the query.
      * <p>
-     * Defaults to {@link #DFLT_MAX_MEMORY}.
+     * Defaults to {@link #DEFAULT_MAX_MEMORY}.
      *
      * @return Maximum amount of memory in bytes. Zero or negative value means no limit.
      */
@@ -95,7 +173,7 @@ public class SqlConfig {
      * Set the maximum amount of memory in bytes SQL engine is allowed to use for query processing. When the threshold is
      * reached, the engine may attempt to spill intermediate results to disk, or to cancel the query.
      * <p>
-     * Defaults to {@link #DFLT_MAX_MEMORY}.
+     * Defaults to {@link #DEFAULT_MAX_MEMORY}.
      *
      * @param maxMemory Maximum amount of memory in bytes. Zero or negative value means no limit.
      * @return This instance for chaining.
@@ -108,7 +186,11 @@ public class SqlConfig {
 
     @Override
     public String toString() {
-        return "SqlConfig{threadCount=" + threadCount + ", operationThreadCount=" + operationThreadCount
-            + ", maxMemory=" + maxMemory + '}';
+        return "SqlConfig{"
+            + "executorPoolSize=" + executorPoolSize
+            + ", operationPoolSize=" + operationPoolSize
+            + ", queryTimeoutMillis=" + queryTimeoutMillis
+            + ", maxMemory=" + maxMemory
+            + '}';
     }
 }

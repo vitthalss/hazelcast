@@ -44,6 +44,9 @@ import java.util.UUID;
  * Proxy for SQL service. Backed by either Calcite-based or no-op implementation.
  */
 public class SqlInternalService {
+
+    public static final String SERVICE_NAME = "hz:impl:sqlService";
+
     /** Default flow control factory. */
     private static final FlowControlFactory FLOW_CONTROL_FACTORY = SimpleFlowControlFactory.INSTANCE;
 
@@ -145,7 +148,7 @@ public class SqlInternalService {
         UUID localMemberId = nodeServiceProvider.getLocalMemberId();
 
         if (!plan.getPartitionMap().containsKey(localMemberId)) {
-            throw QueryException.memberLeave(localMemberId);
+            throw QueryException.memberConnection(localMemberId);
         }
 
         // Prepare mappings.
@@ -162,7 +165,7 @@ public class SqlInternalService {
             localMemberId,
             timeout,
             plan,
-            plan.getMetadata(),
+            plan.getRowMetadata(),
             consumer,
             operationHandler
         );

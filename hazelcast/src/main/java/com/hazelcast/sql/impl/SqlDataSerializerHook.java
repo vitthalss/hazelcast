@@ -22,8 +22,21 @@ import com.hazelcast.internal.serialization.impl.FactoryIdHelper;
 import com.hazelcast.internal.util.ConstructorFunction;
 import com.hazelcast.nio.serialization.DataSerializableFactory;
 import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.expression.CastExpression;
 import com.hazelcast.sql.impl.expression.ColumnExpression;
+import com.hazelcast.sql.impl.expression.ConstantExpression;
+import com.hazelcast.sql.impl.expression.ParameterExpression;
+import com.hazelcast.sql.impl.expression.math.DivideFunction;
+import com.hazelcast.sql.impl.expression.math.MinusFunction;
+import com.hazelcast.sql.impl.expression.math.MultiplyFunction;
+import com.hazelcast.sql.impl.expression.math.PlusFunction;
+import com.hazelcast.sql.impl.expression.math.UnaryMinusFunction;
+import com.hazelcast.sql.impl.expression.predicate.AndPredicate;
+import com.hazelcast.sql.impl.expression.predicate.CaseExpression;
+import com.hazelcast.sql.impl.expression.predicate.ComparisonPredicate;
 import com.hazelcast.sql.impl.expression.predicate.IsNullPredicate;
+import com.hazelcast.sql.impl.expression.predicate.NotPredicate;
+import com.hazelcast.sql.impl.expression.predicate.OrPredicate;
 import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.operation.QueryBatchExchangeOperation;
@@ -34,11 +47,12 @@ import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
 import com.hazelcast.sql.impl.operation.QueryFlowControlExchangeOperation;
 import com.hazelcast.sql.impl.plan.node.FilterPlanNode;
-import com.hazelcast.sql.impl.plan.node.ProjectPlanNode;
 import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.ProjectPlanNode;
 import com.hazelcast.sql.impl.plan.node.RootPlanNode;
 import com.hazelcast.sql.impl.plan.node.io.ReceivePlanNode;
 import com.hazelcast.sql.impl.plan.node.io.RootSendPlanNode;
+import com.hazelcast.sql.impl.row.EmptyRow;
 import com.hazelcast.sql.impl.row.EmptyRowBatch;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.JoinRow;
@@ -61,32 +75,47 @@ public class SqlDataSerializerHook implements DataSerializerHook {
 
     public static final int ROW_HEAP = 2;
     public static final int ROW_JOIN = 3;
-    public static final int ROW_BATCH_LIST = 4;
-    public static final int ROW_BATCH_EMPTY = 5;
+    public static final int ROW_EMPTY = 4;
+    public static final int ROW_BATCH_LIST = 5;
+    public static final int ROW_BATCH_EMPTY = 6;
 
-    public static final int OPERATION_EXECUTE = 6;
-    public static final int OPERATION_EXECUTE_FRAGMENT = 7;
-    public static final int OPERATION_BATCH = 8;
-    public static final int OPERATION_FLOW_CONTROL = 9;
-    public static final int OPERATION_CANCEL = 10;
-    public static final int OPERATION_CHECK = 11;
-    public static final int OPERATION_CHECK_RESPONSE = 12;
+    public static final int OPERATION_EXECUTE = 7;
+    public static final int OPERATION_EXECUTE_FRAGMENT = 8;
+    public static final int OPERATION_BATCH = 9;
+    public static final int OPERATION_FLOW_CONTROL = 10;
+    public static final int OPERATION_CANCEL = 11;
+    public static final int OPERATION_CHECK = 12;
+    public static final int OPERATION_CHECK_RESPONSE = 13;
 
-    public static final int NODE_ROOT = 13;
-    public static final int NODE_ROOT_SEND = 14;
-    public static final int NODE_RECEIVE = 15;
-    public static final int NODE_PROJECT = 16;
-    public static final int NODE_FILTER = 17;
-    public static final int NODE_MAP_SCAN = 18;
+    public static final int NODE_ROOT = 14;
+    public static final int NODE_ROOT_SEND = 15;
+    public static final int NODE_RECEIVE = 16;
+    public static final int NODE_PROJECT = 17;
+    public static final int NODE_FILTER = 18;
+    public static final int NODE_MAP_SCAN = 19;
 
-    public static final int EXPRESSION_COLUMN = 19;
-    public static final int EXPRESSION_IS_NULL = 20;
+    public static final int EXPRESSION_COLUMN = 20;
+    public static final int EXPRESSION_IS_NULL = 21;
 
-    public static final int TARGET_DESCRIPTOR_GENERIC = 21;
+    public static final int TARGET_DESCRIPTOR_GENERIC = 22;
 
-    public static final int QUERY_PATH = 22;
+    public static final int QUERY_PATH = 23;
 
-    public static final int LEN = QUERY_PATH + 1;
+    public static final int EXPRESSION_CONSTANT = 24;
+    public static final int EXPRESSION_PARAMETER = 25;
+    public static final int EXPRESSION_CAST = 26;
+    public static final int EXPRESSION_DIVIDE = 27;
+    public static final int EXPRESSION_MINUS = 28;
+    public static final int EXPRESSION_MULTIPLY = 29;
+    public static final int EXPRESSION_PLUS = 30;
+    public static final int EXPRESSION_UNARY_MINUS = 31;
+    public static final int EXPRESSION_AND = 32;
+    public static final int EXPRESSION_OR = 33;
+    public static final int EXPRESSION_NOT = 34;
+    public static final int EXPRESSION_COMPARISON = 35;
+    public static final int EXPRESSION_CASE = 36;
+
+    public static final int LEN = EXPRESSION_CASE + 1;
 
     @Override
     public int getFactoryId() {
@@ -104,6 +133,7 @@ public class SqlDataSerializerHook implements DataSerializerHook {
 
         constructors[ROW_HEAP] = arg -> new HeapRow();
         constructors[ROW_JOIN] = arg -> new JoinRow();
+        constructors[ROW_EMPTY] = arg -> EmptyRow.INSTANCE;
         constructors[ROW_BATCH_LIST] = arg -> new ListRowBatch();
         constructors[ROW_BATCH_EMPTY] = arg -> EmptyRowBatch.INSTANCE;
 
@@ -128,6 +158,20 @@ public class SqlDataSerializerHook implements DataSerializerHook {
         constructors[TARGET_DESCRIPTOR_GENERIC] = arg -> GenericQueryTargetDescriptor.INSTANCE;
 
         constructors[QUERY_PATH] = arg -> new QueryPath();
+
+        constructors[EXPRESSION_CONSTANT] = arg -> new ConstantExpression<>();
+        constructors[EXPRESSION_PARAMETER] = arg -> new ParameterExpression<>();
+        constructors[EXPRESSION_CAST] = arg -> new CastExpression<>();
+        constructors[EXPRESSION_DIVIDE] = arg -> new DivideFunction<>();
+        constructors[EXPRESSION_MINUS] = arg -> new MinusFunction<>();
+        constructors[EXPRESSION_MULTIPLY] = arg -> new MultiplyFunction<>();
+        constructors[EXPRESSION_PLUS] = arg -> new PlusFunction<>();
+        constructors[EXPRESSION_UNARY_MINUS] = arg -> new UnaryMinusFunction<>();
+        constructors[EXPRESSION_AND] = arg -> new AndPredicate();
+        constructors[EXPRESSION_OR] = arg -> new OrPredicate();
+        constructors[EXPRESSION_NOT] = arg -> new NotPredicate();
+        constructors[EXPRESSION_COMPARISON] = arg -> new ComparisonPredicate();
+        constructors[EXPRESSION_CASE] = arg -> new CaseExpression<>();
 
         return new ArrayDataSerializableFactory(constructors);
     }

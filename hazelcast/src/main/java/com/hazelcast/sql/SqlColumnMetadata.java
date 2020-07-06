@@ -16,17 +16,78 @@
 
 package com.hazelcast.sql;
 
+import com.hazelcast.spi.annotation.PrivateApi;
+
+import javax.annotation.Nonnull;
+
 /**
- * Column metadata.
+ * SQL column metadata.
  */
-public class SqlColumnMetadata {
+public final class SqlColumnMetadata {
+
+    private final String name;
     private final SqlColumnType type;
 
-    public SqlColumnMetadata(SqlColumnType type) {
+    @PrivateApi
+    @SuppressWarnings("ConstantConditions")
+    public SqlColumnMetadata(@Nonnull String name, @Nonnull SqlColumnType type) {
+        assert name != null;
+        assert type != null;
+
+        this.name = name;
         this.type = type;
     }
 
+    /**
+     * Get column name.
+     *
+     * @return column name
+     */
+    @Nonnull
+    public String getName() {
+        return name;
+    }
+
+    /**
+     * Gets column type.
+     *
+     * @return column type
+     */
+    @Nonnull
     public SqlColumnType getType() {
         return type;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        SqlColumnMetadata that = (SqlColumnMetadata) o;
+
+        if (!name.equals(that.name)) {
+            return false;
+        }
+
+        return type == that.type;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = name.hashCode();
+
+        result = 31 * result + type.hashCode();
+
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return name + ' ' + type;
     }
 }

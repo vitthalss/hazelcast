@@ -18,26 +18,25 @@ package com.hazelcast.sql.impl.expression.predicate;
 
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.sql.impl.expression.CastExpression;
-import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.expression.util.Eval;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
- * CASE-WHEN expression.
+ * Implements evaluation of SQL CASE operator.
  */
-public class CaseExpression<T> implements Expression<T> {
+public class CaseExpression<T> implements Expression<T>, IdentifiedDataSerializable {
 
     private Expression<Boolean>[] conditions;
     private Expression<?>[] results;
     private QueryDataType resultType;
 
-    @SuppressWarnings("unused")
     public CaseExpression() {
         // No-op.
     }
@@ -49,7 +48,7 @@ public class CaseExpression<T> implements Expression<T> {
     }
 
     @SuppressWarnings("unchecked")
-    public static CaseExpression<?> create(Expression<?>[] expressions) {
+    public static CaseExpression<?> create(Expression<?>[] expressions, QueryDataType resultType) {
         // Split conditions and expressions.
         assert expressions != null;
         assert expressions.length % 2 == 1;
@@ -69,15 +68,18 @@ public class CaseExpression<T> implements Expression<T> {
         // Last expression might be null.
         results[results.length - 1] = expressions.length == idx + 1 ? expressions[idx] : null;
 
-        // Determine the result type and perform coercion.
-        QueryDataType resType = compare(results);
-
-        for (int i = 0; i < results.length; i++) {
-            results[i] = CastExpression.coerceExpression(results[i], resType.getTypeFamily());
-        }
-
         // Done.
-        return new CaseExpression<>(conditions, results, resType);
+        return new CaseExpression<>(conditions, results, resultType);
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_CASE;
     }
 
     @SuppressWarnings("unchecked")
@@ -86,9 +88,8 @@ public class CaseExpression<T> implements Expression<T> {
         for (int i = 0; i < conditions.length; i++) {
             Expression<Boolean> condition = conditions[i];
 
-            Boolean conditionRes = Eval.asBoolean(condition, row, context);
-
-            if (conditionRes != null && conditionRes) {
+            Boolean conditionHolds = condition.eval(row, context);
+            if (TernaryLogic.isTrue(conditionHolds)) {
                 return (T) results[i].eval(row, context);
             }
         }
@@ -140,24 +141,41 @@ public class CaseExpression<T> implements Expression<T> {
         resultType = in.readObject();
     }
 
-    private static QueryDataType compare(Expression<?>[] expressions) {
-        assert expressions.length != 0;
-
-        QueryDataType winner = null;
-
-        for (Expression<?> expression : expressions) {
-            if (expression == null) {
-                continue;
-            }
-
-            QueryDataType type = expression.getType();
-
-            if (winner == null || QueryDataTypeUtils.withHigherPrecedence(type, winner) == type) {
-                winner = type;
-            }
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
         }
 
-        return winner;
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        CaseExpression<?> that = (CaseExpression<?>) o;
+
+        if (!Arrays.equals(conditions, that.conditions)) {
+            return false;
+        }
+
+        if (!Arrays.equals(results, that.results)) {
+            return false;
+        }
+
+        return resultType.equals(that.resultType);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(conditions);
+        result = 31 * result + Arrays.hashCode(results);
+        result = 31 * result + resultType.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "CaseExpression{" + "conditions=" + Arrays.toString(conditions) + ", results=" + Arrays.toString(results)
+                + ", resultType=" + resultType + '}';
     }
 
 }

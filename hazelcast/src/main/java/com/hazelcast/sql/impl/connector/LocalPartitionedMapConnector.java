@@ -16,31 +16,47 @@
 
 package com.hazelcast.sql.impl.connector;
 
+import com.hazelcast.internal.serialization.InternalSerializationService;
+import com.hazelcast.map.impl.MapContainer;
 import com.hazelcast.map.impl.MapService;
 import com.hazelcast.map.impl.MapServiceContext;
 import com.hazelcast.spi.impl.NodeEngine;
-import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.schema.ConstantTableStatistics;
 import com.hazelcast.sql.impl.schema.ExternalTable.ExternalField;
 import com.hazelcast.sql.impl.schema.Table;
 import com.hazelcast.sql.impl.schema.TableField;
-import com.hazelcast.sql.impl.schema.map.MapTableField;
-import com.hazelcast.sql.impl.schema.map.MapTableUtils;
+import com.hazelcast.sql.impl.schema.map.MapTableIndex;
 import com.hazelcast.sql.impl.schema.map.PartitionedMapTable;
+import com.hazelcast.sql.impl.schema.map.options.JsonMapOptionsMetadataResolver;
+import com.hazelcast.sql.impl.schema.map.options.MapOptionsMetadata;
+import com.hazelcast.sql.impl.schema.map.options.MapOptionsMetadataResolver;
+import com.hazelcast.sql.impl.schema.map.options.JavaMapOptionsMetadataResolver;
+import com.hazelcast.sql.impl.schema.map.options.PortableMapOptionsMetadataResolver;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toList;
+import static com.hazelcast.sql.impl.schema.map.MapTableUtils.estimatePartitionedMapRowCount;
+import static com.hazelcast.sql.impl.schema.map.MapTableUtils.getPartitionedMapDistributionField;
+import static com.hazelcast.sql.impl.schema.map.MapTableUtils.getPartitionedMapIndexes;
+import static com.hazelcast.sql.impl.schema.map.MapTableUtils.mapPathsToOrdinals;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toMap;
 
 // TODO: do we want to keep it? maps are auto discovered...
 public class LocalPartitionedMapConnector extends SqlKeyValueConnector {
 
-    public static final String TYPE_NAME = "com.hazelcast.LocalPartitionedMap";
+    public static final String TYPE_NAME = "com.hazelcast.IMap";
+
+    private static final Map<String, MapOptionsMetadataResolver> METADATA_RESOLVERS = Stream.of(
+            JavaMapOptionsMetadataResolver.INSTANCE,
+            PortableMapOptionsMetadataResolver.INSTANCE,
+            JsonMapOptionsMetadataResolver.INSTANCE
+    ).collect(toMap(MapOptionsMetadataResolver::supportedFormat, Function.identity()));
 
     @Override
     public String typeName() {
@@ -52,46 +68,45 @@ public class LocalPartitionedMapConnector extends SqlKeyValueConnector {
             @Nonnull NodeEngine nodeEngine,
             @Nonnull String schemaName,
             @Nonnull String name,
-            @Nonnull List<ExternalField> externalFields,
-            @Nonnull Map<String, String> options
+            @Nonnull Map<String, String> options,
+            @Nonnull List<ExternalField> externalFields
     ) {
-        String objectName = options.getOrDefault(TO_OBJECT_NAME, name);
+        String mapName = options.getOrDefault(TO_OBJECT_NAME, name);
 
-        return Objects.requireNonNull(
-            createTable0(nodeEngine, schemaName, objectName, toMapTableFields(externalFields), options));
-    }
+        InternalSerializationService ss = (InternalSerializationService) nodeEngine.getSerializationService();
 
-    private static PartitionedMapTable createTable0(
-        NodeEngine nodeEngine,
-        String schemaName,
-        String mapName,
-        List<TableField> fields,
-        Map<String, String> options
-    ) {
-        MapService mapService = nodeEngine.getService(MapService.SERVICE_NAME);
-        MapServiceContext context = mapService.getMapServiceContext();
+        MapOptionsMetadata keyMetadata = resolveMetadata(externalFields, options, true, ss);
+        MapOptionsMetadata valueMetadata = resolveMetadata(externalFields, options, false, ss);
+        List<TableField> fields = mergeFields(keyMetadata.getFields(), valueMetadata.getFields());
 
-        long estimatedRowCount = MapTableUtils.estimatePartitionedMapRowCount(nodeEngine, context, mapName);
+        // TODO: deduplicate with PartitionedMapTableResolver ???
+        MapService service = nodeEngine.getService(MapService.SERVICE_NAME);
+        MapServiceContext context = service.getMapServiceContext();
+        MapContainer container = context.getMapContainer(mapName);
 
-        // TODO: VO: As soon as custom fields are introduced, it is not clear how to handle indexes, distribution field and
-        //  descriptors propperly. The method "toMapTableFields" doesn't handle key/value distinction properly, therefore we
-        //  loose information necessary for field extraction.
+        long estimatedRowCount = estimatePartitionedMapRowCount(nodeEngine, context, mapName);
+        Map<QueryPath, Integer> pathToOrdinalMap = mapPathsToOrdinals(fields);
+        List<MapTableIndex> indexes =
+                container != null ? getPartitionedMapIndexes(container, mapName, pathToOrdinalMap) : emptyList();
+        int distributionFieldOrdinal =
+                container != null ? getPartitionedMapDistributionField(container, context, pathToOrdinalMap) : -1;
+
         return new PartitionedMapTable(
-            schemaName,
-            mapName,
-            fields,
-            new ConstantTableStatistics(estimatedRowCount),
-            GenericQueryTargetDescriptor.INSTANCE,
-            GenericQueryTargetDescriptor.INSTANCE,
-            Collections.emptyList(),
-            PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE,
-            options
+                schemaName,
+                mapName,
+                fields,
+                new ConstantTableStatistics(estimatedRowCount),
+                keyMetadata.getQueryTargetDescriptor(),
+                valueMetadata.getQueryTargetDescriptor(),
+                keyMetadata.getUpsertTargetDescriptor(),
+                valueMetadata.getUpsertTargetDescriptor(),
+                indexes,
+                distributionFieldOrdinal
         );
     }
 
-    private static List<TableField> toMapTableFields(List<ExternalField> externalFields) {
-        return externalFields.stream()
-                             .map(field -> new MapTableField(field.name(), field.type(), false, QueryPath.create(field.name())))
-                             .collect(toList());
+    @Override
+    protected Map<String, MapOptionsMetadataResolver> supportedResolvers() {
+        return METADATA_RESOLVERS;
     }
 }

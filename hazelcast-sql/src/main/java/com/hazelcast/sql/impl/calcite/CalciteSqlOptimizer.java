@@ -17,8 +17,6 @@
 package com.hazelcast.sql.impl.calcite;
 
 import com.hazelcast.cluster.memberselector.MemberSelectors;
-import com.hazelcast.internal.util.collection.PartitionIdSet;
-import com.hazelcast.partition.Partition;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.impl.JetSqlBackend;
 import com.hazelcast.sql.impl.QueryParameterMetadata;
@@ -36,11 +34,11 @@ import com.hazelcast.sql.impl.compiler.CompiledFragmentTemplate;
 import com.hazelcast.sql.impl.compiler.CompilerResult;
 import com.hazelcast.sql.impl.compiler.SqlCompiler;
 import com.hazelcast.sql.impl.compiler.exec.CodeGenerator;
+import com.hazelcast.sql.impl.calcite.parse.QueryConvertResult;
 import com.hazelcast.sql.impl.calcite.parse.QueryParseResult;
 import com.hazelcast.sql.impl.calcite.parse.SqlCreateExternalTable;
 import com.hazelcast.sql.impl.calcite.parse.SqlDropExternalTable;
 import com.hazelcast.sql.impl.calcite.parse.SqlOption;
-import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
 import com.hazelcast.sql.impl.optimizer.OptimizationTask;
 import com.hazelcast.sql.impl.optimizer.SqlOptimizer;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
@@ -53,26 +51,19 @@ import com.hazelcast.sql.impl.schema.SchemaPlan;
 import com.hazelcast.sql.impl.schema.SchemaPlan.CreateExternalTablePlan;
 import com.hazelcast.sql.impl.schema.SchemaPlan.RemoveExternalTablePlan;
 import com.hazelcast.sql.impl.schema.TableResolver;
-import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import com.hazelcast.sql.impl.schema.map.PartitionedMapTableResolver;
 import com.hazelcast.sql.impl.schema.map.ReplicatedMapTableResolver;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import org.apache.calcite.plan.Convention;
-import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.RelVisitor;
-import org.apache.calcite.rel.core.TableModify;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.sql.SqlNode;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
@@ -169,62 +160,25 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
         );
 
         // 2. Parse SQL string and validate it.
-        QueryParseResult parseResult = context.parse(task.getSql());
+        QueryParseResult parseResult = context.parse(task.getSql(), jetSqlBackend != null);
 
         if (parseResult.isDdl()) {
             return createSchemaPlan(parseResult.getNode());
         }
 
         // 3. Convert parse tree to relational tree.
-        RelNode rel = context.convert(parseResult.getNode());
+        QueryConvertResult convertResult = context.convert(parseResult.getNode());
 
-        // 4. Determine if Jet is needed to execute the query.
-        boolean isImdg = isImdgOnly(rel);
-
-        if (isImdg) {
+        if (parseResult.isImdg()) {
             // 5. Perform optimization.
-            PhysicalRel physicalRel = optimize(context, rel);
+            PhysicalRel physicalRel = optimize(context, convertResult.getRel());
 
             // 6. Create plan.
-            return createImdgPlan(task.getSql(), parseResult.getParameterRowType(), physicalRel);
+            return createImdgPlan(task.getSql(), parseResult.getParameterRowType(), physicalRel, convertResult.getFieldNames());
         } else {
-            return jetSqlBackend.optimizeAndCreatePlan(context, rel);
+            return jetSqlBackend.optimizeAndCreatePlan(nodeEngine, context, convertResult.getRel(),
+                    convertResult.getFieldNames());
         }
-    }
-
-    private boolean isImdgOnly(RelNode rel) {
-        if (jetSqlBackend == null) {
-            // Jet not present on classpath - all queries are IMDG only
-            return true;
-        }
-
-        boolean[] imdgOnly = {true};
-
-        RelVisitor visitor = new RelVisitor() {
-            public void visit(RelNode p, int ordinal, RelNode parent) {
-                super.visit(p, ordinal, parent);
-                // DML is only supported by Jet for now, even though only local maps are involved
-                if (p instanceof TableModify) {
-                    imdgOnly[0] = false;
-                }
-
-                RelOptTable table = p.getTable();
-                if (table == null) {
-                    return;
-                }
-                HazelcastTable table1 = table.unwrap(HazelcastTable.class);
-                if (table1 == null) {
-                    return;
-                }
-                // If there's any object other than IMap or ReplicatedMap involved, it runs on Jet
-                if (!(table1.getTarget() instanceof AbstractMapTable)) {
-                    imdgOnly[0] = false;
-                }
-            }
-        };
-
-        visitor.go(rel);
-        return imdgOnly[0];
     }
 
     private SchemaPlan createSchemaPlan(SqlNode node) {
@@ -239,8 +193,8 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
 
     private SchemaPlan createCreateExternalTablePlan(SqlCreateExternalTable sqlCreateTable) {
         List<ExternalField> externalFields = sqlCreateTable.columns()
-                                                           .map(column -> new ExternalField(column.name(), column.type().type()))
-                                                           .collect(toList());
+            .map(column -> new ExternalField(column.name(), column.type(), column.externalName()))
+            .collect(toList());
         Map<String, String> options = sqlCreateTable.options()
                                                             .collect(toMap(SqlOption::key, SqlOption::value));
         ExternalTable schema = new ExternalTable(sqlCreateTable.name(), sqlCreateTable.type(), externalFields, options);
@@ -273,20 +227,7 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
      * @param rel Rel.
      * @return Plan.
      */
-    private Plan createImdgPlan(String sql, RelDataType parameterRowType, PhysicalRel rel) {
-        // Get partition mapping.
-        Collection<Partition> parts = nodeEngine.getHazelcastInstance().getPartitionService().getPartitions();
-
-        int partCnt = parts.size();
-
-        LinkedHashMap<UUID, PartitionIdSet> partMap = new LinkedHashMap<>();
-
-        for (Partition part : parts) {
-            UUID ownerId = part.getOwner().getUuid();
-
-            partMap.computeIfAbsent(ownerId, (key) -> new PartitionIdSet(partCnt)).add(part.getPartitionId());
-        }
-
+    private Plan createImdgPlan(String sql, RelDataType parameterRowType, PhysicalRel rel, List<String> rootColumnNames) {
         // Assign IDs to nodes.
         NodeIdVisitor idVisitor = new NodeIdVisitor();
         rel.visit(idVisitor);
@@ -298,10 +239,11 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
 
         PlanCreateVisitor visitor = new PlanCreateVisitor(
             nodeEngine.getLocalMember().getUuid(),
-            partMap,
+            PlanCreateVisitor.createPartitionMap(nodeEngine),
             relIdMap,
             sql,
-            parameterMetadata
+            parameterMetadata,
+            rootColumnNames
         );
 
         rel.visit(visitor);
@@ -343,8 +285,6 @@ public class CalciteSqlOptimizer implements SqlOptimizer {
         res.add(catalog);
         res.add(new PartitionedMapTableResolver(nodeEngine));
         res.add(new ReplicatedMapTableResolver(nodeEngine));
-
-        // TODO: Add Jet resolvers
 
         return res;
     }

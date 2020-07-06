@@ -43,8 +43,9 @@ public abstract class AbstractMapTableResolver implements TableResolver {
         return defaultSearchPaths;
     }
 
+    // TODO [viliam] remove this method
     protected static List<TableField> mergeMapFields(Map<String, TableField> keyFields, Map<String, TableField> valueFields) {
-        LinkedHashMap<String, TableField> res = new LinkedHashMap<>(keyFields);
+        Map<String, TableField> res = new LinkedHashMap<>(keyFields);
 
         // Value fields do not override key fields.
         for (Map.Entry<String, TableField> valueFieldEntry : valueFields.entrySet()) {

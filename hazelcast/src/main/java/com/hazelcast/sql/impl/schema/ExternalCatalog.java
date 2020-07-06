@@ -30,6 +30,7 @@ import static com.hazelcast.sql.impl.QueryUtils.CATALOG;
 import static com.hazelcast.sql.impl.QueryUtils.SCHEMA_NAME_PUBLIC;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 public class ExternalCatalog implements TableResolver {
@@ -48,6 +49,13 @@ public class ExternalCatalog implements TableResolver {
     }
 
     public void createTable(ExternalTable table, boolean replace, boolean ifNotExists) {
+        // catch all the potential errors - missing connector, class, invalid format or field definitions etc. - early
+        try {
+            toTable(table);
+        } catch (Exception e) {
+            throw QueryException.error("Invalid table definition: " + e.getMessage(), e);
+        }
+
         String name = table.name();
         if (ifNotExists) {
             tables().putIfAbsent(name, table);
@@ -81,8 +89,9 @@ public class ExternalCatalog implements TableResolver {
         return nodeEngine.getHazelcastInstance().getReplicatedMap(CATALOG_MAP_NAME);
     }
 
-    private Table toTable(ExternalTable extTable) {
-        SqlConnector connector = sqlConnectorCache.forType(extTable.type());
-        return connector.createTable(nodeEngine, SCHEMA_NAME_PUBLIC, extTable.name(), extTable.fields(), extTable.options());
+    private Table toTable(ExternalTable table) {
+        String type = table.type();
+        SqlConnector connector = requireNonNull(sqlConnectorCache.forType(type), "Unknown connector type - '" + type + "'");
+        return connector.createTable(nodeEngine, SCHEMA_NAME_PUBLIC, table.name(), table.options(), table.fields());
     }
 }

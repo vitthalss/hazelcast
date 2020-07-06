@@ -56,6 +56,7 @@ import com.hazelcast.internal.nio.IOUtil;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.util.ExceptionUtil;
 import com.hazelcast.internal.util.FutureUtil;
+import com.hazelcast.internal.util.Timer;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.impl.InternalCompletableFuture;
 
@@ -268,13 +269,14 @@ abstract class ClientCacheProxySupport<K, V> extends ClientProxy implements ICac
         }
     }
 
-    protected void injectDependencies(Object obj) {
+    @SuppressWarnings("unchecked")
+    protected <T> T injectDependencies(T obj) {
         ManagedContext managedContext = getSerializationService().getManagedContext();
-        managedContext.initialize(obj);
+        return (T) managedContext.initialize(obj);
     }
 
     protected long nowInNanosOrDefault() {
-        return statisticsEnabled ? System.nanoTime() : -1;
+        return statisticsEnabled ? Timer.nanos() : -1;
     }
 
     protected ClientInvocationFuture invoke(ClientMessage req, int partitionId, int completionId) {
@@ -715,7 +717,7 @@ abstract class ClientCacheProxySupport<K, V> extends ClientProxy implements ICac
         if (!statisticsEnabled) {
             return null;
         }
-        return statsHandler.newOnPutCallback(isGet, System.nanoTime());
+        return statsHandler.newOnPutCallback(isGet, Timer.nanos());
     }
 
     protected boolean setExpiryPolicyInternal(K key, ExpiryPolicy expiryPolicy) {
@@ -969,11 +971,11 @@ abstract class ClientCacheProxySupport<K, V> extends ClientProxy implements ICac
     }
 
     private void submitLoadAllTask(ClientMessage request, CompletionListener completionListener, final List<Data> binaryKeys) {
-        final CompletionListener listener = completionListener != null ? completionListener : NULL_COMPLETION_LISTENER;
+        final CompletionListener listener = completionListener != null
+            ? injectDependencies(completionListener)
+            : NULL_COMPLETION_LISTENER;
         ClientDelegatingFuture<V> delegatingFuture = null;
         try {
-            injectDependencies(completionListener);
-
             final long startNanos = nowInNanosOrDefault();
             ClientInvocationFuture future = new ClientInvocation(getClient(), request, getName()).invoke();
             delegatingFuture = newDelegatingFuture(future, clientMessage -> Boolean.TRUE);

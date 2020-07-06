@@ -16,17 +16,18 @@
 
 package com.hazelcast.sql.impl.expression.predicate;
 
-import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.expression.util.EnsureConvertible;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.VariExpression;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
 /**
- * AND predicate.
+ * Implements evaluation of SQL AND predicate.
  */
-public class AndPredicate extends VariExpression<Boolean> {
+public class AndPredicate extends VariExpression<Boolean> implements IdentifiedDataSerializable {
 
     public AndPredicate() {
         // No-op.
@@ -37,11 +38,17 @@ public class AndPredicate extends VariExpression<Boolean> {
     }
 
     public static AndPredicate create(Expression<?>... operands) {
-        for (Expression<?> operand : operands) {
-            EnsureConvertible.toBoolean(operand);
-        }
-
         return new AndPredicate(operands);
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_AND;
     }
 
     @Override

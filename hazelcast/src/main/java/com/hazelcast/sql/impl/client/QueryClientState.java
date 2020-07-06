@@ -18,24 +18,20 @@ package com.hazelcast.sql.impl.client;
 
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.impl.QueryId;
-import com.hazelcast.sql.impl.SqlCursorImpl;
+import com.hazelcast.sql.impl.SqlResultImpl;
 
 import java.util.Iterator;
 import java.util.UUID;
 
 public class QueryClientState {
-    /** Client ID. */
+
     private final UUID clientId;
-
-    /** Cursor. */
-    private final SqlCursorImpl cursor;
-
-    /** Iterator. */
+    private final SqlResultImpl sqlResult;
     private Iterator<SqlRow> iterator;
 
-    public QueryClientState(UUID clientId, SqlCursorImpl cursor) {
+    public QueryClientState(UUID clientId, SqlResultImpl sqlResult) {
         this.clientId = clientId;
-        this.cursor = cursor;
+        this.sqlResult = sqlResult;
     }
 
     public UUID getClientId() {
@@ -43,16 +39,16 @@ public class QueryClientState {
     }
 
     public QueryId getQueryId() {
-        return cursor.getQueryId();
+        return sqlResult.getQueryId();
     }
 
-    public SqlCursorImpl getCursor() {
-        return cursor;
+    public SqlResultImpl getSqlResult() {
+        return sqlResult;
     }
 
     public Iterator<SqlRow> getIterator() {
         if (iterator == null) {
-            iterator = cursor.iterator();
+            iterator = sqlResult.iterator();
         }
 
         return iterator;

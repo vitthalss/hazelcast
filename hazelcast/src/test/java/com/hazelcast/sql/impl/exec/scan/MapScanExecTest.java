@@ -40,6 +40,7 @@ import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;
+import com.hazelcast.sql.impl.row.EmptyRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.row.RowBatch;
 import com.hazelcast.sql.impl.type.QueryDataType;
@@ -66,7 +67,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertTrue;
 
 @RunWith(HazelcastSerialClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
@@ -109,6 +109,77 @@ public class MapScanExecTest extends SqlTestSupport {
     @Test
     public void testNormal_Binary() {
         checkNormal(instance1.getMap(MAP_BINARY));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    public void testEmptyRow() {
+        MapProxyImpl<TestKey, TestValue> map = (MapProxyImpl) instance1.getMap(MAP_OBJECT);
+
+        // Get local partition
+        int partitionId = 0;
+
+        for (Partition partition : instance1.getPartitionService().getPartitions()) {
+            if (instance1.getLocalEndpoint().getUuid().equals(partition.getOwner().getUuid())) {
+                partitionId = partition.getPartitionId();
+
+                break;
+            }
+        }
+
+        PartitionIdSet parts = new PartitionIdSet(PARTITION_COUNT);
+        parts.add(partitionId);
+
+        // Put local data
+        map.clear();
+
+        int currentIndex = 0;
+        int currentKey = 0;
+
+        while (true) {
+            TestKey key = new TestKey(currentKey);
+
+            if (instance1.getPartitionService().getPartition(key).getPartitionId() == partitionId) {
+                map.put(key, new TestValue(currentKey, currentIndex == 0));
+
+                if (++currentIndex == 2) {
+                    break;
+                }
+            }
+
+            currentKey++;
+        }
+
+        // Execute
+        List<QueryPath> fieldPaths = Arrays.asList(keyPath("val1"), valuePath("val2"), valuePath("val3"));
+        List<QueryDataType> fieldTypes = Arrays.asList(QueryDataType.INT, QueryDataType.BIGINT, QueryDataType.BOOLEAN);
+
+        int id = 1;
+        MapContainer mapContainer = map.getService().getMapServiceContext().getMapContainer(map.getName());
+        InternalSerializationService serializationService =
+            (InternalSerializationService) map.getNodeEngine().getSerializationService();
+
+        MapScanExec exec = new MapScanExec(
+            id,
+            mapContainer,
+            parts,
+            GenericQueryTargetDescriptor.INSTANCE,
+            GenericQueryTargetDescriptor.INSTANCE,
+            fieldPaths,
+            fieldTypes,
+            Collections.emptyList(),
+            new TestFilter(2),
+            serializationService
+        );
+
+        exec.setup(emptyFragmentContext());
+
+        IterationResult res = exec.advance();
+        assertEquals(IterationResult.FETCHED_DONE, res);
+
+        RowBatch batch = exec.currentBatch();
+        assertEquals(1, batch.getRowCount());
+        assertEquals(EmptyRow.INSTANCE, batch.getRow(0));
     }
 
     private void checkNormal(IMap<TestKey, TestValue> map) {
@@ -314,10 +385,11 @@ public class MapScanExecTest extends SqlTestSupport {
 
         QueryException exception = assertThrows(QueryException.class, exec::advance);
         assertEquals(SqlErrorCode.DATA_EXCEPTION, exception.getCode());
-
-        QueryException cause = (QueryException) exception.getCause();
-        assertEquals(SqlErrorCode.DATA_EXCEPTION, cause.getCode());
-        assertTrue(cause.getMessage().contains("Cannot convert BIGINT to TIMESTAMP"));
+        assertEquals(
+            "Failed to extract map entry value field \"val2\" because of type mismatch "
+                + "[expectedClass=java.time.LocalDateTime, actualClass=java.lang.Long]",
+            exception.getMessage()
+        );
     }
 
     /**
@@ -355,7 +427,7 @@ public class MapScanExecTest extends SqlTestSupport {
     /**
      * Simulates the case when partitions are migrated during query execution. Tp achieve this we load keys into local
      * partitions in a way that iteration stops before the first partition is read. Then we start the new member, that
-     * changes the migration stamp. Then we try to read the remaining data.
+     * chagnes the migration stamp. Then we try to read the remaining data.
      */
     @Test
     public void testConcurrentMigration() {

@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl;
 
-import com.hazelcast.sql.HazelcastSqlException;
+import com.hazelcast.sql.SqlException;
 import com.hazelcast.sql.SqlColumnMetadata;
 import com.hazelcast.sql.SqlColumnType;
 import com.hazelcast.sql.SqlErrorCode;
@@ -52,8 +52,10 @@ public final class QueryUtils {
         return instanceName + "-" + workerType + "-" + index;
     }
 
-    public static HazelcastSqlException toPublicException(Exception e, UUID localMemberId) {
-        assert !(e instanceof HazelcastSqlException) : "Do not wrap multiple times: " + e;
+    public static SqlException toPublicException(Exception e, UUID localMemberId) {
+        if (e instanceof SqlException) {
+            return (SqlException) e;
+        }
 
         if (e instanceof QueryException) {
             QueryException e0 = (QueryException) e;
@@ -64,9 +66,9 @@ public final class QueryUtils {
                 originatingMemberId = localMemberId;
             }
 
-            return new HazelcastSqlException(originatingMemberId, e0.getCode(), e.getMessage(), e);
+            return new SqlException(originatingMemberId, e0.getCode(), e0.getMessage(), e);
         } else {
-            return new HazelcastSqlException(localMemberId, SqlErrorCode.GENERIC, e.getMessage(), e);
+            return new SqlException(localMemberId, SqlErrorCode.GENERIC, e.getMessage(), e);
         }
     }
 
@@ -83,13 +85,13 @@ public final class QueryUtils {
     }
 
     /**
-     * Convert internal column type to public type.
+     * Convert internal column type to a public type.
      *
      * @param columnType Internal type.
      * @return Public type.
      */
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    public static SqlColumnMetadata getColumnMetadata(QueryDataType columnType) {
+    public static SqlColumnMetadata getColumnMetadata(String columnName, QueryDataType columnType) {
         SqlColumnType type;
 
         switch (columnType.getTypeFamily()) {
@@ -164,6 +166,6 @@ public final class QueryUtils {
                 type = SqlColumnType.OBJECT;
         }
 
-        return new SqlColumnMetadata(type);
+        return new SqlColumnMetadata(columnName, type);
     }
 }

@@ -16,42 +16,37 @@
 
 package com.hazelcast.sql.impl.expression;
 
-import com.hazelcast.nio.ObjectDataInput;
-import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
-import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
 import com.hazelcast.sql.impl.type.converter.Converter;
 
-import java.io.IOException;
-
 /**
- * Expression which converts data from one type to another.
+ * Implements evaluation of SQL CAST operator.
  */
-public class CastExpression<T> extends UniExpression<T> {
+public class CastExpression<T> extends UniExpressionWithType<T> implements IdentifiedDataSerializable {
 
-    private QueryDataType type;
-
-    @SuppressWarnings("unused")
     public CastExpression() {
         // No-op.
     }
 
-    private CastExpression(Expression<?> operand, QueryDataType type) {
-        super(operand);
-        this.type = type;
+    private CastExpression(Expression<?> operand, QueryDataType resultType) {
+        super(operand, resultType);
     }
 
-    public static CastExpression<?> create(Expression<?> operand, QueryDataType type) {
-        boolean convertible = operand.getType().getConverter().canConvertTo(type.getTypeFamily());
+    public static CastExpression<?> create(Expression<?> operand, QueryDataType resultType) {
+        return new CastExpression<>(operand, resultType);
+    }
 
-        if (!convertible) {
-            throw QueryException.error("Cannot convert " + operand.getType() + " to " + type);
-        }
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
 
-        return new CastExpression<>(operand, type);
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_CAST;
     }
 
     @SuppressWarnings("unchecked")
@@ -63,40 +58,9 @@ public class CastExpression<T> extends UniExpression<T> {
             return null;
         }
 
-        Converter valueConverter = operand.getType().getConverter();
-        Converter typeConverter = type.getConverter();
-        return (T) typeConverter.convertToSelf(valueConverter, value);
-    }
-
-    @Override
-    public QueryDataType getType() {
-        return type;
-    }
-
-    public static Expression<?> coerceExpression(Expression<?> from, QueryDataTypeFamily toTypeFamily) {
-        QueryDataType fromType = from.getType();
-
-        if (fromType.getTypeFamily() == toTypeFamily) {
-            return from;
-        } else {
-            QueryDataType type = QueryDataTypeUtils.resolveTypeForTypeFamily(toTypeFamily);
-
-            return CastExpression.create(from, type);
-        }
-    }
-
-    @Override
-    public void writeData(ObjectDataOutput out) throws IOException {
-        super.writeData(out);
-
-        out.writeObject(type);
-    }
-
-    @Override
-    public void readData(ObjectDataInput in) throws IOException {
-        super.readData(in);
-
-        type = in.readObject();
+        Converter fromConverter = operand.getType().getConverter();
+        Converter toConverter = resultType.getConverter();
+        return (T) toConverter.convertToSelf(fromConverter, value);
     }
 
 }

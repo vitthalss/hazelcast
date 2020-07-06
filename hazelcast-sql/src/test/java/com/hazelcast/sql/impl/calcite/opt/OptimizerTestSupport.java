@@ -56,7 +56,6 @@ import java.util.Map;
 
 import static com.hazelcast.sql.impl.QueryUtils.SCHEMA_NAME_REPLICATED;
 import static com.hazelcast.sql.impl.type.QueryDataType.INT;
-import static java.util.Collections.emptyMap;
 import static junit.framework.TestCase.assertEquals;
 
 /**
@@ -111,8 +110,8 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
      * @return Result.
      */
     private static Result optimize(String sql, OptimizerContext context, boolean physical) {
-        SqlNode node = context.parse(sql).getNode();
-        RelNode convertedRel = context.convert(node);
+        SqlNode node = context.parse(sql, false).getNode();
+        RelNode convertedRel = context.convert(node).getRel();
         LogicalRel logicalRel = optimizeLogicalInternal(context, convertedRel);
         PhysicalRel physicalRel = physical ? optimizePhysicalInternal(context, logicalRel) : null;
 
@@ -147,16 +146,17 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
             new ConstantTableStatistics(rowCount),
             null,
             null,
+            null,
+            null,
             indexes,
-            PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE,
-            emptyMap()
+            PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE
         );
 
         return new HazelcastTable(table, new MapTableStatistic(rowCount));
     }
 
     /**
-     * Creates the default test schema. Override that method if you would like to have anoher schema.
+     * Creates the default test schema. Override this method if you would like to have another schema.
      *
      * @return Default schema.
      */
@@ -165,7 +165,7 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
 
         tableMap.put("p", partitionedTable(
             "p",
-            fields("f1", INT, "f2", INT, "f3", INT, "f4", INT, "f5", INT),
+            fields("f0", INT, "f1", INT, "f2", INT, "f3", INT, "f4", INT),
             null,
             100
         ));
@@ -226,7 +226,7 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
         int expectedRowCount = expected.getRowCount();
         int actualRowCount = actual.getRowCount();
 
-        assertEquals(planErrorMessage("Plan are different", expected, actual), expectedRowCount, actualRowCount);
+        assertEquals(planErrorMessage("Plans are different", expected, actual), expectedRowCount, actualRowCount);
 
         for (int i = 0; i < expectedRowCount; i++) {
             PlanRow expectedRow = expected.getRow(i);
@@ -258,7 +258,7 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
     }
 
     public static Cost cost(double rows, double cpu, double network) {
-        return (Cost) CostFactory.INSTANCE.makeCost(rows, cpu, network);
+        return CostFactory.INSTANCE.makeCost(rows, cpu, network);
     }
 
     private static String planErrorMessage(String message, PlanRows expected, PlanRows actual) {

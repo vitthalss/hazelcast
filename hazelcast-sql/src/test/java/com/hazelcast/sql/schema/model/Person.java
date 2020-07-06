@@ -17,21 +17,18 @@
 package com.hazelcast.sql.schema.model;
 
 import java.io.Serializable;
-import java.math.BigInteger;
 import java.util.Objects;
 
 @SuppressWarnings("unused")
 public class Person implements Serializable {
 
     private String name;
-    private BigInteger age;
 
     public Person() {
     }
 
-    public Person(String name, BigInteger age) {
+    public Person(String name) {
         this.name = name;
-        this.age = age;
     }
 
     public String getName() {
@@ -40,14 +37,6 @@ public class Person implements Serializable {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public void setAge(BigInteger age) {
-        this.age = age;
-    }
-
-    public BigInteger getAge() {
-        return age;
     }
 
     @Override
@@ -59,12 +48,11 @@ public class Person implements Serializable {
             return false;
         }
         Person person = (Person) o;
-        return Objects.equals(name, person.name)
-                && Objects.equals(age, person.age);
+        return Objects.equals(name, person.name);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, age);
+        return Objects.hash(name);
     }
 }

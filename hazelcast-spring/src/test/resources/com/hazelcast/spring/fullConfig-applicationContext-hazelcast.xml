@@ -665,6 +665,7 @@
                         <hz:authentication>
                             <hz:kerberos>
                                 <hz:relax-flags-check>true</hz:relax-flags-check>
+                                <hz:use-name-without-realm>true</hz:use-name-without-realm>
                                 <hz:security-realm>krb5Acceptor</hz:security-realm>
                                 <hz:ldap>
                                     <hz:url>ldap://127.0.0.1/</hz:url>
@@ -681,6 +682,7 @@
                                 <hz:realm>HAZELCAST.COM</hz:realm>
                                 <hz:security-realm>krb5Initiator</hz:security-realm>
                                 <hz:service-name-prefix>hz/</hz:service-name-prefix>
+                                <hz:use-canonical-hostname>true</hz:use-canonical-hostname>
                                 <hz:spn>hz/127.0.0.1@HAZELCAST.COM</hz:spn>
                             </hz:kerberos>
                         </hz:identity>
@@ -962,6 +964,12 @@
                 <hz:jmx enabled="false"/>
                 <hz:collection-frequency-seconds>24</hz:collection-frequency-seconds>
             </hz:metrics>
+
+            <hz:sql>
+                <hz:executor-pool-size>10</hz:executor-pool-size>
+                <hz:operation-pool-size>20</hz:operation-pool-size>
+                <hz:query-timeout-millis>30</hz:query-timeout-millis>
+            </hz:sql>
         </hz:config>
     </hz:hazelcast>
 

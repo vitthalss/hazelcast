@@ -2216,6 +2216,7 @@ hazelcast:
           kerberos:
             skip-role: true
             relax-flags-check: true
+            use-name-without-realm: true
             security-realm: krb5Acceptor
             ldap:
               url: ldap://127.0.0.1/
@@ -2229,6 +2230,7 @@ hazelcast:
             realm: HAZELCAST.COM
             security-realm: krb5Initiator
             service-name-prefix: hz/
+            use-canonical-hostname: true
             spn: hz/127.0.0.1@HAZELCAST.COM
       - name: krb5Acceptor
         authentication:
@@ -3329,3 +3331,23 @@ hazelcast:
     jmx:
       enabled: false
     collection-frequency-seconds: 10
+
+  #
+  # ===== HAZELCAST SQL CONFIGURATION =====
+  #
+  # Configuration element's name is "sql".
+  #
+  # It has the following sub-elements:
+  #     * "executor-pool-size":
+  #         Defines the number of threads responsible for query execution.
+  #
+  #     * "operation-pool-size":
+  #         Defines the number of threads responsible for network operations processing.
+  #
+  #     * "query-timeout":
+  #         Defines the timeout in milliseconds that is applied to queries without an explicit timeout.
+  #
+  sql:
+    executor-pool-size: 8
+    operation-pool-size: 8
+    query-timeout-millis: 0

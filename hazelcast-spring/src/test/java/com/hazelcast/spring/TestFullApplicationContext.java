@@ -33,6 +33,7 @@ import com.hazelcast.config.CardinalityEstimatorConfig;
 import com.hazelcast.config.ClassFilter;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.ConsistencyCheckStrategy;
+import com.hazelcast.config.SqlConfig;
 import com.hazelcast.config.WanBatchPublisherConfig;
 import com.hazelcast.config.WanCustomPublisherConfig;
 import com.hazelcast.config.DiscoveryConfig;
@@ -605,11 +606,13 @@ public class TestFullApplicationContext extends HazelcastTestSupport {
         KerberosAuthenticationConfig kerbAuthentication = kerberosRealm.getKerberosAuthenticationConfig();
         assertNotNull(kerbAuthentication);
         assertEquals(TRUE, kerbAuthentication.getRelaxFlagsCheck());
+        assertEquals(TRUE, kerbAuthentication.getUseNameWithoutRealm());
         assertEquals("krb5Acceptor", kerbAuthentication.getSecurityRealm());
         assertNotNull(kerbAuthentication.getLdapAuthenticationConfig());
         KerberosIdentityConfig kerbIdentity = kerberosRealm.getKerberosIdentityConfig();
         assertNotNull(kerbIdentity);
         assertEquals("HAZELCAST.COM", kerbIdentity.getRealm());
+        assertEquals(TRUE, kerbIdentity.getUseCanonicalHostname());
     }
 
     @Test
@@ -1431,5 +1434,13 @@ public class TestFullApplicationContext extends HazelcastTestSupport {
         assertEquals(42, metricsConfig.getManagementCenterConfig().getRetentionSeconds());
         assertFalse(metricsConfig.getJmxConfig().isEnabled());
         assertEquals(24, metricsConfig.getCollectionFrequencySeconds());
+    }
+
+    @Test
+    public void testSqlConfig() {
+        SqlConfig sqlConfig = config.getSqlConfig();
+        assertEquals(10, sqlConfig.getExecutorPoolSize());
+        assertEquals(20, sqlConfig.getOperationPoolSize());
+        assertEquals(30L, sqlConfig.getQueryTimeoutMillis());
     }
 }

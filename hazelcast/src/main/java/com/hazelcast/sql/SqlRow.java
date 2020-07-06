@@ -16,15 +16,57 @@
 
 package com.hazelcast.sql;
 
+import javax.annotation.Nonnull;
+
 /**
- * Single SQL row.
+ * SQL row.
  */
 public interface SqlRow {
     /**
-     * Get value of the column by index.
+     * Gets the value of the column by index.
+     * <p>
+     * The class of the returned value depends on the SQL type of the column. No implicit conversions are performed on the value.
      *
-     * @param index Index.
-     * @return Value of the column.
+     * @param columnIndex column index, zero-based.
+     * @return value of the column
+     *
+     * @throws IndexOutOfBoundsException if the column index is out of bounds
+     * @throws ClassCastException if the type of the column type isn't assignable to the type {@code T}
+     *
+     * @see #getMetadata()
+     * @see SqlColumnMetadata#getType()
      */
-    <T> T getObject(int index);
+    <T> T getObject(int columnIndex);
+
+    /**
+     * Gets the value of the column by column name.
+     * <p>
+     * Column name should be one of those defined in {@link SqlRowMetadata}, case-sensitive. You may also use
+     * {@link SqlRowMetadata#findColumn(String)} to test for column existence.
+     * <p>
+     * The class of the returned value depends on the SQL type of the column. No implicit conversions are performed on the value.
+     *
+     * @param columnName column name
+     * @return value of the column
+     *
+     * @throws NullPointerException if column name is null
+     * @throws IllegalArgumentException if a column with the given name is not found
+     * @throws ClassCastException if the type of the column type isn't assignable to the type {@code T}
+     *
+     * @see #getMetadata()
+     * @see SqlRowMetadata#findColumn(String)
+     * @see SqlColumnMetadata#getName()
+     * @see SqlColumnMetadata#getType()
+     */
+    <T> T getObject(@Nonnull String columnName);
+
+    /**
+     * Gets row metadata.
+     *
+     * @return row metadata
+     *
+     * @see SqlRowMetadata
+     */
+    @Nonnull
+    SqlRowMetadata getMetadata();
 }

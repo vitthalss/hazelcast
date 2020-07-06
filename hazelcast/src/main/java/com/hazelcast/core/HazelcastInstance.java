@@ -38,6 +38,7 @@ import com.hazelcast.replicatedmap.ReplicatedMap;
 import com.hazelcast.replicatedmap.ReplicatedMapCantBeCreatedOnLiteMemberException;
 import com.hazelcast.ringbuffer.Ringbuffer;
 import com.hazelcast.scheduledexecutor.IScheduledExecutorService;
+import com.hazelcast.spi.annotation.Beta;
 import com.hazelcast.sql.SqlService;
 import com.hazelcast.splitbrainprotection.SplitBrainProtectionService;
 import com.hazelcast.topic.ITopic;
@@ -454,11 +455,17 @@ public interface HazelcastInstance {
     @Nonnull CPSubsystem getCPSubsystem();
 
     /**
-     * Returns SQL service.
+     * Returns a service to execute distributed SQL queries.
+     * <p>
+     * The service is in beta state. Behavior and API might be changed in future releases. Binary compatibility is not
+     * guaranteed between minor and patch releases.
      *
-     * @return SQL service.
+     * @return SQL service
+     *
+     * @see SqlService
      */
-    SqlService getSqlService();
+    @Beta
+    @Nonnull SqlService getSql();
 
     /**
      * Shuts down this HazelcastInstance. For more information see {@link com.hazelcast.core.LifecycleService#shutdown()}.

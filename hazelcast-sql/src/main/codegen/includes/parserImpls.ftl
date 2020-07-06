@@ -55,29 +55,31 @@ SqlCreate SqlCreateExternalTable(Span span, boolean replace) :
 
 SqlNodeList TableColumns():
 {
-    Span span;
+    SqlParserPos pos = getPos();
 
     Map<String, SqlNode> columns = new LinkedHashMap<String, SqlNode>();
     SqlTableColumn column;
 }
 {
-    <LPAREN> { span = span(); }
-    column = TableColumn()
-    {
-        columns.put(column.name(), column);
-    }
-    (
-        <COMMA> column = TableColumn()
+    [
+        <LPAREN> {  pos = getPos(); }
+        column = TableColumn()
         {
-            if (columns.putIfAbsent(column.name(), column) != null) {
-               throw SqlUtil.newContextException(getPos(),
-                   ParserResource.RESOURCE.duplicateColumn(column.name()));
-            }
+            columns.put(column.name(), column);
         }
-    )*
-    <RPAREN>
+        (
+            <COMMA> column = TableColumn()
+            {
+                if (columns.putIfAbsent(column.name(), column) != null) {
+                   throw SqlUtil.newContextException(getPos(),
+                       ParserResource.RESOURCE.duplicateColumn(column.name()));
+                }
+            }
+        )*
+        <RPAREN>
+    ]
     {
-        return new SqlNodeList(columns.values(), span.end(this));
+        return new SqlNodeList(columns.values(), pos.plus(getPos()));
     }
 }
 
@@ -87,12 +89,17 @@ SqlTableColumn TableColumn() :
 
     SqlIdentifier name;
     SqlDataType type;
+    SqlIdentifier externalName = null;
+
 }
 {
     name = SimpleIdentifier() { span = span(); }
     type = SqlDataType()
+    [
+        <EXTERNAL> <NAME> externalName = CompoundIdentifier()
+    ]
     {
-        return new SqlTableColumn(name, type, span.end(this));
+        return new SqlTableColumn(name, type, externalName, span.end(this));
     }
 }
 
@@ -295,7 +302,7 @@ SqlOption SqlOption() :
 */
 SqlDrop SqlDropExternalTable(Span span, boolean replace) :
 {
-    SqlParserPos startPos = span.pos();
+    SqlParserPos pos = span.pos();
 
     SqlIdentifier name;
     boolean ifExists = false;
@@ -307,7 +314,7 @@ SqlDrop SqlDropExternalTable(Span span, boolean replace) :
     ]
     name = SimpleIdentifier()
     {
-        return new SqlDropExternalTable(name, ifExists, startPos.plus(getPos()));
+        return new SqlDropExternalTable(name, ifExists, pos.plus(getPos()));
     }
 }
 

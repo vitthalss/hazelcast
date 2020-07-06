@@ -21,7 +21,6 @@ import com.hazelcast.cluster.Address;
 import com.hazelcast.config.EntryListenerConfig;
 import com.hazelcast.config.IndexConfig;
 import com.hazelcast.config.ListenerConfig;
-import com.hazelcast.config.AttributeConfig;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.MapPartitionLostListenerConfig;
 import com.hazelcast.config.MapStoreConfig;
@@ -41,6 +40,7 @@ import com.hazelcast.internal.util.ExceptionUtil;
 import com.hazelcast.internal.util.IterableUtil;
 import com.hazelcast.internal.util.IterationType;
 import com.hazelcast.internal.util.MutableLong;
+import com.hazelcast.internal.util.Timer;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.EntryProcessor;
 import com.hazelcast.map.IMap;
@@ -116,7 +116,6 @@ import static com.hazelcast.internal.util.CollectionUtil.asIntegerList;
 import static com.hazelcast.internal.util.ConcurrencyUtil.CALLER_RUNS;
 import static com.hazelcast.internal.util.ExceptionUtil.rethrow;
 import static com.hazelcast.internal.util.InvocationUtil.invokeOnStableClusterSerial;
-import static com.hazelcast.internal.util.IterableUtil.map;
 import static com.hazelcast.internal.util.IterableUtil.nullToEmpty;
 import static com.hazelcast.internal.util.MapUtil.createHashMap;
 import static com.hazelcast.internal.util.MapUtil.toIntSize;
@@ -216,7 +215,6 @@ abstract class MapProxySupport<K, V>
     private final int putAllBatchSize;
     private final float putAllInitialSizeFactor;
 
-    @SuppressWarnings("checkstyle:ExecutableStatementCount")
     protected MapProxySupport(String name, MapService service, NodeEngine nodeEngine, MapConfig mapConfig) {
         super(nodeEngine, service);
         this.name = name;
@@ -388,7 +386,7 @@ abstract class MapProxySupport<K, V>
 
         MapOperation operation = operationProvider.createGetOperation(name, keyData);
         try {
-            long startTimeNanos = System.nanoTime();
+            long startTimeNanos = Timer.nanos();
             InvocationFuture<Data> future = operationService
                     .createInvocationBuilder(SERVICE_NAME, operation, partitionId)
                     .setResultDeserialized(false)
@@ -467,7 +465,7 @@ abstract class MapProxySupport<K, V>
         try {
             Object result;
             if (statisticsEnabled) {
-                long startTimeNanos = System.nanoTime();
+                long startTimeNanos = Timer.nanos();
                 Future future = operationService
                         .createInvocationBuilder(SERVICE_NAME, operation, partitionId)
                         .setResultDeserialized(false)
@@ -495,7 +493,7 @@ abstract class MapProxySupport<K, V>
         MapOperation operation = newPutOperation(keyData, valueData, ttl, ttlUnit, maxIdle, maxIdleUnit);
         operation.setThreadId(getThreadId());
         try {
-            long startTimeNanos = System.nanoTime();
+            long startTimeNanos = Timer.nanos();
             InvocationFuture<Data> future = operationService.invokeOnPartition(SERVICE_NAME, operation, partitionId);
 
             if (statisticsEnabled) {
@@ -518,7 +516,7 @@ abstract class MapProxySupport<K, V>
         try {
             final InvocationFuture<Data> result;
             if (statisticsEnabled) {
-                long startTimeNanos = System.nanoTime();
+                long startTimeNanos = Timer.nanos();
                 result = operationService
                         .invokeOnPartition(SERVICE_NAME, operation, partitionId);
                 result.whenCompleteAsync(new IncrementStatsExecutionCallback<>(operation, startTimeNanos), CALLER_RUNS);
@@ -694,7 +692,7 @@ abstract class MapProxySupport<K, V>
         MapOperation operation = operationProvider.createRemoveOperation(name, keyData);
         operation.setThreadId(getThreadId());
         try {
-            long startTimeNanos = System.nanoTime();
+            long startTimeNanos = Timer.nanos();
             InvocationFuture<Data> future = operationService.invokeOnPartition(SERVICE_NAME, operation, partitionId);
 
             if (statisticsEnabled) {
@@ -855,7 +853,7 @@ abstract class MapProxySupport<K, V>
         Map<Integer, Object> responses;
         try {
             OperationFactory operationFactory = operationProvider.createGetAllOperationFactory(name, dataKeys);
-            long startTimeNanos = System.nanoTime();
+            long startTimeNanos = Timer.nanos();
 
             responses = operationService.invokeOnPartitions(SERVICE_NAME, operationFactory, partitions);
             for (Object response : responses.values()) {
@@ -865,7 +863,7 @@ abstract class MapProxySupport<K, V>
                     resultingKeyValuePairs.add(entries.getValue(i));
                 }
             }
-            localMapStats.incrementGetLatencyNanos(dataKeys.size(), System.nanoTime() - startTimeNanos);
+            localMapStats.incrementGetLatencyNanos(dataKeys.size(), Timer.nanosElapsed(startTimeNanos));
         } catch (Exception e) {
             throw rethrow(e);
         }
@@ -1059,7 +1057,7 @@ abstract class MapProxySupport<K, V>
         }
 
         OperationFactory factory = operationProvider.createPutAllOperationFactory(name, partitions, entries, triggerMapLoader);
-        long startTimeNanos = System.nanoTime();
+        long startTimeNanos = Timer.nanos();
         CompletableFuture<Map<Integer, Object>> future =
                 operationService.invokeOnPartitionsAsync(SERVICE_NAME, factory, singletonMap(address, asIntegerList(partitions)));
         InternalCompletableFuture<Void> resultFuture = new InternalCompletableFuture<>();
@@ -1067,7 +1065,7 @@ abstract class MapProxySupport<K, V>
         future.whenCompleteAsync((response, t) -> {
             putAllVisitSerializedKeys(entries);
             if (t == null) {
-                localMapStats.incrementPutLatencyNanos(finalTotalSize, System.nanoTime() - startTimeNanos);
+                localMapStats.incrementPutLatencyNanos(finalTotalSize, Timer.nanosElapsed(startTimeNanos));
                 resultFuture.complete(null);
             } else {
                 resultFuture.completeExceptionally(t);
@@ -1380,14 +1378,6 @@ abstract class MapProxySupport<K, V>
                 ((HazelcastInstanceAware) object).setHazelcastInstance(getNodeEngine().getHazelcastInstance());
             }
         }
-    }
-
-    public MapServiceContext getMapServiceContext() {
-        return mapServiceContext;
-    }
-
-    public List<AttributeConfig> getAttributeConfigs() {
-        return Collections.unmodifiableList(mapConfig.getAttributeConfigs());
     }
 
     private class IncrementStatsExecutionCallback<T> implements BiConsumer<T, Throwable> {

@@ -23,14 +23,8 @@ public final class SqlErrorCode {
     /** Generic error. */
     public static final int GENERIC = -1;
 
-    /** Query completed successfully. */
-    public static final int OK = 0;
-
     /** Member cannot be reached. */
     public static final int MEMBER_CONNECTION = 1001;
-
-    /** Member has left the topology. */
-    public static final int MEMBER_LEAVE = 1002;
 
     /** Query was cancelled due to user request. */
     public static final int CANCELLED_BY_USER = 1003;
@@ -49,9 +43,6 @@ public final class SqlErrorCode {
 
     /** Generic parsing error. */
     public static final int PARSING = 1008;
-
-    /** Client has left the topology. */
-    public static final int CLIENT_LEAVE = 1009;
 
     /** An error with data conversion or transformation. */
     public static final int DATA_EXCEPTION = 2000;

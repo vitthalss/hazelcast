@@ -166,6 +166,7 @@ public class ConfigXmlGenerator {
         splitBrainProtectionXmlGenerator(gen, config);
         cpSubsystemConfig(gen, config);
         metricsConfig(gen, config);
+        sqlConfig(gen, config);
         userCodeDeploymentConfig(gen, config);
 
         xml.append("</hazelcast>");
@@ -361,6 +362,7 @@ public class ConfigXmlGenerator {
         XmlGenerator kerberosGen = gen.open("kerberos");
         addClusterLoginElements(kerberosGen, c)
             .nodeIfContents("relax-flags-check", c.getRelaxFlagsCheck())
+            .nodeIfContents("use-name-without-realm", c.getUseNameWithoutRealm())
             .nodeIfContents("security-realm", c.getSecurityRealm());
         ldapAuthenticationGenerator(kerberosGen, c.getLdapAuthenticationConfig());
         kerberosGen.close();
@@ -375,6 +377,7 @@ public class ConfigXmlGenerator {
             .nodeIfContents("security-realm", c.getSecurityRealm())
             .nodeIfContents("service-name-prefix", c.getServiceNamePrefix())
             .nodeIfContents("spn", c.getSpn())
+            .nodeIfContents("use-canonical-hostname", c.getUseCanonicalHostname())
             .close();
     }
 
@@ -1581,6 +1584,15 @@ public class ConfigXmlGenerator {
            .close()
            .node("collection-frequency-seconds", metricsConfig.getCollectionFrequencySeconds())
            .close();
+    }
+
+    private static void sqlConfig(XmlGenerator gen, Config config) {
+        SqlConfig sqlConfig = config.getSqlConfig();
+        gen.open("sql")
+            .node("executor-pool-size", sqlConfig.getExecutorPoolSize())
+            .node("operation-pool-size", sqlConfig.getOperationPoolSize())
+            .node("query-timeout-millis", sqlConfig.getQueryTimeoutMillis())
+            .close();
     }
 
     private static void userCodeDeploymentConfig(XmlGenerator gen, Config config) {

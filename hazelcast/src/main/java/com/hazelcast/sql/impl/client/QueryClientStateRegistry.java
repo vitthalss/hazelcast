@@ -16,10 +16,12 @@
 
 package com.hazelcast.sql.impl.client;
 
+import com.hazelcast.internal.serialization.Data;
+import com.hazelcast.internal.serialization.InternalSerializationService;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.SqlRow;
 import com.hazelcast.sql.impl.QueryId;
-import com.hazelcast.sql.impl.SqlCursorImpl;
+import com.hazelcast.sql.impl.SqlResultImpl;
 import com.hazelcast.sql.impl.SqlRowImpl;
 import com.hazelcast.sql.impl.row.Row;
 
@@ -37,53 +39,90 @@ public class QueryClientStateRegistry {
     /** Registered client cursors. */
     private final ConcurrentHashMap<QueryId, QueryClientState> clientCursors = new ConcurrentHashMap<>();
 
-    public void register(UUID clientId, SqlCursorImpl cursor) {
+    public SqlPage registerAndFetch(
+        UUID clientId,
+        SqlResultImpl cursor,
+        int cursorBufferSize,
+        InternalSerializationService serializationService
+    ) {
         QueryClientState clientCursor = new QueryClientState(clientId, cursor);
 
-        clientCursors.put(cursor.getQueryId(), clientCursor);
+        SqlPage page = fetchInternal(clientCursor, cursorBufferSize, serializationService);
+
+        if (!page.isLast()) {
+            clientCursors.put(cursor.getQueryId(), clientCursor);
+        }
+
+        return page;
     }
 
-    public SqlClientPage fetch(UUID clientId, QueryId queryId, int pageSize) {
+    public SqlPage fetch(
+        UUID clientId,
+        QueryId queryId,
+        int cursorBufferSize,
+        InternalSerializationService serializationService
+    ) {
         QueryClientState clientCursor = getClientCursor(clientId, queryId);
 
         if (clientCursor == null) {
-            throw QueryException.error("Cursor not found (closed?): " + queryId);
+            throw QueryException.error("Query cursor is not found (closed?): " + queryId);
         }
 
+        SqlPage page = fetchInternal(clientCursor, cursorBufferSize, serializationService);
+
+        if (page.isLast()) {
+            deleteClientCursor(clientCursor);
+        }
+
+        return page;
+    }
+
+    private SqlPage fetchInternal(
+        QueryClientState clientCursor,
+        int cursorBufferSize,
+        InternalSerializationService serializationService
+    ) {
         Iterator<SqlRow> iterator = clientCursor.getIterator();
 
-        List<Row> rows = new ArrayList<>(pageSize);
-
-        while (iterator.hasNext()) {
-            SqlRow row = iterator.next();
-
-            // TODO: Avoid this double wrap-unwrap. Instead, we should fetch Row from the cursor here.
-            rows.add(((SqlRowImpl) row).getDelegate());
-
-            if (rows.size() == pageSize) {
-                break;
-            }
-        }
-
-        boolean last = !iterator.hasNext();
+        List<Data> page = new ArrayList<>(cursorBufferSize);
+        boolean last = fetchPage(iterator, page, cursorBufferSize, serializationService);
 
         if (last) {
             deleteClientCursor(clientCursor);
         }
 
-        return new SqlClientPage(rows, last);
+        return new SqlPage(page, last);
+    }
+
+    private boolean fetchPage(
+        Iterator<SqlRow> iterator,
+        List<Data> page,
+        int cursorBufferSize,
+        InternalSerializationService serializationService
+    ) {
+        while (iterator.hasNext()) {
+            SqlRow row = iterator.next();
+            Row rowInternal = ((SqlRowImpl) row).getDelegate();
+            Data rowData = serializationService.toData(rowInternal);
+
+            page.add(rowData);
+
+            if (page.size() == cursorBufferSize) {
+                break;
+            }
+        }
+
+        return !iterator.hasNext();
     }
 
     public void close(UUID clientId, QueryId queryId) {
         QueryClientState clientCursor = getClientCursor(clientId, queryId);
 
-        if (clientCursor == null) {
-            return;
+        if (clientCursor != null) {
+            clientCursor.getSqlResult().close();
+
+            deleteClientCursor(clientCursor);
         }
-
-        clientCursor.getCursor().close();
-
-        deleteClientCursor(clientCursor);
     }
 
     public void reset() {
@@ -94,15 +133,15 @@ public class QueryClientStateRegistry {
         List<QueryClientState> victims = new ArrayList<>();
 
         for (QueryClientState clientCursor : clientCursors.values()) {
-            if (activeClientIds.contains(clientCursor.getClientId())) {
+            if (!activeClientIds.contains(clientCursor.getClientId())) {
                 victims.add(clientCursor);
             }
         }
 
         for (QueryClientState victim : victims) {
-            QueryException error = QueryException.clientLeave(victim.getClientId());
+            QueryException error = QueryException.clientMemberConnection(victim.getClientId());
 
-            victim.getCursor().closeOnError(error);
+            victim.getSqlResult().closeOnError(error);
 
             deleteClientCursor(victim);
         }
@@ -120,5 +159,9 @@ public class QueryClientStateRegistry {
 
     private void deleteClientCursor(QueryClientState cursor) {
         clientCursors.remove(cursor.getQueryId());
+    }
+
+    public int getCursorCount() {
+        return clientCursors.size();
     }
 }

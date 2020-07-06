@@ -85,6 +85,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -106,8 +107,8 @@ import static com.hazelcast.client.properties.ClientProperty.IO_WRITE_THROUGH_EN
 import static com.hazelcast.client.properties.ClientProperty.SHUFFLE_MEMBER_LIST;
 import static com.hazelcast.core.LifecycleEvent.LifecycleState.CLIENT_CHANGED_CLUSTER;
 import static com.hazelcast.internal.nio.IOUtil.closeResource;
-import static com.hazelcast.internal.util.ThreadAffinity.newSystemThreadAffinity;
 import static com.hazelcast.internal.util.ExceptionUtil.rethrow;
+import static com.hazelcast.internal.util.ThreadAffinity.newSystemThreadAffinity;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
 
@@ -325,8 +326,8 @@ public class TcpClientConnectionManager implements ClientConnectionManager {
         if (!isAlive.compareAndSet(true, false)) {
             return;
         }
-
-        ClientExecutionServiceImpl.shutdownExecutor("cluster", executor, logger);
+        executor.shutdownNow();
+        ClientExecutionServiceImpl.awaitExecutorTermination("cluster", executor, logger);
         for (Connection connection : activeConnections.values()) {
             connection.close("Hazelcast client is shutting down", null);
         }
@@ -457,7 +458,6 @@ public class TcpClientConnectionManager implements ClientConnectionManager {
                         return true;
                     }
                 }
-
                 // If the address providers load no addresses (which seems to be possible), then the above loop is not entered
                 // and the lifecycle check is missing, hence we need to repeat the same check at this point.
                 checkClientActive();
@@ -757,9 +757,9 @@ public class TcpClientConnectionManager implements ClientConnectionManager {
     }
 
     @Override
-    public ClientConnection getRandomConnection() {
+    public ClientConnection getRandomConnection(boolean dataMember) {
         if (isSmartRoutingEnabled) {
-            Member member = loadBalancer.next();
+            Member member = loadBalancer.next(dataMember);
             if (member != null) {
                 ClientConnection connection = getConnection(member.getUuid());
                 if (connection != null) {
@@ -768,8 +768,25 @@ public class TcpClientConnectionManager implements ClientConnectionManager {
             }
         }
 
-        Iterator<TcpClientConnection> iterator = activeConnections.values().iterator();
-        return iterator.hasNext() ? iterator.next() : null;
+        Iterator<Map.Entry<UUID, TcpClientConnection>> iterator = activeConnections.entrySet().iterator();
+
+        Map.Entry<UUID, TcpClientConnection> connectionEntry = iterator.hasNext() ? iterator.next() : null;
+
+        if (connectionEntry != null) {
+            if (dataMember) {
+                UUID memberId = connectionEntry.getKey();
+
+                Member member = client.getClientClusterService().getMember(memberId);
+
+                if (member == null || member.isLiteMember()) {
+                    return null;
+                }
+            }
+
+            return connectionEntry.getValue();
+        } else {
+            return null;
+        }
     }
 
     private void authenticateOnCluster(TcpClientConnection connection) {

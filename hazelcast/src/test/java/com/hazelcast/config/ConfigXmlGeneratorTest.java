@@ -585,6 +585,7 @@ public class ConfigXmlGeneratorTest extends HazelcastTestSupport {
                 .setSkipEndpoint(FALSE)
                 .setSkipRole(TRUE)
                 .setRelaxFlagsCheck(TRUE)
+                .setUseNameWithoutRealm(TRUE)
                 .setSecurityRealm("jaasRealm")
                 .setLdapAuthenticationConfig(new LdapAuthenticationConfig()
                         .setUrl("url")))
@@ -592,6 +593,7 @@ public class ConfigXmlGeneratorTest extends HazelcastTestSupport {
                 .setRealm("HAZELCAST.COM")
                 .setSecurityRealm("krb5Init")
                 .setServiceNamePrefix("hz/")
+                .setUseCanonicalHostname(TRUE)
                 .setSpn("spn@HAZELCAST.COM"));
         SecurityConfig expectedConfig = new SecurityConfig().setMemberRealmConfig("kerberosRealm", realmConfig);
         cfg.setSecurityConfig(expectedConfig);
@@ -1792,6 +1794,21 @@ public class ConfigXmlGeneratorTest extends HazelcastTestSupport {
         MetricsConfig generatedConfig = getNewConfigViaXMLGenerator(config).getMetricsConfig();
         assertTrue(generatedConfig + " should be compatible with " + config.getMetricsConfig(),
                 new MetricsConfigChecker().check(config.getMetricsConfig(), generatedConfig));
+    }
+
+    @Test
+    public void testSqlConfig() {
+        Config confiig = new Config();
+
+        confiig.getSqlConfig().setExecutorPoolSize(10);
+        confiig.getSqlConfig().setOperationPoolSize(20);
+        confiig.getSqlConfig().setQueryTimeoutMillis(30L);
+
+        SqlConfig generatedConfig = getNewConfigViaXMLGenerator(confiig).getSqlConfig();
+
+        assertEquals(confiig.getSqlConfig().getExecutorPoolSize(), generatedConfig.getExecutorPoolSize());
+        assertEquals(confiig.getSqlConfig().getOperationPoolSize(), generatedConfig.getOperationPoolSize());
+        assertEquals(confiig.getSqlConfig().getQueryTimeoutMillis(), generatedConfig.getQueryTimeoutMillis());
     }
 
     @Test

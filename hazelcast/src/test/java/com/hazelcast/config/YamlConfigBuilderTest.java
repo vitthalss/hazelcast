@@ -204,6 +204,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "          kerberos:\n"
                 + "            skip-role: false\n"
                 + "            relax-flags-check: true\n"
+                + "            use-name-without-realm: true\n"
                 + "            security-realm: krb5Acceptor\n"
                 + "            ldap:\n"
                 + "              url: ldap://127.0.0.1\n"
@@ -211,6 +212,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
                 + "          kerberos:\n"
                 + "            realm: HAZELCAST.COM\n"
                 + "            security-realm: krb5Initializer\n"
+                + "            use-canonical-hostname: true\n"
                 + "    client-permission-policy:\n"
                 + "      class-name: MyPermissionPolicy\n"
                 + "      properties:\n"
@@ -270,6 +272,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
         assertNotNull(kerbIdentity);
         assertEquals("HAZELCAST.COM", kerbIdentity.getRealm());
         assertEquals("krb5Initializer", kerbIdentity.getSecurityRealm());
+        assertTrue(kerbIdentity.getUseCanonicalHostname());
 
         KerberosAuthenticationConfig kerbAuthentication = kerberosRealm.getKerberosAuthenticationConfig();
         assertNotNull(kerbAuthentication);
@@ -277,6 +280,7 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
         assertEquals(Boolean.FALSE, kerbAuthentication.getSkipRole());
         assertNull(kerbAuthentication.getSkipIdentity());
         assertEquals("krb5Acceptor", kerbAuthentication.getSecurityRealm());
+        assertTrue(kerbAuthentication.getUseNameWithoutRealm());
 
         LdapAuthenticationConfig kerbLdapAuthentication = kerbAuthentication.getLdapAuthenticationConfig();
         assertNotNull(kerbLdapAuthentication);
@@ -3388,6 +3392,21 @@ public class YamlConfigBuilderTest extends AbstractConfigBuilderTest {
         assertNotNull(lockConfig2);
         assertEquals(1, lockConfig1.getLockAcquireLimit());
         assertEquals(2, lockConfig2.getLockAcquireLimit());
+    }
+
+    @Override
+    public void testSqlConfig() {
+        String yaml = ""
+            + "hazelcast:\n"
+            + "  sql:\n"
+            + "    executor-pool-size: 10\n"
+            + "    operation-pool-size: 20\n"
+            + "    query-timeout-millis: 30\n";
+        Config config = buildConfig(yaml);
+        SqlConfig sqlConfig = config.getSqlConfig();
+        assertEquals(10, sqlConfig.getExecutorPoolSize());
+        assertEquals(20, sqlConfig.getOperationPoolSize());
+        assertEquals(30L, sqlConfig.getQueryTimeoutMillis());
     }
 
     @Override

@@ -103,6 +103,9 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
     /** Recommended outbox batch size in bytes. */
     private final int outboxBatchSize;
 
+    /** Hook to alter produced Exec (for testing purposes). */
+    private final CreateExecPlanNodeVisitorHook hook;
+
     /** Compiled fragment. */
     private final CompiledFragment compiledFragment;
 
@@ -127,6 +130,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         FlowControlFactory flowControlFactory,
         PartitionIdSet localParts,
         int outboxBatchSize,
+        CreateExecPlanNodeVisitorHook hook,
         CompiledFragment compiledFragment
     ) {
         this.operationHandler = operationHandler;
@@ -137,6 +141,7 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
         this.flowControlFactory = flowControlFactory;
         this.localParts = localParts;
         this.outboxBatchSize = outboxBatchSize;
+        this.hook = hook;
         this.compiledFragment = compiledFragment;
     }
 
@@ -569,6 +574,12 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
      * Public for testing purposes only.
      */
     public void push(Exec exec) {
+        CreateExecPlanNodeVisitorHook hook0 = hook;
+
+        if (hook0 != null) {
+            exec = hook0.onExec(exec);
+        }
+
         if (compiledFragment != null) {
             compiledFragment.prepare(exec);
         }
