@@ -54,6 +54,10 @@ public class ComparisonPredicate extends BiExpression<Boolean> implements Identi
         return new ComparisonPredicate(left, right, comparisonMode);
     }
 
+    public ComparisonMode getComparisonMode() {
+        return mode;
+    }
+
     @Override
     public int getFactoryId() {
         return SqlDataSerializerHook.F_ID;

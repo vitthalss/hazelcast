@@ -88,10 +88,10 @@ public final class MapSampleMetadataResolver {
                 } else if (data.isJson()) {
                     return resolveJson(ss.toObject(data), key);
                 } else {
-                    return resolveClass(ss.toObject(data).getClass(), key, binary);
+                    return resolveClass(ss.toObject(data).getClass(), key);
                 }
             } else {
-                return resolveClass(target.getClass(), key, binary);
+                return resolveClass(target.getClass(), key);
             }
         } catch (Exception e) {
             throw QueryException.error("Failed to resolve " + (key ? "key" : "value") + " metadata: " + e.getMessage(), e);
@@ -245,8 +245,7 @@ public final class MapSampleMetadataResolver {
         QueryPath topPath = isKey ? QueryPath.KEY_PATH : QueryPath.VALUE_PATH;
         fields.put(topName, new MapTableField(topName, topType, !fields.isEmpty(), topPath));
 
-        QueryTargetDescriptor descriptor =
-            binary ? new GenericQueryTargetDescriptor() : new JavaClassQueryTargetDescriptor(clazz.getName());
+        QueryTargetDescriptor descriptor = new JavaClassQueryTargetDescriptor(clazz.getName());
 
         return new MapSampleMetadata(descriptor, new LinkedHashMap<>(fields));
     }

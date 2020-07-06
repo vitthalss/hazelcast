@@ -60,7 +60,11 @@ public class MapScanSqlCompilerTest extends SqlTestSupport {
             Arrays.asList(QueryDataType.INT, QueryDataType.INT),
             Arrays.asList(0, 1),
             ComparisonPredicate.create(
-                PlusFunction.create(ColumnExpression.create(0, QueryDataType.INT), ColumnExpression.create(1, QueryDataType.INT)),
+                PlusFunction.create(
+                    ColumnExpression.create(0, QueryDataType.INT),
+                    ColumnExpression.create(1, QueryDataType.INT),
+                    QueryDataType.INT
+                ),
                 ColumnExpression.create(1, QueryDataType.INT),
                 ComparisonMode.EQUALS
             )

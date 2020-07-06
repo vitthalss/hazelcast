@@ -89,7 +89,7 @@ public class PortableQueryTarget implements QueryTarget {
 
     private Object getTarget(QueryDataType type) {
         try {
-            return type.convert(serializationService.toObject(target));
+            return type.normalize(serializationService.toObject(target));
         } catch (QueryException e) {
             throw e;
         } catch (Exception e) {
@@ -99,7 +99,7 @@ public class PortableQueryTarget implements QueryTarget {
 
     private Object getField(String path, QueryDataType type) {
         try {
-            return type.convert(reader.read(path));
+            return type.normalize(reader.read(path));
         } catch (QueryException e) {
             throw e;
         } catch (Exception e) {

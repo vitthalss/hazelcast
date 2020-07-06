@@ -222,6 +222,14 @@ public class DefaultPortableReader implements ValueReader, PortableReader {
         }
     }
 
+    public int getFactoryId() {
+        return cd.getFactoryId();
+    }
+
+    public int getClassId() {
+        return cd.getClassId();
+    }
+
     private byte[] readMultiByteArray(List<PortablePosition> positions) throws IOException {
         byte[] result = new byte[positions.size()];
         for (int i = 0; i < result.length; i++) {
