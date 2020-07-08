@@ -19,6 +19,8 @@ import com.hazelcast.collection.IList;
 import com.hazelcast.collection.IQueue;
 import com.hazelcast.collection.ISet;
 import com.hazelcast.config.AttributeConfig;
+import com.hazelcast.config.CacheConfig;
+import com.hazelcast.config.CacheSimpleConfig;
 import com.hazelcast.config.IndexConfig;
 import com.hazelcast.config.IndexType;
 import com.hazelcast.config.QueryCacheConfig;
@@ -37,12 +39,15 @@ import org.junit.Test;
 import org.junit.experimental.categories.Category;
 import org.junit.runner.RunWith;
 
+import javax.cache.CacheManager;
+import javax.cache.spi.CachingProvider;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.hazelcast.cache.CacheTestSupport.createServerCachingProvider;
 import static com.hazelcast.test.Accessors.getNode;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -334,5 +339,41 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         assertEquals(parameters.get("rbct"), "2");
     }
 
+    @Test
+    public void testCacheCount() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("cact"), "0");
+
+        CachingProvider cachingProvider = createServerCachingProvider(node.hazelcastInstance);
+        CacheManager cacheManager = cachingProvider.getCacheManager();
+        cacheManager.createCache("hazelcast", new CacheConfig<>("hazelcast"));
+
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("cact"), "1");
+
+        cacheManager.createCache("phonehome", new CacheConfig<>("phonehome"));
+
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("cact"), "2");
+    }
+
+    @Test
+    public void testCacheWithWANReplication() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("cawact"), "0");
+
+        CachingProvider cachingProvider = createServerCachingProvider(node.hazelcastInstance);
+        CacheManager cacheManager = cachingProvider.getCacheManager();
+        CacheSimpleConfig cacheSimpleConfig = new CacheSimpleConfig();
+        cacheSimpleConfig.setName("hazelcast");
+        cacheSimpleConfig.setWanReplicationRef(new WanReplicationRef());
+        cacheManager.createCache("hazelcast", new CacheConfig<>("hazelcast"));
+        node.getConfig().addCacheConfig(cacheSimpleConfig);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("cawact"), "1");
+
+    }
 }
 
