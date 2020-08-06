@@ -25,12 +25,14 @@ import com.hazelcast.config.CacheSimpleConfig;
 import com.hazelcast.config.EvictionPolicy;
 import com.hazelcast.config.InMemoryFormat;
 import com.hazelcast.config.IndexConfig;
+import com.hazelcast.config.MapStoreConfig;
 import com.hazelcast.config.QueryCacheConfig;
 import com.hazelcast.config.WanReplicationRef;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.crdt.pncounter.PNCounter;
 import com.hazelcast.flakeidgen.FlakeIdGenerator;
 import com.hazelcast.instance.impl.Node;
+import com.hazelcast.internal.monitor.impl.LocalMapStatsImpl;
 import com.hazelcast.map.IMap;
 import com.hazelcast.multimap.MultiMap;
 import com.hazelcast.replicatedmap.ReplicatedMap;
@@ -69,7 +71,6 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
         HazelcastInstance hz = createHazelcastInstance();
         node = getNode(hz);
         phoneHome = new PhoneHome(node, "http://localhost:8080/ping");
-
     }
 
     @Test()
@@ -77,15 +78,14 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
         IMap<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
         IMap<String, String> map2 = node.hazelcastInstance.getMap("phonehome");
         node.getConfig().getMapConfig("hazelcast").setReadBackupData(true);
-        node.getConfig().getMapConfig("phonehome").getMapStoreConfig().setEnabled(true);
+        node.getConfig().getMapConfig("phonehome").getMapStoreConfig().setClassName(getClass().getName()).setEnabled(true);
         node.getConfig().getMapConfig("hazelcast").addQueryCacheConfig(new QueryCacheConfig("queryconfig"));
         node.getConfig().getMapConfig("hazelcast").getHotRestartConfig().setEnabled(true);
-        node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(new IndexConfig());
-        node.getConfig().getMapConfig("hazelcast").setWanReplicationRef(new WanReplicationRef());
-        node.getConfig().getMapConfig("hazelcast").getAttributeConfigs().add(new AttributeConfig());
+        node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(new IndexConfig().setName("index"));
+        node.getConfig().getMapConfig("hazelcast").setWanReplicationRef(new WanReplicationRef().setName("wan"));
+        node.getConfig().getMapConfig("hazelcast").getAttributeConfigs().add(new AttributeConfig("hz", AttributeExtractor.class.getName()));
         node.getConfig().getMapConfig("hazelcast").getEvictionConfig().setEvictionPolicy(EvictionPolicy.LRU);
         node.getConfig().getMapConfig("hazelcast").setInMemoryFormat(InMemoryFormat.NATIVE);
-
 
         stubFor(get(urlPathEqualTo("/ping"))
                 .willReturn(aResponse()
@@ -104,7 +104,6 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
                 .withQueryParam("mpaocct", equalTo("1"))
                 .withQueryParam("mpevct", equalTo("1"))
                 .withQueryParam("mpnmct", equalTo("1")));
-
     }
 
     @Test
@@ -120,7 +119,6 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
         CardinalityEstimator cardinalityEstimator = node.hazelcastInstance.getCardinalityEstimator("hazelcast");
         PNCounter pnCounter = node.hazelcastInstance.getPNCounter("hazelcast");
         FlakeIdGenerator flakeIdGenerator = node.hazelcastInstance.getFlakeIdGenerator("hazelcast");
-
 
         stubFor(get(urlPathEqualTo("/ping"))
                 .willReturn(aResponse()
@@ -140,7 +138,6 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
                 .withQueryParam("cect", equalTo("1"))
                 .withQueryParam("pncct", equalTo("1"))
                 .withQueryParam("figct", equalTo("1")));
-
     }
 
     @Test
@@ -163,5 +160,56 @@ public class PhoneHomeIntegrationTest extends HazelcastTestSupport {
                 .withQueryParam("cawact", equalTo("1")));
     }
 
+    @Test
+    public void testMapLatenciesWithMapStore() {
+        MapStoreConfig mapStoreConfig = new MapStoreConfig();
+        mapStoreConfig.setEnabled(true);
+        mapStoreConfig.setImplementation(new DelayMapStore());
+        IMap<String, String> iMap = node.hazelcastInstance.getMap("hazelcast");
+        node.getConfig().getMapConfig("hazelcast").setMapStoreConfig(mapStoreConfig);
+        iMap.put("key1", "hazelcast");
+        iMap.put("key2", "phonehome");
+        iMap.get("key3");
+        LocalMapStatsImpl mapStats = (LocalMapStatsImpl) iMap.getLocalMapStats();
+        long totalGetLatency = mapStats.getTotalGetLatency();
+        long totalPutLatency = mapStats.getTotalPutLatency();
+        long totalGetOperationCount = mapStats.getGetOperationCount();
+        long totalPutOperationCount = mapStats.getPutOperationCount();
+
+        stubFor(get(urlPathEqualTo("/ping"))
+                .willReturn(aResponse()
+                        .withStatus(200)));
+
+        phoneHome.phoneHome(false);
+
+        verify(1, getRequestedFor(urlPathEqualTo("/ping"))
+                .withQueryParam("mpptlams", equalTo(String.valueOf(totalPutLatency / totalPutOperationCount)))
+                .withQueryParam("mpgtlams", equalTo(String.valueOf(totalGetLatency / totalGetOperationCount))));
+
+        assertGreaterOrEquals("mpptlams", totalPutLatency / totalPutOperationCount, 200);
+        assertGreaterOrEquals("mpgtlams", totalGetLatency / totalGetOperationCount, 200);
+    }
+
+    @Test
+    public void testMapLatenciesWithoutMapStore() {
+        IMap<Object, Object> iMap1 = node.hazelcastInstance.getMap("hazelcast");
+        LocalMapStatsImpl localMapStats1 = (LocalMapStatsImpl) iMap1.getLocalMapStats();
+        IMap<Object, Object> iMap2 = node.hazelcastInstance.getMap("phonehome");
+        LocalMapStatsImpl localMapStats2 = (LocalMapStatsImpl) iMap2.getLocalMapStats();
+        localMapStats1.incrementPutLatencyNanos(2000000000L);
+        localMapStats1.incrementPutLatencyNanos(1000000000L);
+        localMapStats2.incrementPutLatencyNanos(2000000000L);
+        localMapStats1.incrementGetLatencyNanos(1000000000L);
+        localMapStats2.incrementGetLatencyNanos(1000000000L);
+
+        stubFor(get(urlPathEqualTo("/ping"))
+                .willReturn(aResponse()
+                        .withStatus(200)));
+
+        phoneHome.phoneHome(false);
+        verify(1, getRequestedFor(urlPathEqualTo("/ping"))
+                .withQueryParam("mpptla", equalTo("1666"))
+                .withQueryParam("mpgtla", equalTo("1000")));
+    }
 }
 

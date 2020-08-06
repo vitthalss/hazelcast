@@ -27,6 +27,7 @@ import com.hazelcast.config.EvictionPolicy;
 import com.hazelcast.config.InMemoryFormat;
 import com.hazelcast.config.IndexConfig;
 import com.hazelcast.config.IndexType;
+import com.hazelcast.config.MapStoreConfig;
 import com.hazelcast.config.QueryCacheConfig;
 import com.hazelcast.config.WanReplicationRef;
 import com.hazelcast.core.HazelcastInstance;
@@ -34,6 +35,8 @@ import com.hazelcast.crdt.pncounter.PNCounter;
 import com.hazelcast.flakeidgen.FlakeIdGenerator;
 import com.hazelcast.instance.BuildInfoProvider;
 import com.hazelcast.instance.impl.Node;
+import com.hazelcast.internal.monitor.impl.LocalMapStatsImpl;
+import com.hazelcast.map.IMap;
 import com.hazelcast.multimap.MultiMap;
 import com.hazelcast.replicatedmap.ReplicatedMap;
 import com.hazelcast.ringbuffer.Ringbuffer;
@@ -108,7 +111,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         assertEquals(parameters.get("jvmv"), System.getProperty("java.version"));
     }
 
-
     @Test
     public void testConvertToLetter() {
         assertEquals("A", MetricsCollector.convertToLetter(4));
@@ -127,10 +129,12 @@ public class PhoneHomeTest extends HazelcastTestSupport {
     public void testMapCount() {
         Map<String, String> parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "0");
+
         Map<String, String> map1 = node.hazelcastInstance.getMap("hazelcast");
         Map<String, String> map2 = node.hazelcastInstance.getMap("phonehome");
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "2");
+
         Map<String, String> map3 = node.hazelcastInstance.getMap("maps");
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpct"), "3");
@@ -187,7 +191,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").addQueryCacheConfig(cacheConfig);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpaoqcct"), "1");
-
     }
 
     @Test
@@ -209,7 +212,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").getIndexConfigs().add(config);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpaoict"), "1");
-
     }
 
     @Test
@@ -225,7 +227,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").getHotRestartConfig().setEnabled(true);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mphect"), "1");
-
     }
 
     @Test
@@ -241,7 +242,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").setWanReplicationRef(new WanReplicationRef());
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpwact"), "1");
-
     }
 
     @Test
@@ -261,7 +261,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").getAttributeConfigs().add(new AttributeConfig());
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpaocct"), "1");
-
     }
 
     @Test
@@ -284,7 +283,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").setEvictionConfig(config);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpevct"), "0");
-
     }
 
     @Test
@@ -300,7 +298,6 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         node.getConfig().getMapConfig("hazelcast").setInMemoryFormat(InMemoryFormat.NATIVE);
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("mpnmct"), "1");
-
     }
 
     @Test
@@ -395,12 +392,10 @@ public class PhoneHomeTest extends HazelcastTestSupport {
         CachingProvider cachingProvider = createServerCachingProvider(node.hazelcastInstance);
         CacheManager cacheManager = cachingProvider.getCacheManager();
         cacheManager.createCache("hazelcast", new CacheConfig<>("hazelcast"));
-
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("cact"), "1");
 
         cacheManager.createCache("phonehome", new CacheConfig<>("phonehome"));
-
         parameters = phoneHome.phoneHome(true);
         assertEquals(parameters.get("cact"), "2");
     }
@@ -503,5 +498,87 @@ public class PhoneHomeTest extends HazelcastTestSupport {
 
     }
 
+    @Test
+    public void testMapPutLatencyWithoutMapStore() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpptla"), "-1");
+
+        IMap<Object, Object> iMap = node.hazelcastInstance.getMap("hazelcast");
+        LocalMapStatsImpl localMapStats = (LocalMapStatsImpl) iMap.getLocalMapStats();
+        localMapStats.incrementPutLatencyNanos(2000000000L);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpptla"), String.valueOf(2000));
+
+        localMapStats.incrementPutLatencyNanos(1000000000L);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpptla"), String.valueOf(1500));
+
+        localMapStats.incrementPutLatencyNanos(2000000000L);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpptla"), String.valueOf(1666));
+    }
+
+    @Test
+    public void testMapGetLatencyWithoutMapStore() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpgtla"), "-1");
+
+        IMap<Object, Object> iMap = node.hazelcastInstance.getMap("hazelcast");
+        LocalMapStatsImpl localMapStats = (LocalMapStatsImpl) iMap.getLocalMapStats();
+        localMapStats.incrementGetLatencyNanos(2000000000L);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpgtla"), String.valueOf(2000));
+
+        localMapStats.incrementGetLatencyNanos(2000000000L);
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpgtla"), String.valueOf(2000));
+    }
+
+    private IMap<Object, Object> initialiseForMapStore(String mapName) {
+        IMap<Object, Object> iMap = node.hazelcastInstance.getMap(mapName);
+        MapStoreConfig mapStoreConfig = new MapStoreConfig();
+        mapStoreConfig.setEnabled(true);
+        mapStoreConfig.setImplementation(new DelayMapStore());
+        node.getConfig().getMapConfig(mapName).setMapStoreConfig(mapStoreConfig);
+        return iMap;
+    }
+
+    @Test
+    public void testMapPutLatencyWithMapStore() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpptlams"), "-1");
+
+        IMap<Object, Object> iMap1 = initialiseForMapStore("hazelcast");
+        iMap1.put("key1", "hazelcast");
+        iMap1.put("key2", "phonehome");
+        parameters = phoneHome.phoneHome(true);
+        assertGreaterOrEquals("mpptlams", Long.parseLong(parameters.get("mpptlams")), 200);
+
+        IMap<Object, Object> iMap2 = initialiseForMapStore("phonehome");
+        iMap2.put("key3", "hazelcast");
+        parameters = phoneHome.phoneHome(true);
+        assertGreaterOrEquals("mpptlams", Long.parseLong(parameters.get("mpptlams")), 200);
+    }
+
+    @Test
+    public void testMapGetLatencyWithMapStore() {
+        Map<String, String> parameters;
+        parameters = phoneHome.phoneHome(true);
+        assertEquals(parameters.get("mpgtlams"), "-1");
+
+        IMap<Object, Object> iMap1 = initialiseForMapStore("hazelcast");
+        iMap1.get("key1");
+        iMap1.get("key2");
+        parameters = phoneHome.phoneHome(true);
+        assertGreaterOrEquals("mpgtlams", Long.parseLong(parameters.get("mpgtlams")), 200);
+
+        IMap<Object, Object> iMap2 = initialiseForMapStore("phonehome");
+        iMap2.get("key3");
+        parameters = phoneHome.phoneHome(true);
+        assertGreaterOrEquals("mpgtlams", Long.parseLong(parameters.get("mpgtlams")), 200);
+    }
 }
 
