@@ -64,9 +64,8 @@ public class PhoneHomeParameterCreator {
         return builder.toString();
     }
 
-    public void addMap(Map<String, String> map) {
-        map.forEach(this::addParam);
-
+    public void addMap(Map<PhoneHomeMetrics, String> map) {
+        map.forEach((phoneHomeMetrics, metricValue) -> addParam(phoneHomeMetrics.getRequestParameterName(), metricValue));
     }
 }
 
