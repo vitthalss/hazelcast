@@ -31,22 +31,15 @@ import com.hazelcast.sql.impl.expression.datetime.LocalTimeFunction;
 import com.hazelcast.sql.impl.expression.datetime.LocalTimestampFunction;
 import com.hazelcast.sql.impl.expression.math.AbsFunction;
 import com.hazelcast.sql.impl.expression.math.Atan2Function;
-import com.hazelcast.sql.impl.expression.math.AbsFunction;
 import com.hazelcast.sql.impl.expression.math.DivideFunction;
-import com.hazelcast.sql.impl.expression.math.DoubleFunction;
-import com.hazelcast.sql.impl.expression.math.DoubleFunctionType;
-import com.hazelcast.sql.impl.expression.math.FloorCeilFunction;
 import com.hazelcast.sql.impl.expression.math.DoubleFunction;
 import com.hazelcast.sql.impl.expression.math.FloorCeilFunction;
 import com.hazelcast.sql.impl.expression.math.MinusFunction;
 import com.hazelcast.sql.impl.expression.math.MultiplyFunction;
 import com.hazelcast.sql.impl.expression.math.PlusFunction;
 import com.hazelcast.sql.impl.expression.math.PowerFunction;
-import com.hazelcast.sql.impl.expression.math.RandomFunction;
-import com.hazelcast.sql.impl.expression.math.RemainderFunction;
-import com.hazelcast.sql.impl.expression.math.RoundTruncateFunction;
-import com.hazelcast.sql.impl.expression.math.SignFunction;
 import com.hazelcast.sql.impl.expression.math.RandFunction;
+import com.hazelcast.sql.impl.expression.math.RemainderFunction;
 import com.hazelcast.sql.impl.expression.math.RoundTruncateFunction;
 import com.hazelcast.sql.impl.expression.math.SignFunction;
 import com.hazelcast.sql.impl.expression.math.UnaryMinusFunction;
@@ -281,12 +274,6 @@ public final class RexToExpression {
 
             case CASE:
                 return CaseExpression.create(operands, resultType);
-
-            case FLOOR:
-                return FloorCeilFunction.create(operands[0], false);
-
-            case CEIL:
-                return FloorCeilFunction.create(operands[0], true);
 
             case POSITION:
                 Expression<?> position = operands.length == 2 ? null : operands[2];

@@ -16,6 +16,9 @@
 
 package com.hazelcast.sql.support.expressions;
 
+import java.util.Arrays;
+import java.util.List;
+
 public final class ExpressionTypes {
 
     public static final ExpressionType<?> BOOLEAN = new ExpressionType.BooleanType();
@@ -33,5 +36,22 @@ public final class ExpressionTypes {
 
     private ExpressionTypes() {
         // No-op.
+    }
+
+    public static List<ExpressionType<?>> allTypes() {
+        return Arrays.asList(
+            BOOLEAN,
+            BYTE,
+            SHORT,
+            INTEGER,
+            LONG,
+            BIG_DECIMAL,
+            BIG_INTEGER,
+            FLOAT,
+            DOUBLE,
+            STRING,
+            CHARACTER
+            // TODO: Add OBJECT when its handling is fixed
+        );
     }
 }
