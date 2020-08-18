@@ -16,18 +16,22 @@
 
 package com.hazelcast.sql.impl.expression.math;
 
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import com.hazelcast.sql.impl.type.converter.Converter;
 
-public class SignFunction extends UniExpressionWithType<Number> {
+import java.math.BigDecimal;
 
-    @SuppressWarnings("unused")
+public class SignFunction<T> extends UniExpressionWithType<T> implements IdentifiedDataSerializable {
+
+    private static final BigDecimal DECIMAL_NEGATIVE = BigDecimal.ONE.negate();
+
     public SignFunction() {
         // No-op.
     }
@@ -36,19 +40,20 @@ public class SignFunction extends UniExpressionWithType<Number> {
         super(operand, resultType);
     }
 
-    public static SignFunction create(Expression<?> operand) {
-        return new SignFunction(operand, inferResultType(operand.getType()));
+    public static SignFunction<?> create(Expression<?> operand, QueryDataType returnType) {
+        return new SignFunction<>(operand, returnType);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
-    public Number eval(Row row, ExpressionEvalContext context) {
+    public T eval(Row row, ExpressionEvalContext context) {
         Object operandValue = operand.eval(row, context);
 
         if (operandValue == null) {
             return null;
         }
 
-        return doSign(operandValue, operand.getType(), resultType);
+        return (T) doSign(operandValue, operand.getType(), resultType);
     }
 
     private static Number doSign(Object operandValue, QueryDataType operandType, QueryDataType resultType) {
@@ -56,15 +61,21 @@ public class SignFunction extends UniExpressionWithType<Number> {
 
         switch (resultType.getTypeFamily()) {
             case TINYINT:
+                return (byte) Integer.signum(operandConverter.asInt(operandValue));
+
             case SMALLINT:
+                return (short) Integer.signum(operandConverter.asInt(operandValue));
+
             case INT:
                 return Integer.signum(operandConverter.asInt(operandValue));
 
             case BIGINT:
-                return Long.signum(operandConverter.asBigint(operandValue));
+                return (long) Long.signum(operandConverter.asBigint(operandValue));
 
             case DECIMAL:
-                return operandConverter.asDecimal(operandValue).signum();
+                int res = operandConverter.asDecimal(operandValue).signum();
+
+                return res == 0 ? BigDecimal.ZERO : res == 1 ? BigDecimal.ONE : DECIMAL_NEGATIVE;
 
             case REAL:
                 return Math.signum(operandConverter.asReal(operandValue));
@@ -77,22 +88,13 @@ public class SignFunction extends UniExpressionWithType<Number> {
         }
     }
 
-    /**
-     * Infer result type.
-     *
-     * @param operandType Operand type.
-     * @return Result type.
-     */
-    private static QueryDataType inferResultType(QueryDataType operandType) {
-        if (!ExpressionMath.canConvertToNumber(operandType)) {
-            throw QueryException.error("Operand is not numeric: " + operandType);
-        }
-
-        if (operandType.getTypeFamily() == QueryDataTypeFamily.VARCHAR) {
-            return QueryDataType.DECIMAL;
-        }
-
-        return operandType;
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
     }
 
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_SIGN;
+    }
 }

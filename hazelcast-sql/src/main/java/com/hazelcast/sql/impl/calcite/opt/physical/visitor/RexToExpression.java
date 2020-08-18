@@ -31,9 +31,12 @@ import com.hazelcast.sql.impl.expression.datetime.LocalTimeFunction;
 import com.hazelcast.sql.impl.expression.datetime.LocalTimestampFunction;
 import com.hazelcast.sql.impl.expression.math.AbsFunction;
 import com.hazelcast.sql.impl.expression.math.Atan2Function;
+import com.hazelcast.sql.impl.expression.math.AbsFunction;
 import com.hazelcast.sql.impl.expression.math.DivideFunction;
 import com.hazelcast.sql.impl.expression.math.DoubleFunction;
 import com.hazelcast.sql.impl.expression.math.DoubleFunctionType;
+import com.hazelcast.sql.impl.expression.math.FloorCeilFunction;
+import com.hazelcast.sql.impl.expression.math.DoubleFunction;
 import com.hazelcast.sql.impl.expression.math.FloorCeilFunction;
 import com.hazelcast.sql.impl.expression.math.MinusFunction;
 import com.hazelcast.sql.impl.expression.math.MultiplyFunction;
@@ -41,6 +44,9 @@ import com.hazelcast.sql.impl.expression.math.PlusFunction;
 import com.hazelcast.sql.impl.expression.math.PowerFunction;
 import com.hazelcast.sql.impl.expression.math.RandomFunction;
 import com.hazelcast.sql.impl.expression.math.RemainderFunction;
+import com.hazelcast.sql.impl.expression.math.RoundTruncateFunction;
+import com.hazelcast.sql.impl.expression.math.SignFunction;
+import com.hazelcast.sql.impl.expression.math.RandFunction;
 import com.hazelcast.sql.impl.expression.math.RoundTruncateFunction;
 import com.hazelcast.sql.impl.expression.math.SignFunction;
 import com.hazelcast.sql.impl.expression.math.UnaryMinusFunction;
@@ -170,8 +176,8 @@ public final class RexToExpression {
      * @throws QueryException if the given {@link RexCall} can't be
      *                        converted.
      */
-    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength", "checkstyle:NPathComplexity",
-            "checkstyle:ReturnCount"})
+    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:MethodLength", "checkstyle:ReturnCount",
+        "checkstyle:NPathComplexity"})
     public static Expression<?> convertCall(RexCall call, Expression<?>[] operands) {
         SqlOperator operator = call.getOperator();
         QueryDataType resultType = SqlToQueryType.map(call.getType().getSqlTypeName());
@@ -227,6 +233,12 @@ public final class RexToExpression {
 
             case PLUS_PREFIX:
                 return operands[0];
+
+            case FLOOR:
+                return FloorCeilFunction.create(operands[0], resultType, false);
+
+            case CEIL:
+                return FloorCeilFunction.create(operands[0], resultType, true);
 
             case EQUALS:
                 return ComparisonPredicate.create(operands[0], operands[1], ComparisonMode.EQUALS);
@@ -304,48 +316,58 @@ public final class RexToExpression {
 
                 // Math.
 
-                if (function == SqlStdOperatorTable.COS) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.COS);
-                } else if (function == SqlStdOperatorTable.SIN) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.SIN);
-                } else if (function == SqlStdOperatorTable.TAN) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.TAN);
-                } else if (function == SqlStdOperatorTable.COT) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.COT);
-                } else if (function == SqlStdOperatorTable.ACOS) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.ACOS);
-                } else if (function == SqlStdOperatorTable.ASIN) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.ASIN);
-                } else if (function == SqlStdOperatorTable.ATAN) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.ATAN);
+                if (function == HazelcastSqlOperatorTable.COS) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.COS);
+                } else if (function == HazelcastSqlOperatorTable.SIN) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.SIN);
+                } else if (function == HazelcastSqlOperatorTable.TAN) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.TAN);
+                } else if (function == HazelcastSqlOperatorTable.COT) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.COT);
+                } else if (function == HazelcastSqlOperatorTable.ACOS) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.ACOS);
+                } else if (function == HazelcastSqlOperatorTable.ASIN) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.ASIN);
+                } else if (function == HazelcastSqlOperatorTable.ATAN) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.ATAN);
                 } else if (function == SqlStdOperatorTable.SQRT) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.SQRT);
-                } else if (function == SqlStdOperatorTable.EXP) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.EXP);
-                } else if (function == SqlStdOperatorTable.LN) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.LN);
-                } else if (function == SqlStdOperatorTable.LOG10) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.LOG10);
-                } else if (function == SqlStdOperatorTable.RAND) {
-                    return RandomFunction.create(operands.length == 0 ? null : operands[0]);
-                } else if (function == SqlStdOperatorTable.ABS) {
-                    return AbsFunction.create(operands[0]);
+                    throw new UnsupportedOperationException("SQRT is not supported yet");
+                } else if (function == HazelcastSqlOperatorTable.EXP) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.EXP);
+                } else if (function == HazelcastSqlOperatorTable.LN) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.LN);
+                } else if (function == HazelcastSqlOperatorTable.LOG10) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.LOG10);
+                } else if (function == HazelcastSqlOperatorTable.RAND) {
+                    return RandFunction.create(operands.length == 0 ? null : operands[0]);
+                } else if (function == HazelcastSqlOperatorTable.ABS) {
+                    return AbsFunction.create(operands[0], resultType);
                 } else if (function == SqlStdOperatorTable.PI) {
                     return ConstantExpression.create(Math.PI, resultType);
-                } else if (function == SqlStdOperatorTable.SIGN) {
-                    return SignFunction.create(operands[0]);
+                } else if (function == HazelcastSqlOperatorTable.SIGN) {
+                    return SignFunction.create(operands[0], resultType);
                 } else if (function == SqlStdOperatorTable.ATAN2) {
                     return Atan2Function.create(operands[0], operands[1]);
                 } else if (function == SqlStdOperatorTable.POWER) {
                     return PowerFunction.create(operands[0], operands[1]);
-                } else if (function == SqlStdOperatorTable.DEGREES) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.DEGREES);
-                } else if (function == SqlStdOperatorTable.RADIANS) {
-                    return DoubleFunction.create(operands[0], DoubleFunctionType.RADIANS);
-                } else if (function == SqlStdOperatorTable.ROUND) {
-                    return RoundTruncateFunction.create(operands[0], operands.length == 1 ? null : operands[1], false);
-                } else if (function == SqlStdOperatorTable.TRUNCATE) {
-                    return RoundTruncateFunction.create(operands[0], operands.length == 1 ? null : operands[1], true);
+                } else if (function == HazelcastSqlOperatorTable.DEGREES) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.DEGREES);
+                } else if (function == HazelcastSqlOperatorTable.RADIANS) {
+                    return DoubleFunction.create(operands[0], DoubleFunction.RADIANS);
+                } else if (function == HazelcastSqlOperatorTable.ROUND) {
+                    return RoundTruncateFunction.create(
+                        operands[0],
+                        operands.length == 1 ? null : operands[1],
+                        resultType,
+                        false
+                    );
+                } else if (function == HazelcastSqlOperatorTable.TRUNCATE) {
+                    return RoundTruncateFunction.create(
+                        operands[0],
+                        operands.length == 1 ? null : operands[1],
+                        resultType,
+                        true
+                    );
                 }
 
                 // Strings.

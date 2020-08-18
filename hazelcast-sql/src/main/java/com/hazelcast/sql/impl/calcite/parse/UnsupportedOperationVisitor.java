@@ -60,7 +60,7 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
     /** A set of {@link SqlKind} values that are supported without any additional validation. */
     private static final Set<SqlKind> SUPPORTED_KINDS;
 
-    /** A set of supported operators for functions. */
+    /* A set of supported operators for functions. */
     private static final Set<SqlOperator> SUPPORTED_OPERATORS;
 
     static {
@@ -134,27 +134,27 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CONCAT);
 
         // Math
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.COS);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.SIN);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.TAN);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.COT);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ACOS);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ASIN);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ATAN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.COS);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.SIN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.TAN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.COT);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ACOS);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ASIN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ATAN);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ATAN2);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.SQRT);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.EXP);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.LN);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.LOG10);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.RAND);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ABS);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.EXP);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.LN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.LOG10);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.RAND);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ABS);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.PI);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.SIGN);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.SIGN);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.POWER);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.DEGREES);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.RADIANS);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ROUND);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.TRUNCATE);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.DEGREES);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.RADIANS);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ROUND);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.TRUNCATE);
 
         // Strings
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CHAR_LENGTH);
@@ -342,7 +342,7 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
                 break;
 
             default:
-                throw unsupported(call, call.getKind());
+                throw unsupported(call);
         }
     }
 
@@ -376,8 +376,9 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         throw unsupported(call, operator.getName());
     }
 
-    private CalciteContextException unsupported(SqlNode node, SqlKind kind) {
-        return unsupported(node, kind.sql.replace('_', ' '));
+    private CalciteContextException unsupported(SqlCall call) {
+        String name = call.getOperator().getName();
+        return unsupported(call, name.replace("$", "").replace('_', ' '));
     }
 
     private CalciteContextException unsupported(SqlNode node, String name) {

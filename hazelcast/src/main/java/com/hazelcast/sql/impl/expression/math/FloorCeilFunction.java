@@ -18,7 +18,9 @@ package com.hazelcast.sql.impl.expression.math;
 
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
@@ -33,36 +35,29 @@ import java.math.RoundingMode;
 /**
  * Implementation of FLOOR/CEIL functions.
  */
-public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
+public class FloorCeilFunction<T> extends UniExpressionWithType<T> implements IdentifiedDataSerializable {
 
     private boolean ceil;
 
-    protected FloorCeilFunction() {
+    public FloorCeilFunction() {
         // No-op.
     }
 
-    protected FloorCeilFunction(Expression<?> operand, QueryDataType resultType) {
+    private FloorCeilFunction(Expression<?> operand, QueryDataType resultType, boolean ceil) {
         super(operand, resultType);
+
+        this.ceil = ceil;
     }
 
-    public static Expression<?> create(Expression<?> operand, boolean ceil) {
+    public static Expression<?> create(Expression<?> operand, QueryDataType resultType, boolean ceil) {
         QueryDataType operandType = operand.getType();
 
-        switch (operandType.getTypeFamily()) {
-            case TINYINT:
-            case SMALLINT:
-            case INT:
-            case BIGINT:
-                // Integer types are always unchanged.
-                return operand;
-
-            default:
-                break;
+        // Non-fractional operand will not be changed.
+        if (MathFunctionUtils.notFractional(operandType) && operandType == resultType) {
+            return operand;
         }
 
-        QueryDataType resultType = inferResultType(operandType);
-
-        return ceil ? new CeilFunction<>(operand, resultType) : new FloorFunction<>(operand, resultType);
+        return new FloorCeilFunction<>(operand, resultType, ceil);
     }
 
     @SuppressWarnings("unchecked")
@@ -74,10 +69,8 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
             return null;
         }
 
-        return (T) floorCeil(value, operand.getType(), resultType, isCeil());
+        return (T) floorCeil(value, operand.getType(), resultType, ceil);
     }
-
-    protected abstract boolean isCeil();
 
     @SuppressWarnings("checkstyle:AvoidNestedBlocks")
     private static Object floorCeil(Object operandValue, QueryDataType operandType, QueryDataType resultType, boolean ceil) {
@@ -92,6 +85,12 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
                 return operand0.setScale(0, roundingMode);
             }
 
+            case REAL: {
+                float operand0 = operandConverter.asReal(operandValue);
+
+                return (float) (ceil ? Math.ceil(operand0) : Math.floor(operand0));
+            }
+
             case DOUBLE: {
                 double operand0 = operandConverter.asDouble(operandValue);
 
@@ -101,6 +100,16 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
             default:
                 throw QueryException.error("Unexpected type: " + resultType);
         }
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_FLOOR_CEIL;
     }
 
     @Override
@@ -118,27 +127,35 @@ public abstract class FloorCeilFunction<T> extends UniExpressionWithType<T> {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        if (!super.equals(o)) {
+            return false;
+        }
+
+        FloorCeilFunction<?> that = (FloorCeilFunction<?>) o;
+
+        return ceil == that.ceil;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+
+        result = 31 * result + (ceil ? 1 : 0);
+
+        return result;
+    }
+
+    @Override
     public String toString() {
-        return getClass().getSimpleName() + "{operand=" + operand + ", resultType=" + resultType + '}';
+        return getClass().getSimpleName() + "{operand=" + operand + ", ceil=" + ceil + '}';
     }
-
-    private static QueryDataType inferResultType(QueryDataType operandType) {
-        if (!ExpressionMath.canConvertToNumber(operandType)) {
-            throw QueryException.error("Operand is not numeric: " + operandType);
-        }
-
-        switch (operandType.getTypeFamily()) {
-            case REAL:
-                return QueryDataType.DOUBLE;
-
-            case VARCHAR:
-                return QueryDataType.DECIMAL;
-
-            default:
-                break;
-        }
-
-        return operandType;
-    }
-
 }

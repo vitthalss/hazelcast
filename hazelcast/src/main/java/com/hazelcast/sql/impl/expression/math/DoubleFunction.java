@@ -18,7 +18,9 @@ package com.hazelcast.sql.impl.expression.math;
 
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpression;
@@ -28,30 +30,36 @@ import com.hazelcast.sql.impl.type.QueryDataType;
 import java.io.IOException;
 
 /**
- * Family of functions which accept a single double operand and return double result:
- *     COS, SIN, TAN, COT, ACOS, ASIN, ATAN, SQRT, EXP, LN, LOG10, DEGREES, RADIANS
+ * Family of functions which accept a single double operand and return double result.
  */
-public class DoubleFunction extends UniExpression<Double> {
-    /** Function type. */
-    private DoubleFunctionType type;
+public class DoubleFunction extends UniExpression<Double> implements IdentifiedDataSerializable {
+
+    public static final int COS = 0;
+    public static final int SIN = 1;
+    public static final int TAN = 2;
+    public static final int COT = 3;
+    public static final int ACOS = 4;
+    public static final int ASIN = 5;
+    public static final int ATAN = 6;
+    public static final int EXP = 7;
+    public static final int LN = 8;
+    public static final int LOG10 = 9;
+    public static final int DEGREES = 10;
+    public static final int RADIANS = 11;
+
+    private int type;
 
     public DoubleFunction() {
         // No-op.
     }
 
-    public DoubleFunction(Expression<?> operand, DoubleFunctionType type) {
+    public DoubleFunction(Expression<?> operand, int type) {
         super(operand);
 
         this.type = type;
     }
 
-    public static DoubleFunction create(Expression<?> operand, DoubleFunctionType type) {
-        QueryDataType operandType = operand.getType();
-
-        if (!ExpressionMath.canConvertToNumber(operandType)) {
-            throw QueryException.error("Operand is not numeric: " + operandType);
-        }
-
+    public static DoubleFunction create(Expression<?> operand, int type) {
         return new DoubleFunction(operand, type);
     }
 
@@ -64,7 +72,9 @@ public class DoubleFunction extends UniExpression<Double> {
             return null;
         }
 
-        double valueDouble = operand.getType().getConverter().asDouble(value);
+        assert value instanceof Number;
+
+        double valueDouble = ((Number) value).doubleValue();
 
         switch (type) {
             case COS:
@@ -88,9 +98,6 @@ public class DoubleFunction extends UniExpression<Double> {
             case ATAN:
                 return Math.atan(valueDouble);
 
-            case SQRT:
-                return Math.sqrt(valueDouble);
-
             case EXP:
                 return Math.exp(valueDouble);
 
@@ -107,7 +114,7 @@ public class DoubleFunction extends UniExpression<Double> {
                 return Math.toRadians(valueDouble);
 
             default:
-                throw QueryException.error("Unsupported type: " + type);
+                throw QueryException.error("Unsupported function type: " + type);
         }
     }
 
@@ -117,17 +124,55 @@ public class DoubleFunction extends UniExpression<Double> {
     }
 
     @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_DOUBLE;
+    }
+
+    @Override
     public void writeData(ObjectDataOutput out) throws IOException {
         super.writeData(out);
 
-        out.writeInt(type.getId());
+        out.writeInt(type);
     }
 
     @Override
     public void readData(ObjectDataInput in) throws IOException {
         super.readData(in);
 
-        type = DoubleFunctionType.getById(in.readInt());
+        type = in.readInt();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        if (!super.equals(o)) {
+            return false;
+        }
+
+        DoubleFunction that = (DoubleFunction) o;
+
+        return type == that.type;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = super.hashCode();
+
+        result = 31 * result + type;
+
+        return result;
     }
 
     @Override

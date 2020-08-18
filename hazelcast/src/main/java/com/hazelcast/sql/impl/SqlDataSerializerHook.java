@@ -30,10 +30,16 @@ import com.hazelcast.sql.impl.expression.CastExpression;
 import com.hazelcast.sql.impl.expression.ColumnExpression;
 import com.hazelcast.sql.impl.expression.ConstantExpression;
 import com.hazelcast.sql.impl.expression.ParameterExpression;
+import com.hazelcast.sql.impl.expression.math.AbsFunction;
 import com.hazelcast.sql.impl.expression.math.DivideFunction;
+import com.hazelcast.sql.impl.expression.math.DoubleFunction;
+import com.hazelcast.sql.impl.expression.math.FloorCeilFunction;
 import com.hazelcast.sql.impl.expression.math.MinusFunction;
 import com.hazelcast.sql.impl.expression.math.MultiplyFunction;
 import com.hazelcast.sql.impl.expression.math.PlusFunction;
+import com.hazelcast.sql.impl.expression.math.RandFunction;
+import com.hazelcast.sql.impl.expression.math.RoundTruncateFunction;
+import com.hazelcast.sql.impl.expression.math.SignFunction;
 import com.hazelcast.sql.impl.expression.math.UnaryMinusFunction;
 import com.hazelcast.sql.impl.expression.predicate.AndPredicate;
 import com.hazelcast.sql.impl.expression.predicate.CaseExpression;
@@ -130,14 +136,21 @@ public class SqlDataSerializerHook implements DataSerializerHook {
     public static final int EXPRESSION_IS_NOT_FALSE = 40;
     public static final int EXPRESSION_IS_NOT_NULL = 41;
 
-    public static final int INDEX_FILTER_VALUE = 42;
-    public static final int INDEX_FILTER_EQUALS = 43;
-    public static final int INDEX_FILTER_RANGE = 44;
-    public static final int INDEX_FILTER_IN = 45;
+    public static final int EXPRESSION_ABS = 42;
+    public static final int EXPRESSION_SIGN = 43;
+    public static final int EXPRESSION_RAND = 44;
+    public static final int EXPRESSION_DOUBLE = 45;
+    public static final int EXPRESSION_FLOOR_CEIL = 46;
+    public static final int EXPRESSION_ROUND_TRUNCATE = 47;
 
-    public static final int NODE_EMPTY = 46;
+    public static final int NODE_EMPTY = 48;
 
-    public static final int LEN = NODE_EMPTY + 1;
+    public static final int INDEX_FILTER_VALUE = 49;
+    public static final int INDEX_FILTER_EQUALS = 50;
+    public static final int INDEX_FILTER_RANGE = 51;
+    public static final int INDEX_FILTER_IN = 52;
+
+    public static final int LEN = INDEX_FILTER_IN + 1;
 
     @Override
     public int getFactoryId() {
@@ -200,12 +213,19 @@ public class SqlDataSerializerHook implements DataSerializerHook {
         constructors[EXPRESSION_IS_NOT_FALSE] = arg -> new IsNotFalsePredicate();
         constructors[EXPRESSION_IS_NOT_NULL] = arg -> new IsNotNullPredicate();
 
+        constructors[EXPRESSION_ABS] = arg -> new AbsFunction<>();
+        constructors[EXPRESSION_SIGN] = arg -> new SignFunction<>();
+        constructors[EXPRESSION_RAND] = arg -> new RandFunction();
+        constructors[EXPRESSION_DOUBLE] = arg -> new DoubleFunction();
+        constructors[EXPRESSION_FLOOR_CEIL] = arg -> new FloorCeilFunction<>();
+        constructors[EXPRESSION_ROUND_TRUNCATE] = arg -> new RoundTruncateFunction<>();
+
+        constructors[NODE_EMPTY] = arg -> new EmptyPlanNode();
+
         constructors[INDEX_FILTER_VALUE] = arg -> new IndexFilterValue();
         constructors[INDEX_FILTER_EQUALS] = arg -> new IndexEqualsFilter();
         constructors[INDEX_FILTER_RANGE] = arg -> new IndexRangeFilter();
         constructors[INDEX_FILTER_IN] = arg -> new IndexInFilter();
-
-        constructors[NODE_EMPTY] = arg -> new EmptyPlanNode();
 
         return new ArrayDataSerializableFactory(constructors);
     }

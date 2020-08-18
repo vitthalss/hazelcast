@@ -65,8 +65,17 @@ public abstract class ExpressionBiValue extends ExpressionValue {
         return getField("field2");
     }
 
-    public void field2(Object value) {
+    public ExpressionBiValue field2(Object value) {
         setField("field2", value);
+
+        return this;
+    }
+
+    public ExpressionBiValue fields(Object value1, Object value2) {
+        field1(value1);
+        field2(value2);
+
+        return this;
     }
 
     @Override

@@ -61,8 +61,10 @@ public abstract class ExpressionValue implements Serializable {
         return getField("field1");
     }
 
-    public void field1(Object value) {
+    public ExpressionValue field1(Object value) {
         setField("field1", value);
+
+        return this;
     }
 
     protected Object getField(String name) {

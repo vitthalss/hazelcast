@@ -16,17 +16,20 @@
 
 package com.hazelcast.sql.impl.expression.math;
 
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.SqlErrorCode;
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpressionWithType;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import com.hazelcast.sql.impl.type.converter.Converter;
 
-public class AbsFunction<T> extends UniExpressionWithType<T> {
+import static com.hazelcast.sql.impl.expression.math.ExpressionMath.DECIMAL_MATH_CONTEXT;
 
+public class AbsFunction<T> extends UniExpressionWithType<T> implements IdentifiedDataSerializable {
     @SuppressWarnings("unused")
     public AbsFunction() {
         // No-op.
@@ -36,8 +39,8 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
         super(operand, resultType);
     }
 
-    public static Expression<?> create(Expression<?> operand) {
-        return new AbsFunction<>(operand, inferResultType(operand.getType()));
+    public static AbsFunction<?> create(Expression<?> operand, QueryDataType resultType) {
+        return new AbsFunction<>(operand, resultType);
     }
 
     @SuppressWarnings("unchecked")
@@ -66,10 +69,17 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
                 return Math.abs(operandConverter.asInt(operand));
 
             case BIGINT:
-                return Math.abs(operandConverter.asBigint(operand));
+                long res = Math.abs(operandConverter.asBigint(operand));
+
+                if (res < 0) {
+                    throw QueryException.error(SqlErrorCode.DATA_EXCEPTION,
+                        "BIGINT overflow in ABS function (consider adding an explicit CAST to DECIMAL)");
+                }
+
+                return res;
 
             case DECIMAL:
-                return operandConverter.asDecimal(operand).abs();
+                return operandConverter.asDecimal(operand).abs(DECIMAL_MATH_CONTEXT);
 
             case REAL:
                 return Math.abs(operandConverter.asReal(operand));
@@ -82,22 +92,13 @@ public class AbsFunction<T> extends UniExpressionWithType<T> {
         }
     }
 
-    /**
-     * Infer result type.
-     *
-     * @param operandType Operand type.
-     * @return Result type.
-     */
-    private static QueryDataType inferResultType(QueryDataType operandType) {
-        if (!ExpressionMath.canConvertToNumber(operandType)) {
-            throw QueryException.error("Operand is not numeric: " + operandType);
-        }
-
-        if (operandType.getTypeFamily() == QueryDataTypeFamily.VARCHAR) {
-            return QueryDataType.DECIMAL;
-        }
-
-        return operandType;
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
     }
 
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_ABS;
+    }
 }
