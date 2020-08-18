@@ -17,6 +17,7 @@
 package com.hazelcast.sql.impl.exec.root;
 
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.row.HeapRow;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.worker.QueryFragmentScheduleCallback;
@@ -30,14 +31,18 @@ import org.junit.runner.RunWith;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.DONE;
+import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.RETRY;
+import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.YES;
+import static java.util.Collections.singletonList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -49,9 +54,9 @@ import static org.junit.Assert.assertTrue;
 public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
     @Test
     public void testConsumeAtMostOneBatch() {
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(true);
 
-        List<Row> batch = Collections.singletonList(HeapRow.of(1));
+        List<Row> batch = singletonList(HeapRow.of(1));
 
         assertTrue(consumer.consume(batch, false));
         assertFalse(consumer.consume(batch, false));
@@ -59,12 +64,12 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
 
     @Test
     public void testIterator() {
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(true);
 
         Iterator<Row> iterator = consumer.iterator();
         assertSame(iterator, consumer.iterator());
 
-        consumer.consume(Collections.singletonList(HeapRow.of(1)), true);
+        consumer.consume(singletonList(HeapRow.of(1)), true);
 
         assertTrue(iterator.hasNext());
         assertEquals(1, (int) iterator.next().get(0));
@@ -99,7 +104,7 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
         }
 
         // Prepare consumer
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(true);
         AtomicInteger scheduleInvocationCount = new AtomicInteger();
 
         QueryFragmentScheduleCallback scheduleCallback = (force) -> {
@@ -145,7 +150,7 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
         batch.add(HeapRow.of(1));
 
         // Prepare consumer.
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(true);
         AtomicInteger scheduleInvocationCount = new AtomicInteger();
         QueryException error = QueryException.error("Test");
 
@@ -176,6 +181,35 @@ public class BlockingRootResultConsumerTest extends HazelcastTestSupport {
 
         List<Row> rows = runnable.awaitRows(batch.size());
         assertEquals(batch, rows);
+    }
+
+    @Test
+    public void testHasNextImmediately() {
+        List<Row> batch = singletonList(HeapRow.of(0));
+
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(false);
+        ResultIterator<Row> iterator = consumer.iterator();
+        consumer.setup(() -> { });
+        consumer.consume(batch, false);
+
+        assertEquals(YES, iterator.hasNextImmediately());
+        assertEquals(YES, iterator.hasNextImmediately());
+        assertTrue(iterator.hasNext());
+        assertEquals(batch.get(0), iterator.next());
+        assertEquals(RETRY, iterator.hasNextImmediately());
+        Semaphore semaphore = new Semaphore(0);
+        spawn(() -> {
+            semaphore.acquire();
+            return consumer.consume(batch, true);
+        });
+        assertEquals(RETRY, iterator.hasNextImmediately());
+        semaphore.release();
+        // this call should block until the `consume` on previous line completes
+        assertTrue(iterator.hasNext());
+        assertEquals(YES, iterator.hasNextImmediately());
+        assertEquals(batch.get(0), iterator.next());
+        assertEquals(DONE, iterator.hasNextImmediately());
+        assertFalse(iterator.hasNext());
     }
 
     private static IteratorRunnable startConsuming(BlockingRootResultConsumer consumer) {
