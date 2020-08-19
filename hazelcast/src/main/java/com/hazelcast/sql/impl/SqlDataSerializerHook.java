@@ -129,28 +129,29 @@ public class SqlDataSerializerHook implements DataSerializerHook {
     public static final int EXPRESSION_OR = 33;
     public static final int EXPRESSION_NOT = 34;
     public static final int EXPRESSION_COMPARISON = 35;
-    public static final int EXPRESSION_CASE = 36;
-    public static final int EXPRESSION_IS_TRUE = 37;
-    public static final int EXPRESSION_IS_NOT_TRUE = 38;
-    public static final int EXPRESSION_IS_FALSE = 39;
-    public static final int EXPRESSION_IS_NOT_FALSE = 40;
-    public static final int EXPRESSION_IS_NOT_NULL = 41;
+    public static final int EXPRESSION_IS_TRUE = 36;
+    public static final int EXPRESSION_IS_NOT_TRUE = 37;
+    public static final int EXPRESSION_IS_FALSE = 38;
+    public static final int EXPRESSION_IS_NOT_FALSE = 39;
+    public static final int EXPRESSION_IS_NOT_NULL = 40;
 
-    public static final int EXPRESSION_ABS = 42;
-    public static final int EXPRESSION_SIGN = 43;
-    public static final int EXPRESSION_RAND = 44;
-    public static final int EXPRESSION_DOUBLE = 45;
-    public static final int EXPRESSION_FLOOR_CEIL = 46;
-    public static final int EXPRESSION_ROUND_TRUNCATE = 47;
+    public static final int EXPRESSION_ABS = 41;
+    public static final int EXPRESSION_SIGN = 42;
+    public static final int EXPRESSION_RAND = 43;
+    public static final int EXPRESSION_DOUBLE = 44;
+    public static final int EXPRESSION_FLOOR_CEIL = 45;
+    public static final int EXPRESSION_ROUND_TRUNCATE = 46;
 
-    public static final int NODE_EMPTY = 48;
+    public static final int NODE_EMPTY = 47;
 
-    public static final int INDEX_FILTER_VALUE = 49;
-    public static final int INDEX_FILTER_EQUALS = 50;
-    public static final int INDEX_FILTER_RANGE = 51;
-    public static final int INDEX_FILTER_IN = 52;
+    public static final int INDEX_FILTER_VALUE = 48;
+    public static final int INDEX_FILTER_EQUALS = 49;
+    public static final int INDEX_FILTER_RANGE = 50;
+    public static final int INDEX_FILTER_IN = 51;
 
-    public static final int LEN = INDEX_FILTER_IN + 1;
+    public static final int EXPRESSION_CASE = 52;
+
+    public static final int LEN = EXPRESSION_CASE + 1;
 
     @Override
     public int getFactoryId() {
@@ -206,7 +207,6 @@ public class SqlDataSerializerHook implements DataSerializerHook {
         constructors[EXPRESSION_OR] = arg -> new OrPredicate();
         constructors[EXPRESSION_NOT] = arg -> new NotPredicate();
         constructors[EXPRESSION_COMPARISON] = arg -> new ComparisonPredicate();
-        constructors[EXPRESSION_CASE] = arg -> new CaseExpression<>();
         constructors[EXPRESSION_IS_TRUE] = arg -> new IsTruePredicate();
         constructors[EXPRESSION_IS_NOT_TRUE] = arg -> new IsNotTruePredicate();
         constructors[EXPRESSION_IS_FALSE] = arg -> new IsFalsePredicate();
@@ -226,6 +226,8 @@ public class SqlDataSerializerHook implements DataSerializerHook {
         constructors[INDEX_FILTER_EQUALS] = arg -> new IndexEqualsFilter();
         constructors[INDEX_FILTER_RANGE] = arg -> new IndexRangeFilter();
         constructors[INDEX_FILTER_IN] = arg -> new IndexInFilter();
+
+        constructors[EXPRESSION_CASE] = arg -> new CaseExpression<>();
 
         return new ArrayDataSerializableFactory(constructors);
     }

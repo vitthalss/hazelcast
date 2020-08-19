@@ -40,7 +40,7 @@ public class DistributionTraitDef extends RelTraitDef<DistributionTrait> {
     /** Partitioned trait with unknown partitioning columns. */
     private final DistributionTrait traitPartitionedUnknown;
 
-    /** Data is distributed in replicated map. */
+    /** Every node has the same data set locally. */
     private final DistributionTrait traitReplicated;
 
     /** Consume the whole stream on a single node. */
@@ -228,7 +228,7 @@ public class DistributionTraitDef extends RelTraitDef<DistributionTrait> {
      * @return Converted node.
      */
     private RelNode convertToRoot(RelOptPlanner planner, RelNode rel, DistributionTrait currentTrait) {
-        // ANY already handler before, ROOT and REPLICATED do not require further conversions.
+        // ANY already handled before, ROOT and REPLICATED do not require further conversions.
         assert currentTrait.getType() == PARTITIONED;
 
         RelTraitSet traitSet = OptUtils.traitPlus(planner.emptyTraitSet(), getTraitRoot());

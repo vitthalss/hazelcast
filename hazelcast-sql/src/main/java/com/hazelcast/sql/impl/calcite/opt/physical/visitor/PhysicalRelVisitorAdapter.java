@@ -106,6 +106,11 @@ public abstract class PhysicalRelVisitorAdapter implements PhysicalRelVisitor {
     }
 
     @Override
+    public void onValues(ValuesPhysicalRel rel) {
+        onNode(rel);
+    }
+
+    @Override
     public void onAggregate(AggregatePhysicalRel rel) {
         onNode(rel);
     }

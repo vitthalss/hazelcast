@@ -69,4 +69,24 @@ public class EmptyPlanNode extends AbstractPlanNode implements IdentifiedDataSer
     public void visit(PlanNodeVisitor visitor) {
         visitor.onEmptyNode(this);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        EmptyPlanNode planNode = (EmptyPlanNode) o;
+
+        return id == planNode.id && fieldTypes.equals(planNode.fieldTypes);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * id + fieldTypes.hashCode();
+    }
 }

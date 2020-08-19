@@ -143,7 +143,7 @@ public abstract class Converter implements Serializable {
 
     @NotConvertible
     public int asInt(Object val) {
-        throw cannotConvert(QueryDataTypeFamily.INT, val);
+        throw cannotConvert(QueryDataTypeFamily.INTEGER, val);
     }
 
     @NotConvertible
@@ -263,7 +263,7 @@ public abstract class Converter implements Serializable {
             case SMALLINT:
                 return canConvertToSmallint();
 
-            case INT:
+            case INTEGER:
                 return canConvertToInt();
 
             case BIGINT:

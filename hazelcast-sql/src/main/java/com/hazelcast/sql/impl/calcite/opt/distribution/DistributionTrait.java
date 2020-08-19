@@ -114,10 +114,14 @@ public class DistributionTrait implements RelTrait {
         }
 
         DistributionTrait targetTrait0 = (DistributionTrait) targetTrait;
-        DistributionType targetType = ((DistributionTrait) targetTrait).getType();
 
         // Any type satisfies ANY.
-        if (targetType == ANY) {
+        if (targetTrait0.getType() == ANY) {
+            return true;
+        }
+
+        // Converting from REPLICATED to ROOT is always OK.
+        if (type == REPLICATED && targetTrait0.getType() == ROOT) {
             return true;
         }
 
