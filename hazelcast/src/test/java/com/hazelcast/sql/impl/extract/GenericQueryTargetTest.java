@@ -104,7 +104,7 @@ public class GenericQueryTargetTest extends SqlTestSupport {
         error = assertThrows(QueryException.class, badFieldInconvertibleTypeExtractor::get);
         assertEquals(SqlErrorCode.DATA_EXCEPTION, error.getCode());
         assertTrue(error.getMessage().startsWith("Failed to extract map entry " + (target.isKey() ? "key" : "value")
-                + " field \"field2\": Cannot convert INT to DATE"));
+                + " field \"field2\": Cannot convert INTEGER to DATE"));
     }
 
     private static Data toData(TestObject object) {

@@ -104,6 +104,10 @@ public final class QueryDataTypeUtils {
     public static final int PRECEDENCE_TIMESTAMP_WITH_TIME_ZONE = 1300;
     public static final int PRECEDENCE_OBJECT = 1400;
 
+    // TODO: Proper precedence for intervals. Now it is arbitrary and is not used anywhere
+    public static final int PRECEDENCE_INTERVAL_YEAR_MONTH = 4000;
+    public static final int PRECEDENCE_INTERVAL_DAY_SECOND = 5000;
+
     private QueryDataTypeUtils() {
         // No-op.
     }
@@ -262,7 +266,7 @@ public final class QueryDataTypeUtils {
         switch (typeFamily) {
             case TINYINT:
             case SMALLINT:
-            case INT:
+            case INTEGER:
             case BIGINT:
             case DECIMAL:
             case REAL:

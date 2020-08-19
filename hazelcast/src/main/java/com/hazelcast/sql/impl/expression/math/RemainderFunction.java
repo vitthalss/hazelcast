@@ -84,7 +84,7 @@ public class RemainderFunction<T> extends BiExpressionWithType<T> {
                 case SMALLINT:
                     return (short) (operand1Converter.asSmallint(operand1) % operand2Converter.asSmallint(operand2));
 
-                case INT:
+                case INTEGER:
                     return operand1Converter.asInt(operand1) % operand2Converter.asInt(operand2);
 
                 case BIGINT:

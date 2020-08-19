@@ -24,11 +24,9 @@ import com.hazelcast.map.IMap;
 import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlResult;
 import com.hazelcast.sql.SqlRow;
-import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
 import com.hazelcast.sql.support.expressions.ExpressionBiValue;
 import com.hazelcast.sql.support.expressions.ExpressionType;
-import com.hazelcast.sql.support.expressions.ExpressionTypes;
 import com.hazelcast.sql.support.expressions.ExpressionValue;
 import com.hazelcast.test.TestHazelcastInstanceFactory;
 import org.junit.After;
@@ -40,7 +38,6 @@ import org.junit.runners.Parameterized;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,11 +49,21 @@ import java.util.function.Predicate;
 
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.and;
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.eq;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.eq_2;
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.gt;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.gt_2;
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.gte;
-import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lt;
-import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lte;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.gte_2;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.isNotNull;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.isNotNull_2;
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.isNull;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.isNull_2;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lt;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lt_2;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lte;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.lte_2;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.neq;
+import static com.hazelcast.sql.support.expressions.ExpressionPredicates.neq_2;
 import static com.hazelcast.sql.support.expressions.ExpressionPredicates.or;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -64,7 +71,7 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 @SuppressWarnings({"unchecked", "rawtypes", "unused"})
-public abstract class SqlIndexAbstractTest extends SqlTestSupport {
+public abstract class SqlIndexAbstractTest extends SqlIndexTestSupport {
 
     private static final AtomicInteger MAP_NAME_GEN = new AtomicInteger();
     private static final String INDEX_NAME = "index";
@@ -88,6 +95,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
     protected final String mapName = "map" + MAP_NAME_GEN.incrementAndGet();
 
     private IMap<Integer, ExpressionBiValue> map;
+    private Map<Integer, ExpressionBiValue> localMap;
     private Class<? extends ExpressionBiValue> valueClass;
     private int runIdGen;
 
@@ -97,8 +105,8 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
 
         for (IndexType indexType : Arrays.asList(IndexType.SORTED, IndexType.HASH)) {
             for (boolean composite : Arrays.asList(true, false)) {
-                for (ExpressionType<?> firstType : ExpressionTypes.allTypes()) {
-                    for (ExpressionType<?> secondType : ExpressionTypes.allTypes()) {
+                for (ExpressionType<?> firstType : allTypes()) {
+                    for (ExpressionType<?> secondType : allTypes()) {
                         res.add(new Object[] { indexType, composite, firstType, secondType });
                     }
                 }
@@ -135,7 +143,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
 
         map = member.getMap(mapName);
 
-        fill(map);
+        fill();
     }
 
     @After
@@ -151,7 +159,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         FACTORY.shutdownAll();
     }
 
-    private void fill(IMap map) {
+    private void fill() {
         // Create an object with non-null fields to initialize converters
         for (HazelcastInstance member : members) {
             int key = getLocalKey(member, value -> value);
@@ -164,7 +172,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         // Fill with values
         int keyCounter = 0;
 
-        Map localMap = new HashMap();
+        localMap = new HashMap();
 
         for (Object firstField : f1.values()) {
             for (Object secondField : f2.values()) {
@@ -200,157 +208,238 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
     }
 
     private void checkFirstColumn() {
-        // WHERE f1=literal
-        check0(
-            query("field1=" + f1.toLiteral(f1.valueFrom())),
-            c_sortedOrHashNotComposite(),
-            eq(f1.valueFrom())
-        );
+        // WHERE f1 IS NULL
+        check(query("field1 IS NULL"), c_notHashComposite(), isNull());
 
-        check0(
-            query(f1.toLiteral(f1.valueFrom()) + "=field1"),
-            c_sortedOrHashNotComposite(),
-            eq(f1.valueFrom())
-        );
+        // WHERE f1 IS NOT NULL
+        check(query("field1 IS NOT NULL"), false, isNotNull());
+
+        // WHERE f1=literal
+        check(query("field1=" + toLiteral(f1, f1.valueFrom())), c_notHashComposite(), eq(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + "=field1"), c_notHashComposite(), eq(f1.valueFrom()));
 
         // WHERE f1=?
-        check0(
-            query("field1=?", p_1(f1.valueFrom())),
-            c_sortedOrHashNotComposite(),
-            eq(f1.valueFrom())
-        );
+        check(query("field1=?", f1.valueFrom()), c_notHashComposite(), eq(f1.valueFrom()));
+        check(query("?=field1", f1.valueFrom()), c_notHashComposite(), eq(f1.valueFrom()));
 
-        check0(
-            query("?=field1", p_1(f1.valueFrom())),
-            c_sortedOrHashNotComposite(),
-            eq(f1.valueFrom())
-        );
+        // WHERE f1!=literal
+        check(query("field1!=" + toLiteral(f1, f1.valueFrom())), c_booleanComponent() && c_notHashComposite(), neq(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + "!=field1"), c_booleanComponent() && c_notHashComposite(), neq(f1.valueFrom()));
 
-        // WHERE f1 IS NULL
-        check0(
-            query("field1 IS NULL"),
-            c_sortedOrHashNotComposite(),
-            isNull()
-        );
+        // WHERE f1!=?
+        check(query("field1!=?", f1.valueFrom()), false, neq(f1.valueFrom()));
+        check(query("?!=field1", f1.valueFrom()), false, neq(f1.valueFrom()));
 
         // WHERE f1>literal
-        check0(
-            query("field1>" + f1.toLiteral(f1.valueFrom())),
-            c_sortedOrHashNotCompositeAndBooleanComponent(),
-            gt(f1.valueFrom())
-        );
+        check(query("field1>" + toLiteral(f1, f1.valueFrom())), c_sorted() || c_booleanComponent() && c_notHashComposite(), gt(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + "<field1"), c_sorted() || c_booleanComponent() && c_notHashComposite(), gt(f1.valueFrom()));
 
-        check0(
-            query(f1.toLiteral(f1.valueFrom()) + "<field1"),
-            c_sortedOrHashNotCompositeAndBooleanComponent(),
-            gt(f1.valueFrom())
-        );
+        // WHERE f1>?
+        check(query("field1>?", f1.valueFrom()), c_sorted(), gt(f1.valueFrom()));
+        check(query("?<field1", f1.valueFrom()), c_sorted(), gt(f1.valueFrom()));
 
         // WHERE f1>=literal
-        check0(
-            query("field1>=" + f1.toLiteral(f1.valueFrom())),
-            c_sorted(),
-            gte(f1.valueFrom())
-        );
+        check(query("field1>=" + toLiteral(f1, f1.valueFrom())), c_sorted(), gte(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + "<=field1"), c_sorted(), gte(f1.valueFrom()));
 
-        check0(
-            query(f1.toLiteral(f1.valueFrom()) + "<=field1"),
-            c_sorted(),
-            gte(f1.valueFrom())
-        );
+        // WHERE f1>=?
+        check(query("field1>=?", f1.valueFrom()), c_sorted(), gte(f1.valueFrom()));
+        check(query("?<=field1", f1.valueFrom()), c_sorted(), gte(f1.valueFrom()));
 
         // WHERE f1<literal
-        check0(
-            query("field1<" + f1.toLiteral(f1.valueFrom())),
-            c_sorted(),
-            lt(f1.valueFrom())
-        );
+        check(query("field1<" + toLiteral(f1, f1.valueFrom())), c_sorted(), lt(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + ">field1"), c_sorted(), lt(f1.valueFrom()));
 
-        check0(
-            query(f1.toLiteral(f1.valueFrom()) + ">field1"),
-            c_sorted(),
-            lt(f1.valueFrom())
-        );
+        // WHERE f1<?
+        check(query("field1<?", f1.valueFrom()), c_sorted(), lt(f1.valueFrom()));
+        check(query("?>field1", f1.valueFrom()), c_sorted(), lt(f1.valueFrom()));
 
         // WHERE f1<=literal
-        check0(
-            query("field1<=" + f1.toLiteral(f1.valueFrom())),
-            c_sortedOrHashNotCompositeAndBooleanComponent(),
-            lte(f1.valueFrom())
+        check(query("field1<=" + toLiteral(f1, f1.valueFrom())), c_sorted() || c_booleanComponent() && c_notHashComposite(), lte(f1.valueFrom()));
+        check(query(toLiteral(f1, f1.valueFrom()) + ">=field1"), c_sorted() || c_booleanComponent() && c_notHashComposite(), lte(f1.valueFrom()));
+
+        // WHERE f1<=?
+        check(query("field1<=?", f1.valueFrom()), c_sorted(), lte(f1.valueFrom()));
+        check(query("?>=field1", f1.valueFrom()), c_sorted(), lte(f1.valueFrom()));
+
+        // WHERE f1>(=)? AND f1<(=)?
+        // Do not use literals here, because this is already tested with simple conditions
+        // Do not exchange operand positions, because this is already tested with simple conditions
+        check(
+            query("field1>? AND field1<?", f1.valueFrom(), f1.valueTo()),
+            c_sorted(),
+            and(gt(f1.valueFrom()), lt(f1.valueTo()))
         );
 
-        check0(
-            query(f1.toLiteral(f1.valueFrom()) + ">=field1"),
-            c_sortedOrHashNotCompositeAndBooleanComponent(),
-            lte(f1.valueFrom())
+        check(
+            query("field1>? AND field1<=?", f1.valueFrom(), f1.valueTo()),
+            c_sorted(),
+            and(gt(f1.valueFrom()), lte(f1.valueTo()))
         );
 
-        // TODO: Range open, param
-        // TODO: Range both, literal/literal
-        // TODO: Range both, param/param
+        check(
+            query("field1>=? AND field1<?", f1.valueFrom(), f1.valueTo()),
+            c_sorted(),
+            and(gte(f1.valueFrom()), lt(f1.valueTo()))
+        );
 
-        // TODO: IN (simple, composite)
+        check(
+            query("field1>=? AND field1<=?", f1.valueFrom(), f1.valueTo()),
+            c_sorted(),
+            and(gte(f1.valueFrom()), lte(f1.valueTo()))
+        );
+
+        // IN
+        check(
+            query("field1=? OR field1=?", f1.valueFrom(), f1.valueTo()),
+            c_notHashComposite(),
+            or(eq(f1.valueFrom()), eq(f1.valueTo()))
+        );
 
         // Special cases for boolean field
         if (f1 instanceof ExpressionType.BooleanType) {
             // WHERE f1
-            check0(
-                query("field1"),
-                c_sortedOrHashNotComposite(),
-                eq(true)
-            );
+            check(query("field1"), c_notHashComposite(), eq(true));
 
             // WHERE f1 IS TRUE
-            check0(
-                query("field1 IS TRUE"),
-                c_sortedOrHashNotComposite(),
-                eq(true)
-            );
+            check(query("field1 IS TRUE"), c_notHashComposite(), eq(true));
 
             // WHERE f1 IS FALSE
-            check0(
-                query("field1 IS FALSE"),
-                c_sortedOrHashNotComposite(),
-                eq(false)
-            );
+            check(query("field1 IS FALSE"), c_notHashComposite(), eq(false));
 
             // WHERE f1 IS NOT TRUE
-            check0(
-                query("field1 IS NOT TRUE"),
-                c_sortedOrHashNotComposite(),
-                or(eq(false), isNull())
-            );
+            check(query("field1 IS NOT TRUE"), c_notHashComposite(), or(eq(false), isNull()));
 
             // WHERE f1 IS NOT FALSE
-            check0(
-                query("field1 IS NOT FALSE"),
-                c_sortedOrHashNotComposite(),
-                or(eq(true), isNull())
-            );
+            check(query("field1 IS NOT FALSE"), c_notHashComposite(), or(eq(true), isNull()));
         }
     }
 
     private void checkSecondColumn() {
-        // TODO
+        // WHERE f1 IS (NOT) NULL
+        check(query("field2 IS NULL"), false, isNull_2());
+        check(query("field2 IS NOT NULL"), false, isNotNull_2());
+
+        // WHERE f1<cmp>?
+        check(query("field2=?", f2.valueFrom()), false, eq_2(f2.valueFrom()));
+        check(query("field2!=?", f2.valueFrom()), false, neq_2(f2.valueFrom()));
+        check(query("field2>?", f2.valueFrom()), false, gt_2(f2.valueFrom()));
+        check(query("field2>=?", f2.valueFrom()), false, gte_2(f2.valueFrom()));
+        check(query("field2<?", f2.valueFrom()), false, lt_2(f2.valueFrom()));
+        check(query("field2<=?", f2.valueFrom()), false, lte_2(f2.valueFrom()));
+
+        // WHERE f2>(=)? AND f2<(=)?
+        check(query("field2>? AND field2<?", f2.valueFrom(), f2.valueTo()), false, and(gt_2(f2.valueFrom()), lt_2(f2.valueTo())));
+        check(query("field2>? AND field2<=?", f2.valueFrom(), f2.valueTo()), false, and(gt_2(f2.valueFrom()), lte_2(f2.valueTo())));
+        check(query("field2>=? AND field2<?", f2.valueFrom(), f2.valueTo()), false, and(gte_2(f2.valueFrom()), lt_2(f2.valueTo())));
+        check(query("field2>=? AND field2<=?", f2.valueFrom(), f2.valueTo()), false, and(gte_2(f2.valueFrom()), lte_2(f2.valueTo())));
+
+        // Special cases for boolean field
+        if (f2 instanceof ExpressionType.BooleanType) {
+            check(query("field2"), false, eq_2(true));
+            check(query("field2 IS TRUE"), false, eq_2(true));
+            check(query("field2 IS FALSE"), false, eq_2(false));
+            check(query("field2 IS NOT TRUE"), false, or(eq_2(false), isNull_2()));
+            check(query("field2 IS NOT FALSE"), false, or(eq_2(true), isNull_2()));
+        }
     }
 
     private void checkBothColumns() {
-        // TODO
+        // EQ + EQ
+        check(
+            query("field1=? AND field2=?", f1.valueFrom(), f2.valueFrom()),
+            c_always(),
+            and(eq(f1.valueFrom()), eq_2(f2.valueFrom()))
+        );
+
+        // EQ + IN
+        check(
+            query("field1=? AND (field2=? OR field2=?)", f1.valueFrom(), f2.valueFrom(), f2.valueTo()),
+            c_always(),
+            and(eq(f1.valueFrom()), or(eq_2(f2.valueFrom()), eq_2(f2.valueTo())))
+        );
+
+        // EQ + RANGE
+        check(
+            query("field1=? AND field2>? AND field2<?", f1.valueFrom(), f2.valueFrom(), f2.valueTo()),
+            c_sorted() || c_notComposite(),
+            and(eq(f1.valueFrom()), and(gt_2(f2.valueFrom()), lt_2(f2.valueTo())))
+        );
+
+        // IN + EQ
+        check(
+            query("(field1=? OR field1=?) AND field2=?", f1.valueFrom(), f1.valueTo(), f2.valueFrom()),
+            c_sorted() || c_notComposite(),
+            and(or(eq(f1.valueFrom()), eq(f1.valueTo())), eq_2(f2.valueFrom()))
+        );
+
+        // IN + IN
+        check(
+            query("(field1=? OR field1=?) AND (field2=? OR field2=?)", f1.valueFrom(), f1.valueTo(), f2.valueFrom(), f2.valueTo()),
+            c_sorted() || c_notComposite(),
+            and(or(eq(f1.valueFrom()), eq(f1.valueTo())), or(eq_2(f2.valueFrom()), eq_2(f2.valueTo())))
+        );
+
+        // IN + RANGE
+        check(
+            query("(field1=? OR field1=?) AND (field2>? AND field2<?)", f1.valueFrom(), f1.valueTo(), f2.valueFrom(), f2.valueTo()),
+            c_sorted() || c_notComposite(),
+            and(or(eq(f1.valueFrom()), eq(f1.valueTo())), and(gt_2(f2.valueFrom()), lt_2(f2.valueTo())))
+        );
+
+        // RANGE + EQ
+        check(
+            query("(field1>? AND field1<?) AND field2=?", f1.valueFrom(), f1.valueTo(), f2.valueFrom()),
+            c_sorted(),
+            and(and(gt(f1.valueFrom()), lt(f1.valueTo())), eq_2(f2.valueFrom()))
+        );
+
+        // RANGE + IN
+        check(
+            query("(field1>? AND field1<?) AND (field2=? AND field2=?)", f1.valueFrom(), f1.valueTo(), f2.valueFrom(), f2.valueTo()),
+            c_sorted(),
+            and(and(gt(f1.valueFrom()), lt(f1.valueTo())), and(eq_2(f2.valueFrom()), eq_2(f2.valueTo())))
+        );
+
+        // RANGE + RANGE
+        check(
+            query("(field1>? AND field1<?) AND (field2>? AND field2<?)", f1.valueFrom(), f1.valueTo(), f2.valueFrom(), f2.valueTo()),
+            c_sorted(),
+            and(and(gt(f1.valueFrom()), lt(f1.valueTo())), and(gt_2(f2.valueFrom()), lt_2(f2.valueTo())))
+        );
+    }
+
+    private boolean c_always() {
+        return true;
+    }
+
+    private boolean c_never() {
+        return false;
     }
 
     private boolean c_sorted() {
         return indexType == IndexType.SORTED;
     }
 
-    private boolean c_sortedOrHashNotComposite() {
-        return c_sorted() || !composite;
+    private boolean c_notComposite() {
+        return !composite;
     }
 
-    private boolean c_sortedOrHashNotCompositeAndBooleanComponent() {
-        return c_sorted() || (!composite && f1 instanceof ExpressionType.BooleanType);
+    /**
+     * Only sorted index or HASH non-composite index should be used. Used for equality conditions.
+     */
+    private boolean c_notHashComposite() {
+        return c_sorted() || c_notComposite();
     }
 
-    // TODO: check0 is mistakenly used here!
+    private boolean c_booleanComponent() {
+        return f1 instanceof ExpressionType.BooleanType;
+    }
+
+    private boolean c_booleanComponentAndNotHashComposite() {
+        return c_booleanComponent() && c_notHashComposite();
+    }
+
     private void check(Query query, boolean expectedUseIndex, Predicate<ExpressionValue> expectedKeysPredicate) {
         // Prepare two additional queries with an additional AND/OR predicate
         String condition = "key / 2 = 0";
@@ -372,9 +461,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
     }
 
     private void check0(Query query, boolean expectedUseIndex, Predicate<ExpressionValue> expectedKeysPredicate) {
-        for (List<Object> params0 : generateParameters(query.parameters)) {
-            check0(query.sql, params0, expectedUseIndex, expectedKeysPredicate);
-        }
+        check0(query.sql, query.parameters, expectedUseIndex, expectedKeysPredicate);
     }
 
     private void check0(
@@ -386,21 +473,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         int runId = runIdGen++;
 
         Set<Integer> sqlKeys = sqlKeys(expectedUseIndex, sql, params);
-        Set<Integer> expectedSqlKeys = expectedSqlKeys(expectedKeysPredicate);
         Set<Integer> expectedMapKeys = expectedMapKeys(expectedKeysPredicate);
-
-        if (!expectedSqlKeys.equals(expectedMapKeys)) {
-            failOnDifference(
-                runId,
-                sql,
-                params,
-                expectedSqlKeys,
-                expectedMapKeys,
-                "expected SQL keys differ from expected map keys",
-                "expected SQl keys",
-                "expected map keys"
-            );
-        }
 
         if (!sqlKeys.equals(expectedMapKeys)) {
             failOnDifference(
@@ -427,12 +500,6 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         String firstCaption,
         String secondCaption
     ) {
-        List<ParameterToString> params0 = new ArrayList<>(params.size());
-
-        for (Object param : params) {
-            params0.add(new ParameterToString(param));
-        }
-
         Set<Integer> firstOnly = new TreeSet<>(first);
         Set<Integer> secondOnly = new TreeSet<>(second);
 
@@ -445,7 +512,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
 
         message.append("\nRun " + runId + " failed: " + mainMessage + "\n\n");
         message.append("SQL: " + sql + "\n");
-        message.append("Parameters: " + params0 + "\n\n");
+        message.append("Parameters: " + params + "\n\n");
 
         if (!firstOnly.isEmpty()) {
             message.append("\t" + firstCaption + ":\n");
@@ -470,6 +537,10 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         String sql = query.sql;
 
         if (sql.contains("WHERE")) {
+            int openPosition = sql.indexOf("WHERE") + 6;
+
+            sql = sql.substring(0, openPosition) + "(" + sql.substring(openPosition) + ")";
+
             sql = sql + " " + (conjunction ? "AND" : "OR") + " " + condition;
         } else {
             sql = sql + " WHERE " + condition;
@@ -495,7 +566,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
             MapIndexScanPlanNode indexNode = findFirstIndexNode(result);
 
             if (withIndex) {
-                assertNotNull(indexNode);
+                assertNotNull("Index is not used!", indexNode);
             } else {
                 if (isHd()) {
                     assertNotNull(indexNode);
@@ -516,7 +587,7 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
     private Set<Integer> expectedMapKeys(Predicate<ExpressionValue> predicate) {
         Set<Integer> keys = new HashSet<>();
 
-        for (Map.Entry<Integer, ExpressionBiValue> entry : map.entrySet()) {
+        for (Map.Entry<Integer, ExpressionBiValue> entry : localMap.entrySet()) {
             Integer key = entry.getKey();
             ExpressionBiValue value = entry.getValue();
 
@@ -528,75 +599,12 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
         return keys;
     }
 
-    private Set<Integer> expectedSqlKeys(Predicate<ExpressionValue> predicate) {
-        String sql = "SELECT __key, this FROM " + mapName;
-
-        SqlQuery query = new SqlQuery(sql);
-
-        Set<Integer> keys = new HashSet<>();
-
-        try (SqlResult result = member.getSql().query(query)) {
-            for (SqlRow row : result) {
-                Integer key = row.getObject(0);
-                ExpressionBiValue value = row.getObject(1);
-
-                if (predicate.test(value)) {
-                    keys.add(key);
-                }
-            }
-        }
-
-        return keys;
-    }
-
     protected abstract int getMemberCount();
 
     protected abstract boolean isHd();
 
-    private Parameter p_1(Object parameter) {
-        return new Parameter(parameter, true);
-    }
-
-    private Parameter p_2(Object parameter) {
-        return new Parameter(parameter, false);
-    }
-
-    private List<List<Object>> generateParameters(Parameter... parameters) {
-        if (parameters == null || parameters.length == 0) {
-            return Collections.singletonList(Collections.emptyList());
-        }
-
-        List<List<Object>> res = new ArrayList<>();
-
-        generateParameters0(parameters, 0, res, Collections.emptyList());
-
-        return res;
-    }
-
-    private void generateParameters0(Parameter[] parameters, int index, List<List<Object>> res, List<Object> current) {
-        List<Object> parameterVariations = parameterVariations(parameters[index]);
-
-        for (Object parameterVariation : parameterVariations) {
-            List<Object> current0 = new ArrayList<>(current);
-
-            current0.add(parameterVariation);
-
-            if (index == parameters.length - 1) {
-                res.add(current0);
-            } else {
-                generateParameters0(parameters, index + 1, res, current0);
-            }
-        }
-    }
-
-    private List<Object> parameterVariations(Parameter parameter) {
-        ExpressionType f = parameter.first ? f1 : f2;
-
-        return new ArrayList(f.parameterVariations(parameter.parameter));
-    }
-
-    private Query query(String condition, Parameter... parameters) {
-        return new Query(sql(condition), parameters);
+    private Query query(String condition, Object... parameters) {
+        return new Query(sql(condition), parameters != null ? Arrays.asList(parameters) : null);
     }
 
     protected MapConfig getMapConfig() {
@@ -606,39 +614,11 @@ public abstract class SqlIndexAbstractTest extends SqlTestSupport {
     private static class Query {
 
         private final String sql;
-        private final Parameter[] parameters;
+        private final List<Object> parameters;
 
-        private Query(String sql, Parameter[] parameters) {
+        private Query(String sql, List<Object> parameters) {
             this.sql = sql;
             this.parameters = parameters;
-        }
-    }
-
-    private static class Parameter {
-
-        private final Object parameter;
-        private final boolean first;
-
-        private Parameter(Object parameter, boolean first) {
-            this.parameter = parameter;
-            this.first = first;
-        }
-    }
-
-    private static class ParameterToString {
-        private final Object parameter;
-
-        private ParameterToString(Object parameter) {
-            this.parameter = parameter;
-        }
-
-        @Override
-        public String toString() {
-            if (parameter == null) {
-                return "null";
-            } else {
-                return parameter + ":" + parameter.getClass().getSimpleName();
-            }
         }
     }
 }

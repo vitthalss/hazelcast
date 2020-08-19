@@ -56,7 +56,7 @@ public class SumAggregateExpression<T> extends AbstractSingleOperandAggregateExp
             case SMALLINT:
                 return QueryDataType.INT;
 
-            case INT:
+            case INTEGER:
             case BIGINT:
                 return QueryDataType.BIGINT;
 

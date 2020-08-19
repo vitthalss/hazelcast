@@ -101,7 +101,7 @@ public class DistributionTrait implements RelTrait {
         return traitDef;
     }
 
-    @SuppressWarnings("checkstyle:NPathComplexity")
+    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:NPathComplexity"})
     @Override
     public boolean satisfies(RelTrait targetTrait) {
         if (!(targetTrait instanceof DistributionTrait)) {

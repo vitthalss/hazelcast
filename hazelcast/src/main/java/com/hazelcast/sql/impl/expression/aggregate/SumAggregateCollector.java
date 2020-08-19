@@ -48,7 +48,7 @@ public final class SumAggregateCollector extends AggregateCollector {
         Converter converter = operandType.getConverter();
 
         switch (resType.getTypeFamily()) {
-            case INT:
+            case INTEGER:
                 res = (int) res + converter.asInt(operandValue);
 
                 break;
@@ -77,7 +77,7 @@ public final class SumAggregateCollector extends AggregateCollector {
 
     private void initialize() {
         switch (resType.getTypeFamily()) {
-            case INT:
+            case INTEGER:
                 res = 0;
 
                 break;

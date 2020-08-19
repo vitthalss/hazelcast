@@ -49,7 +49,7 @@ import static org.junit.Assert.fail;
 /**
  * Simple test to verify the behavior in case of the converter type mismatch.
  * <p>
- * we put entries of different types to different members and observe that index lookup cannot be used due to mismatch.
+ * We put entries of different types to different members and observe that index lookup cannot be used due to mismatch.
  */
 @RunWith(Parameterized.class)
 @Parameterized.UseParametersRunnerFactory(HazelcastParallelParametersRunnerFactory.class)
@@ -117,7 +117,7 @@ public class SqlIndexConverterMismatchTest extends SqlTestSupport {
             fail("Must fail!");
         } catch (SqlException e) {
             assertEquals(SqlErrorCode.DATA_EXCEPTION, e.getCode());
-            assertEquals("Index \"index\" has component \"field1\" of type VARCHAR, but INT was expected", e.getMessage());
+            assertEquals("Index \"index\" has component \"field1\" of type VARCHAR, but INTEGER was expected", e.getMessage());
         }
     }
 

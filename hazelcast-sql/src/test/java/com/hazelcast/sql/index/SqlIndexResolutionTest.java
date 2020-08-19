@@ -22,7 +22,6 @@ import com.hazelcast.config.MapConfig;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import com.hazelcast.sql.SqlResult;
-import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
 import com.hazelcast.sql.impl.schema.Table;
 import com.hazelcast.sql.impl.schema.map.MapTableField;
@@ -32,7 +31,6 @@ import com.hazelcast.sql.impl.schema.map.PartitionedMapTableResolver;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.support.expressions.ExpressionBiValue;
 import com.hazelcast.sql.support.expressions.ExpressionType;
-import com.hazelcast.sql.support.expressions.ExpressionTypes;
 import com.hazelcast.test.HazelcastSerialParametersRunnerFactory;
 import com.hazelcast.test.TestHazelcastInstanceFactory;
 import com.hazelcast.test.annotation.ParallelJVMTest;
@@ -63,7 +61,7 @@ import static org.junit.Assert.fail;
 @RunWith(Parameterized.class)
 @Parameterized.UseParametersRunnerFactory(HazelcastSerialParametersRunnerFactory.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class SqlIndexResolutionTest extends SqlTestSupport {
+public class SqlIndexResolutionTest extends SqlIndexTestSupport {
 
     private static final AtomicInteger MAP_NAME_GEN = new AtomicInteger();
     private static final String INDEX_NAME = "index";
@@ -93,8 +91,8 @@ public class SqlIndexResolutionTest extends SqlTestSupport {
 
         for (IndexType indexType : Arrays.asList(IndexType.SORTED, IndexType.HASH)) {
             for (boolean composite : Arrays.asList(true, false)) {
-                for (ExpressionType<?> firstType : ExpressionTypes.allTypes()) {
-                    for (ExpressionType<?> secondType : ExpressionTypes.allTypes()) {
+                for (ExpressionType<?> firstType : allTypes()) {
+                    for (ExpressionType<?> secondType : allTypes()) {
                         res.add(new Object[] { indexType, composite, firstType, secondType });
                     }
                 }
@@ -246,8 +244,8 @@ public class SqlIndexResolutionTest extends SqlTestSupport {
     }
 
     private void checkIndexUsage(IMap<?, ?> map, boolean firstResolved, boolean secondResolved) {
-        String field1Literal = f1.toLiteral(f1.valueFrom());
-        String field2Literal = f2.toLiteral(f2.valueFrom());
+        String field1Literal = toLiteral(f1, f1.valueFrom());
+        String field2Literal = toLiteral(f2, f2.valueFrom());
 
         // The second component could be used if both components are resolved.
         Usage expectedUsage;

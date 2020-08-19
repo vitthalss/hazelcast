@@ -236,7 +236,7 @@ public class MapIndexScanExecTest extends SqlTestSupport {
         } catch (QueryException e) {
             assertEquals(SqlErrorCode.DATA_EXCEPTION, e.getCode());
             assertEquals(
-                "Index \"index\" do not have suitable SQL converter for component \"this\" (expected INT)", e.getMessage()
+                "Index \"index\" do not have suitable SQL converter for component \"this\" (expected INTEGER)", e.getMessage()
             );
             assertTrue(e.isInvalidatePlan());
         }
@@ -257,7 +257,7 @@ public class MapIndexScanExecTest extends SqlTestSupport {
             fail("Must fail");
         } catch (QueryException e) {
             assertEquals(SqlErrorCode.DATA_EXCEPTION, e.getCode());
-            assertEquals("Index \"index\" has component \"this\" of type INT, but VARCHAR was expected", e.getMessage());
+            assertEquals("Index \"index\" has component \"this\" of type INTEGER, but VARCHAR was expected", e.getMessage());
             assertTrue(e.isInvalidatePlan());
         }
     }

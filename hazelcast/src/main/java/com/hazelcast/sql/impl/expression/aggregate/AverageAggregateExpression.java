@@ -55,7 +55,7 @@ public class AverageAggregateExpression<T> extends AbstractSingleOperandAggregat
         switch (operandType.getTypeFamily()) {
             case TINYINT:
             case SMALLINT:
-            case INT:
+            case INTEGER:
             case BIGINT:
             case DECIMAL:
             case REAL:

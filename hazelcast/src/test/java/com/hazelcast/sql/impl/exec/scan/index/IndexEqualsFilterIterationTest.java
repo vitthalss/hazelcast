@@ -60,21 +60,7 @@ public class IndexEqualsFilterIterationTest extends IndexFilterIteratorTestSuppo
         map.put(1, new Value(1));
         checkIterator(new IndexEqualsFilter(intValue(1)).getEntries(index, evalContext), 1);
 
-        // Check multiple values.
-        map.put(2, new Value(1));
-        checkIterator(new IndexEqualsFilter(intValue(1)).getEntries(index, evalContext), 1, 2);
 
-        // Check null value.
-        checkIterator(new IndexEqualsFilter(intValue(null, false)).getEntries(index, evalContext));
-        checkIterator(new IndexEqualsFilter(intValue(null, true)).getEntries(index, evalContext));
-
-        map.put(3, new Value(null));
-        checkIterator(new IndexEqualsFilter(intValue(null, false)).getEntries(index, evalContext));
-        checkIterator(new IndexEqualsFilter(intValue(null, true)).getEntries(index, evalContext), 3);
-
-        map.put(4, new Value(null));
-        checkIterator(new IndexEqualsFilter(intValue(null, false)).getEntries(index, evalContext));
-        checkIterator(new IndexEqualsFilter(intValue(null, true)).getEntries(index, evalContext), 3, 4);
     }
 
     @Test

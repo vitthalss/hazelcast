@@ -22,6 +22,8 @@ import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_DATE;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_DECIMAL;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_DOUBLE;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_INTEGER;
+import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_INTERVAL_DAY_SECOND;
+import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_INTERVAL_YEAR_MONTH;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_NULL;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_OBJECT;
 import static com.hazelcast.sql.impl.type.QueryDataTypeUtils.PRECEDENCE_REAL;
