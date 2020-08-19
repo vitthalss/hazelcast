@@ -32,30 +32,35 @@ import org.apache.calcite.sql2rel.SqlRexConvertletTable;
 import org.apache.calcite.sql2rel.SqlToRelConverter;
 import org.apache.calcite.sql2rel.SqlToRelConverter.Config;
 
+/**
+ * Provides various customization points for the optimization engine.
+ */
 public interface SqlBackend {
 
     SqlParserImplFactory parserFactory();
 
     SqlValidator validator(
-            CatalogReader catalogReader,
-            HazelcastTypeFactory typeFactory,
-            SqlConformance conformance
+        CatalogReader catalogReader,
+        HazelcastTypeFactory typeFactory,
+        SqlConformance conformance
     );
 
-    SqlVisitor<Void> unsupportedOperationVisitor(CatalogReader catalogReader);
+    SqlVisitor<Void> unsupportedOperationVisitor(
+        CatalogReader catalogReader
+    );
 
     SqlToRelConverter converter(
-            RelOptTable.ViewExpander viewExpander,
-            SqlValidator validator,
-            Prepare.CatalogReader catalogReader,
-            RelOptCluster cluster,
-            SqlRexConvertletTable convertletTable,
-            Config config
+        RelOptTable.ViewExpander viewExpander,
+        SqlValidator validator,
+        Prepare.CatalogReader catalogReader,
+        RelOptCluster cluster,
+        SqlRexConvertletTable convertletTable,
+        Config config
     );
 
     SqlPlan createPlan(
-            OptimizationTask task,
-            QueryParseResult parseResult,
-            OptimizerContext context
+        OptimizationTask task,
+        QueryParseResult parseResult,
+        OptimizerContext context
     );
 }

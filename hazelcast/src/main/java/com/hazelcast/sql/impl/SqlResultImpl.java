@@ -89,11 +89,6 @@ public final class SqlResultImpl extends AbstractSqlResult {
         return isUpdateCount;
     }
 
-    @Override
-    public void close() {
-        closeOnError(QueryException.cancelledByUser());
-    }
-
     private void checkIsRowsResult() {
         if (isUpdateCount) {
             throw new IllegalStateException("This result contains only update count");

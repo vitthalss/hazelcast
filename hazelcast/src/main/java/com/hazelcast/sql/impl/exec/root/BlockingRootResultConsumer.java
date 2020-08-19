@@ -45,7 +45,7 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
      */
     private final boolean waitForFullBatch;
 
-    /** Query context to schedule root execution when the next batch is needed. */
+    /** A callback to schedule root execution when the next batch is needed. */
     private volatile ScheduleCallback scheduleCallback;
 
     /** The batch that is currently being consumed. */
@@ -169,7 +169,7 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
         }
 
         // We may reach this place only if some rows are already produced, and this is possible only after the setup,
-        // so the context should be initialized.
+        // so the callback should be initialized.
         assert scheduleCallback != null;
 
         scheduleCallback.run();

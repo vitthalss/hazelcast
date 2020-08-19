@@ -114,18 +114,13 @@ public final class OptimizerContext {
     ) {
         DistributionTraitDef distributionTraitDef = new DistributionTraitDef(memberCount);
 
+        HazelcastSqlConformance conformance = HazelcastSqlConformance.INSTANCE;
         HazelcastTypeFactory typeFactory = HazelcastTypeFactory.INSTANCE;
         Prepare.CatalogReader catalogReader = createCatalogReader(typeFactory, CONNECTION_CONFIG, rootSchema, schemaPaths);
         VolcanoPlanner volcanoPlanner = createPlanner(CONNECTION_CONFIG, distributionTraitDef);
         HazelcastRelOptCluster cluster = createCluster(volcanoPlanner, typeFactory, distributionTraitDef);
 
-        QueryParser parser = new QueryParser(
-            typeFactory,
-            catalogReader,
-            HazelcastSqlConformance.INSTANCE,
-            sqlBackend,
-            jetSqlBackend
-        );
+        QueryParser parser = new QueryParser(typeFactory, catalogReader, conformance, sqlBackend, jetSqlBackend);
         QueryConverter converter = new QueryConverter(catalogReader, cluster);
         QueryPlanner planner = new QueryPlanner(volcanoPlanner);
 
@@ -145,7 +140,7 @@ public final class OptimizerContext {
     /**
      * Perform initial conversion of an SQL tree to a relational tree.
      *
-     * @param parseResult Parse result.
+     * @param parseResult Query parse result.
      * @return Relational tree.
      */
     public QueryConvertResult convert(QueryParseResult parseResult) {

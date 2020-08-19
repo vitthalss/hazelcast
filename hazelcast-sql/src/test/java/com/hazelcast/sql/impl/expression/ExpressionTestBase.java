@@ -36,7 +36,7 @@ import com.hazelcast.sql.impl.calcite.opt.physical.visitor.RexToExpressionVisito
 import com.hazelcast.sql.impl.calcite.parse.QueryParseResult;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchema;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
-import com.hazelcast.sql.impl.calcite.schema.MapTableStatistic;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTableStatistic;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastTypeFactory;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastTypeSystem;
 import com.hazelcast.sql.impl.plan.node.PlanNodeSchema;
@@ -1047,7 +1047,7 @@ public abstract class ExpressionTestBase extends SqlTestSupport {
                 new PartitionedMapTable(SCHEMA_NAME_REPLICATED, "t", fields, new ConstantTableStatistics(100), null, null, null,
                         null, emptyList(), PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE, false);
 
-        HazelcastTable hazelcastTable = new HazelcastTable(table, new MapTableStatistic(100));
+        HazelcastTable hazelcastTable = new HazelcastTable(table, new HazelcastTableStatistic(100));
         return OptimizerContext.create(new HazelcastSchema(singletonMap("t", hazelcastTable)),
                 QueryUtils.prepareSearchPaths(null, null), 1, new HazelcastSqlBackend(null), null);
     }

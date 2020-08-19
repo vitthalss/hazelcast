@@ -22,24 +22,29 @@ import com.hazelcast.sql.impl.schema.TableResolver;
 
 import java.util.List;
 
+/**
+ * Provides execution support for Jet specific SQL statements.
+ */
 public interface JetSqlService {
 
     String SERVICE_NAME = "hz:impl:jetSqlService";
 
+    /**
+     * Return Jet specific {@link TableResolver}s.
+     */
     List<TableResolver> tableResolvers();
 
     /**
-     * @return com.hazelcast.sql.impl.calcite.JetSqlBackend
+     * Return Jet specific <i>com.hazelcast.sql.impl.calcite.SqlBackend</i>.
      */
     Object sqlBackend();
 
     /**
-     * Execute the SqlPlan.
+     * Execute Jet specific {@link SqlPlan}s.
      */
     SqlResult execute(SqlPlan plan, List<Object> params, long timeout, int pageSize);
 
-    /**
-     * For tests: remove all the objects from the external catalog.
-     */
-    void clearCatalog();
+    void reset();
+
+    void shutdown(boolean terminate);
 }

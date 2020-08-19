@@ -31,6 +31,7 @@ import org.apache.calcite.sql.util.SqlVisitor;
 import org.apache.calcite.sql.validate.SqlConformance;
 import org.apache.calcite.sql.validate.SqlValidator;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 /**
@@ -49,7 +50,7 @@ public class QueryParser {
             HazelcastTypeFactory typeFactory,
             CatalogReader catalogReader,
             SqlConformance conformance,
-            SqlBackend sqlBackend,
+            @Nonnull SqlBackend sqlBackend,
             @Nullable SqlBackend jetSqlBackend
     ) {
         this.typeFactory = typeFactory;

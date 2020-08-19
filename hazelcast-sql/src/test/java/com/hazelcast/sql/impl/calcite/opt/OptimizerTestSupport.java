@@ -33,7 +33,7 @@ import com.hazelcast.sql.impl.calcite.parse.QueryParseResult;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchema;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastSchemaUtils;
 import com.hazelcast.sql.impl.calcite.schema.HazelcastTable;
-import com.hazelcast.sql.impl.calcite.schema.MapTableStatistic;
+import com.hazelcast.sql.impl.calcite.schema.HazelcastTableStatistic;
 import com.hazelcast.sql.impl.schema.ConstantTableStatistics;
 import com.hazelcast.sql.impl.schema.TableField;
 import com.hazelcast.sql.impl.schema.map.MapTableIndex;
@@ -189,7 +189,7 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
                 nativeMemoryEnabled
         );
 
-        return new HazelcastTable(table, new MapTableStatistic(rowCount));
+        return new HazelcastTable(table, new HazelcastTableStatistic(rowCount));
     }
 
     /**

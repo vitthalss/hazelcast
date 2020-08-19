@@ -21,7 +21,6 @@ import com.hazelcast.sql.impl.calcite.SqlToQueryType;
 import com.hazelcast.sql.impl.schema.SqlCatalog;
 import com.hazelcast.sql.impl.schema.Table;
 import com.hazelcast.sql.impl.schema.TableField;
-import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
 import org.apache.calcite.rel.type.RelDataType;
@@ -105,13 +104,7 @@ public final class HazelcastSchemaUtils {
      * @return Statistics for the table.
      */
     private static Statistic createTableStatistic(Table table) {
-        if (table instanceof AbstractMapTable) {
-            return new MapTableStatistic(table.getStatistics().getRowCount());
-        } else {
-            // TODO: Instantiate statistics depending on the table type. Now we return the same stats as for maps only to
-            //  simplify testing on early integration stages.
-            return new MapTableStatistic(table.getStatistics().getRowCount());
-        }
+        return new HazelcastTableStatistic(table.getStatistics().getRowCount());
     }
 
     /**

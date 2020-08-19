@@ -57,6 +57,10 @@ import java.util.logging.Level;
  * Base SQL service implementation that bridges optimizer implementation, public and private APIs.
  */
 public class SqlServiceImpl implements SqlService, Consumer<Packet> {
+
+    static final String OPTIMIZER_CLASS_PROPERTY_NAME = "hazelcast.sql.optimizerClass";
+    private static final String SQL_MODULE_OPTIMIZER_CLASS = "com.hazelcast.sql.impl.calcite.CalciteSqlOptimizer";
+
     /** Outbox batch size in bytes. */
     private static final int OUTBOX_BATCH_SIZE = 512 * 1024;
 
@@ -64,9 +68,6 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
     private static final long STATE_CHECK_FREQUENCY = 1_000L;
 
     private static final int PLAN_CACHE_SIZE = 10_000;
-
-    private static final String OPTIMIZER_CLASS_PROPERTY_NAME = "hazelcast.sql.optimizerClass";
-    private static final String SQL_MODULE_OPTIMIZER_CLASS = "com.hazelcast.sql.impl.calcite.CalciteSqlOptimizer";
 
     private final ILogger logger;
     private final NodeEngineImpl nodeEngine;
@@ -136,7 +137,6 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
             planCache,
             tableResolvers
         );
-
         internalService = new SqlInternalService(
             instanceName,
             nodeServiceProvider,
@@ -153,12 +153,22 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     public void reset() {
         planCache.clear();
-        internalService.reset();
+        if (jetSqlService != null) {
+            jetSqlService.reset();
+        }
+        if (internalService != null) {
+            internalService.reset();
+        }
     }
 
     public void shutdown() {
         planCache.clear();
-        internalService.shutdown();
+        if (jetSqlService != null) {
+            jetSqlService.shutdown(true);
+        }
+        if (internalService != null) {
+            internalService.shutdown();
+        }
     }
 
     public SqlInternalService getInternalService() {

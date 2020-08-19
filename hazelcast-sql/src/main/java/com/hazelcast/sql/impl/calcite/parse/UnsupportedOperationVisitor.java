@@ -214,7 +214,6 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
                 }
             }
         }
-
         return null;
     }
 
