@@ -32,7 +32,8 @@ public class ReplicatedMapTable extends AbstractMapTable {
 
     public ReplicatedMapTable(
             String schemaName,
-            String name,
+            String tableName,
+            String mapName,
             List<TableField> fields,
             TableStatistics statistics,
             QueryTargetDescriptor keyDescriptor,
@@ -40,7 +41,7 @@ public class ReplicatedMapTable extends AbstractMapTable {
             UpsertTargetDescriptor keyUpsertDescriptor,
             UpsertTargetDescriptor valueUpsertDescriptor
     ) {
-        super(schemaName, name, fields, statistics, keyDescriptor, valueDescriptor,
+        super(schemaName, tableName, mapName, fields, statistics, keyDescriptor, valueDescriptor,
                 keyUpsertDescriptor, valueUpsertDescriptor);
     }
 

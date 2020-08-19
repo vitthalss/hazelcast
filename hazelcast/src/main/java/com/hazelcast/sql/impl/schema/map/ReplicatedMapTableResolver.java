@@ -95,6 +95,7 @@ public class ReplicatedMapTableResolver extends AbstractMapTableResolver {
                 return new ReplicatedMapTable(
                         SCHEMA_NAME_REPLICATED,
                         name,
+                        name,
                         fields,
                         new ConstantTableStatistics(estimatedRowCount),
                         keyMetadata.getDescriptor(),

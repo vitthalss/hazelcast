@@ -124,6 +124,7 @@ public class PartitionedMapTableResolver extends AbstractMapTableResolver {
             return new PartitionedMapTable(
                 SCHEMA_NAME_PARTITIONED,
                 name,
+                name,
                 resolved.getFields(),
                 new ConstantTableStatistics(estimatedRowCount),
                 resolved.getKeyDescriptor(),

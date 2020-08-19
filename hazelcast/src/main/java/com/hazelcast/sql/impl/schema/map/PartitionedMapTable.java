@@ -40,7 +40,8 @@ public class PartitionedMapTable extends AbstractMapTable {
     @SuppressWarnings("checkstyle:ParameterNumber")
     public PartitionedMapTable(
             String schemaName,
-            String name,
+            String tableName,
+            String mapName,
             List<TableField> fields,
             TableStatistics statistics,
             QueryTargetDescriptor keyDescriptor,
@@ -53,7 +54,8 @@ public class PartitionedMapTable extends AbstractMapTable {
     ) {
         super(
             schemaName,
-            name,
+            tableName,
+            mapName,
             fields,
             statistics,
             keyDescriptor,

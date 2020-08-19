@@ -289,7 +289,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         MapScanPlanNode scanNode = new MapScanPlanNode(
             pollId(rel),
-            table.getName(),
+            table.getMapName(),
             table.getKeyDescriptor(),
             table.getValueDescriptor(),
             getScanFieldPaths(table),
@@ -312,7 +312,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         MapIndexScanPlanNode scanNode = new MapIndexScanPlanNode(
             pollId(rel),
-            table.getName(),
+            table.getMapName(),
             table.getKeyDescriptor(),
             table.getValueDescriptor(),
             getScanFieldPaths(table),
