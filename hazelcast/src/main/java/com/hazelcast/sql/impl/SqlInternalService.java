@@ -166,7 +166,7 @@ public class SqlInternalService {
         );
 
         // Register the state.
-        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer(true);
+        BlockingRootResultConsumer consumer = new BlockingRootResultConsumer();
 
         QueryState state = stateRegistry.onInitiatorQueryStarted(
             localMemberId,

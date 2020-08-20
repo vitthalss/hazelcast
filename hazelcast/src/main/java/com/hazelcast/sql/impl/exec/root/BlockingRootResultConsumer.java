@@ -16,16 +16,14 @@
 
 package com.hazelcast.sql.impl.exec.root;
 
-import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.QueryException;
-import com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult;
+import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.row.Row;
 
 import java.util.List;
 import java.util.NoSuchElementException;
 
 import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.DONE;
-import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.RETRY;
 import static com.hazelcast.sql.impl.ResultIterator.HasNextImmediatelyResult.YES;
 
 /**
@@ -38,13 +36,6 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
     /** Iterator over produced rows. */
     private final InternalIterator iterator = new InternalIterator();
 
-    /**
-     * {@link HasNextImmediatelyResult#RETRY} result from {@link
-     * ResultIterator#hasNextImmediately()} is not allowed, the method will
-     * block instead.
-     */
-    private final boolean waitForFullBatch;
-
     /** A callback to schedule root execution when the next batch is needed. */
     private volatile ScheduleCallback scheduleCallback;
 
@@ -56,15 +47,6 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
 
     /** Error which occurred during query execution. */
     private QueryException doneError;
-
-    /**
-     * @param waitForFullBatch Disables {@link HasNextImmediatelyResult#RETRY} result
-     *      from {@link ResultIterator#hasNextImmediately()}
-     */
-    // useMinimumLatency=true is used from Jet
-    public BlockingRootResultConsumer(boolean waitForFullBatch) {
-        this.waitForFullBatch = waitForFullBatch;
-    }
 
     @Override
     public void setup(ScheduleCallback scheduleCallback) {
@@ -112,16 +94,11 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
     }
 
     /**
-     * Poll the next batch from the upstream. If {@code shouldWait} is true, it
-     * will block until a next batch is available or the end is reached. If
-     * {@code shouldWait} is false, it will return a batch only if it's
-     * immediately available, otherwise it will return {@code null}.
+     * Poll the next batch from the upstream, waiting if needed.
      *
-     * @param shouldWait Enables blocking while waiting for the next batch.
-     * @return The next batch or {@code null} if end of stream is reached or no
-     *     batch is immediately available
+     * @return The batch or {@code null} if end of stream is reached.
      */
-    private List<Row> getNextBatch(boolean shouldWait) {
+    private List<Row> awaitNextBatch() {
         synchronized (mux) {
             while (true) {
                 // Consume the batch if it is available.
@@ -139,10 +116,6 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
                         throw doneError;
                     }
 
-                    return null;
-                }
-
-                if (!shouldWait) {
                     return null;
                 }
 
@@ -191,7 +164,7 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
         @Override
         public boolean hasNext() {
             if (batch == null) {
-                batch = getNextBatch(true);
+                batch = awaitNextBatch();
 
                 if (batch == null) {
                     assert done;
@@ -205,15 +178,8 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
 
         @Override
         public HasNextImmediatelyResult hasNextImmediately() {
-            if (batch == null) {
-                batch = getNextBatch(waitForFullBatch);
-
-                if (batch == null) {
-                    return done ? DONE :  RETRY;
-                }
-            }
-
-            return YES;
+            // We never return RETRY, but we block until next item is available or the end is reached.
+            return hasNext() ? YES : DONE;
         }
 
         @Override
