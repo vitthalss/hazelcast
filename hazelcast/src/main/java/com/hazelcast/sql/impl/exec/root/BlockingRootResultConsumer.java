@@ -57,10 +57,9 @@ public class BlockingRootResultConsumer implements RootResultConsumer {
     public boolean consume(List<Row> batch, boolean last) {
         synchronized (mux) {
             if (done) {
-                // this is possible if the query was concurrently cancelled
-                // see https://github.com/hazelcast/hazelcast/issues/17160
-                assert doneError != null;
-                throw new RuntimeException(doneError);
+                // An error happened after the exec was scheduled - reject consumption,
+                // the caller will not be scheduled again.
+                return false;
             }
 
             if (currentBatch == null) {

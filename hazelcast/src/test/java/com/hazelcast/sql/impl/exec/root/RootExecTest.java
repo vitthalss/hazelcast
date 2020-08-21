@@ -16,8 +16,8 @@
 
 package com.hazelcast.sql.impl.exec.root;
 
-import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.UpstreamExec;
 import com.hazelcast.sql.impl.exec.IterationResult;

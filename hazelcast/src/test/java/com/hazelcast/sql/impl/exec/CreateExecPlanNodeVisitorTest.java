@@ -22,11 +22,11 @@ import com.hazelcast.internal.serialization.impl.DefaultSerializationServiceBuil
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
-import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.LoggingQueryOperationHandler;
 import com.hazelcast.sql.impl.NodeServiceProviderImpl;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.QueryId;
+import com.hazelcast.sql.impl.ResultIterator;
 import com.hazelcast.sql.impl.SqlTestSupport;
 import com.hazelcast.sql.impl.exec.io.Inbox;
 import com.hazelcast.sql.impl.exec.io.Outbox;
