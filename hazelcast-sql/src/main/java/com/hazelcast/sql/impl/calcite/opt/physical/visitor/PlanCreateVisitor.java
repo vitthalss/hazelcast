@@ -139,6 +139,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
     private final QueryParameterMetadata parameterMetadata;
 
+    private final String sql;
+
     /** Names of the returned columns from the original query. */
     private final List<String> rootColumnNames;
 
@@ -179,7 +181,8 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         Map<PhysicalRel, List<Integer>> relIdMap,
         PlanCacheKey planKey,
         List<String> rootColumnNames,
-        QueryParameterMetadata parameterMetadata
+        QueryParameterMetadata parameterMetadata,
+        String sql
     ) {
         this.localMemberId = localMemberId;
         this.partMap = partMap;
@@ -187,6 +190,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         this.planKey = planKey;
         this.rootColumnNames = rootColumnNames;
         this.parameterMetadata = parameterMetadata;
+        this.sql = sql;
 
         memberIds = new HashSet<>(partMap.keySet());
     }

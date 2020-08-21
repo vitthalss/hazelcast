@@ -126,7 +126,8 @@ public class HazelcastSqlBackend implements SqlBackend {
             relIdMap,
             new PlanCacheKey(task.getSearchPaths(), sql),
             convertResult.getFieldNames(),
-            parameterMetadata
+            parameterMetadata,
+            task.getSql()
         );
 
         physicalRel.visit(visitor);
