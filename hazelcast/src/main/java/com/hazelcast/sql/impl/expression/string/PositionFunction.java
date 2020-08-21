@@ -53,7 +53,7 @@ public class PositionFunction extends TriExpression<Integer> {
         String source = Eval.asVarchar(operand2, row, context);
         Integer position = operand3 != null ? Eval.asInt(operand3, row, context) : null;
 
-        return StringExpressionUtils.position(seek, source, position != null ? position : 0);
+        return StringFunctionUtils.position(seek, source, position != null ? position : 0);
     }
 
     @Override

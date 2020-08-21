@@ -22,7 +22,10 @@ import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlBinaryOpera
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlCaseOperator;
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlCastFunction;
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlFloorFunction;
+import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlLikeOperator;
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlMonotonicBinaryOperator;
+import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlStringFunction;
+import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlSubstringFunction;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastInferTypes;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastOperandTypes;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastReturnTypes;
@@ -35,6 +38,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlPostfixOperator;
 import org.apache.calcite.sql.SqlPrefixOperator;
+import org.apache.calcite.sql.SqlSpecialOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.InferTypes;
 import org.apache.calcite.sql.type.OperandTypes;
@@ -48,11 +52,12 @@ import static com.hazelcast.sql.impl.calcite.validate.types.HazelcastOperandType
 import static org.apache.calcite.sql.type.SqlTypeName.BIGINT;
 import static org.apache.calcite.sql.type.SqlTypeName.DECIMAL;
 import static org.apache.calcite.sql.type.SqlTypeName.INTEGER;
+import static org.apache.calcite.sql.type.SqlTypeName.VARCHAR;
 
 /**
  * Custom functions and operators.
  */
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "checkstyle:ClassDataAbstractionCoupling"})
 public final class HazelcastSqlOperatorTable extends ReflectiveSqlOperatorTable {
 
     //@formatter:off
@@ -343,16 +348,60 @@ public final class HazelcastSqlOperatorTable extends ReflectiveSqlOperatorTable 
 
     //#endregion
 
-    //#region Other custom functions and operators.
+    //#region String functions
 
-    public static final SqlFunction LENGTH = new SqlFunction(
-        "LENGTH",
-        SqlKind.OTHER_FUNCTION,
-        ReturnTypes.INTEGER_NULLABLE,
-        null,
-        notAny(OperandTypes.CHARACTER),
-        SqlFunctionCategory.NUMERIC
+    public static final SqlBinaryOperator CONCAT = new SqlBinaryOperator(
+        "||",
+        SqlKind.OTHER,
+        60,
+        true,
+        ReturnTypes.DYADIC_STRING_SUM_PRECISION_NULLABLE,
+        new ReplaceUnknownOperandTypeInference(VARCHAR),
+        notAny(OperandTypes.STRING_SAME_SAME)
     );
+
+    public static final SqlSpecialOperator LIKE = new HazelcastSqlLikeOperator();
+
+    public static final SqlFunction ASCII = new HazelcastSqlStringFunction(
+        "ASCII",
+        ReturnTypes.INTEGER_NULLABLE
+    );
+
+    public static final SqlFunction INITCAP = new HazelcastSqlStringFunction(
+        "INITCAP",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
+    public static final SqlFunction CHAR_LENGTH = new HazelcastSqlStringFunction(
+        "CHAR_LENGTH",
+        ReturnTypes.INTEGER_NULLABLE
+    );
+
+    public static final SqlFunction CHARACTER_LENGTH = new HazelcastSqlStringFunction(
+        "CHARACTER_LENGTH",
+        ReturnTypes.INTEGER_NULLABLE
+    );
+
+    public static final SqlFunction LENGTH = new HazelcastSqlStringFunction(
+        "LENGTH",
+        ReturnTypes.INTEGER_NULLABLE
+    );
+
+    public static final SqlFunction LOWER = new HazelcastSqlStringFunction(
+        "LOWER",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
+    public static final SqlFunction UPPER = new HazelcastSqlStringFunction(
+        "UPPER",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
+    public static final SqlFunction SUBSTRING = new HazelcastSqlSubstringFunction();
+
+    //#endregion
+
+    //#region Other custom functions and operators.
 
     /** Function to calculate distributed average. */
     public static final SqlAggFunction DISTRIBUTED_AVG = new DistributedAvgAggFunction();

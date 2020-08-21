@@ -16,18 +16,20 @@
 
 package com.hazelcast.sql.impl.expression.string;
 
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.BiExpression;
-import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.expression.util.EnsureConvertible;
-import com.hazelcast.sql.impl.expression.util.Eval;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
+
+import static com.hazelcast.sql.impl.expression.string.StringFunctionUtils.asVarchar;
 
 /**
  * A function which accepts a string, and return another string.
  */
-public class ConcatFunction extends BiExpression<String> {
+public class ConcatFunction extends BiExpression<String> implements IdentifiedDataSerializable {
     public ConcatFunction() {
         // No-op.
     }
@@ -37,22 +39,29 @@ public class ConcatFunction extends BiExpression<String> {
     }
 
     public static ConcatFunction create(Expression<?> first, Expression<?> second) {
-        EnsureConvertible.toVarchar(first);
-        EnsureConvertible.toVarchar(second);
-
         return new ConcatFunction(first, second);
     }
 
     @Override
     public String eval(Row row, ExpressionEvalContext context) {
-        String first = Eval.asVarchar(operand1, row, context);
-        String second = Eval.asVarchar(operand2, row, context);
+        String first = asVarchar(operand1, row, context);
+        String second = asVarchar(operand2, row, context);
 
-        return StringExpressionUtils.concat(first, second);
+        return StringFunctionUtils.concat(first, second);
     }
 
     @Override
     public QueryDataType getType() {
         return QueryDataType.VARCHAR;
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_CONCAT;
     }
 }

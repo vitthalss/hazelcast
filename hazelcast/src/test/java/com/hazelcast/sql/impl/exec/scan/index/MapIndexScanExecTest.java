@@ -280,7 +280,7 @@ public class MapIndexScanExecTest extends SqlTestSupport {
 
             fail("Must fail");
         } catch (QueryException e) {
-            assertEquals(SqlErrorCode.PARTITION_NOT_OWNED, e.getCode());
+            assertEquals(SqlErrorCode.PARTITION_DISTRIBUTION_CHANGED, e.getCode());
             assertEquals("Partitions are not owned by member: " + instance2Partitions, e.getMessage());
             assertTrue(e.isInvalidatePlan());
         }

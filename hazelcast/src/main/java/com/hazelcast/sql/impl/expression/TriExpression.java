@@ -20,18 +20,15 @@ import com.hazelcast.nio.ObjectDataInput;
 import com.hazelcast.nio.ObjectDataOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Expression with three operands.
  */
 public abstract class TriExpression<T> implements Expression<T> {
-    /** First operand. */
+
     protected Expression<?> operand1;
-
-    /** Second operand. */
     protected Expression<?> operand2;
-
-    /** Third operand. */
     protected Expression<?> operand3;
 
     protected TriExpression() {
@@ -56,5 +53,30 @@ public abstract class TriExpression<T> implements Expression<T> {
         operand1 = in.readObject();
         operand2 = in.readObject();
         operand3 = in.readObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        TriExpression<?> that = (TriExpression<?>) o;
+
+        return Objects.equals(operand1, that.operand1)
+            && Objects.equals(operand2, that.operand2)
+            && Objects.equals(operand3, that.operand3);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = operand1 != null ? operand1.hashCode() : 0;
+        result = 31 * result + (operand2 != null ? operand2.hashCode() : 0);
+        result = 31 * result + (operand3 != null ? operand3.hashCode() : 0);
+        return result;
     }
 }

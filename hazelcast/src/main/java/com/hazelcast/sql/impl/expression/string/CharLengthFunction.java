@@ -16,15 +16,15 @@
 
 package com.hazelcast.sql.impl.expression.string;
 
-import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.expression.util.EnsureConvertible;
-import com.hazelcast.sql.impl.expression.util.Eval;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.UniExpression;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
-public class CharLengthFunction extends UniExpression<Integer> {
+public class CharLengthFunction extends UniExpression<Integer> implements IdentifiedDataSerializable {
     public CharLengthFunction() {
         // No-op.
     }
@@ -34,20 +34,28 @@ public class CharLengthFunction extends UniExpression<Integer> {
     }
 
     public static CharLengthFunction create(Expression<?> operand) {
-        EnsureConvertible.toVarchar(operand);
-
         return new CharLengthFunction(operand);
     }
 
     @Override
     public Integer eval(Row row, ExpressionEvalContext context) {
-        String value = Eval.asVarchar(operand, row, context);
+        String value = StringFunctionUtils.asVarchar(operand, row, context);
 
-        return StringExpressionUtils.charLength(value);
+        return StringFunctionUtils.charLength(value);
     }
 
     @Override
     public QueryDataType getType() {
         return QueryDataType.INT;
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_CHAR_LENGTH;
     }
 }

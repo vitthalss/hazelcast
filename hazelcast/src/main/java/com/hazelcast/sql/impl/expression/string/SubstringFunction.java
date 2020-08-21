@@ -16,45 +16,113 @@
 
 package com.hazelcast.sql.impl.expression.string;
 
-import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
-import com.hazelcast.sql.impl.expression.util.EnsureConvertible;
-import com.hazelcast.sql.impl.expression.util.Eval;
+import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
+import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.SqlDataSerializerHook;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
 import com.hazelcast.sql.impl.expression.TriExpression;
+import com.hazelcast.sql.impl.expression.math.MathFunctionUtils;
 import com.hazelcast.sql.impl.row.Row;
 import com.hazelcast.sql.impl.type.QueryDataType;
 
-/**
- * SUBSTRING string function.
- */
-public class SubstringFunction extends TriExpression<String> {
+public class SubstringFunction extends TriExpression<String> implements IdentifiedDataSerializable {
     public SubstringFunction() {
-        // No-op.
+        // No-op
     }
 
-    private SubstringFunction(Expression<?> source, Expression<?> start, Expression<?> length) {
-        super(source, start, length);
+    private SubstringFunction(Expression<?> input, Expression<?> start, Expression<?> length) {
+        super(input, start, length);
     }
 
-    public static SubstringFunction create(Expression<?> source, Expression<?> start, Expression<?> length) {
-        EnsureConvertible.toVarchar(source);
-        EnsureConvertible.toInt(start);
-        EnsureConvertible.toInt(length);
-
-        return new SubstringFunction(source, start, length);
+    public static SubstringFunction create(Expression<?> input, Expression<?> start, Expression<?> length) {
+        return new SubstringFunction(input, start, length);
     }
 
+    @SuppressWarnings({"checkstyle:CyclomaticComplexity", "checkstyle:NPathComplexity"})
     @Override
     public String eval(Row row, ExpressionEvalContext context) {
-        String source = Eval.asVarchar(operand1, row, context);
-        Integer start = Eval.asInt(operand2, row, context);
-        Integer length = Eval.asInt(operand3, row, context);
+        // Get input
+        String input;
 
-        return StringExpressionUtils.substring(source, start, length);
+        try {
+            input = StringFunctionUtils.asVarchar(operand1, row, context);
+        } catch (Exception e) {
+            // Conversion to String failed. E.g. NPE on UserClass.toString()
+            throw QueryException.dataException(
+                "Failed to get value of input operand of SUBSTRING function: " + e.getMessage(), e
+            );
+        }
+
+        if (input == null) {
+            // NULL always yields NULL
+            return null;
+        }
+
+        Integer start = MathFunctionUtils.asInt(operand2, row, context);
+
+        if (start == null) {
+            return null;
+        }
+
+        if (start < 1) {
+            // Different databases provide different semantics on negative values. Oracle start counting
+            // from the end, SQL Server starts from the beginning, and uses the value to calculate the
+            // final length, etc.
+            // These semantics are pretty complicated, so wi disallow it completely.
+            throw QueryException.dataException("SUBSTRING \"start\" operand must be positive");
+        }
+
+        // In SQL start position is 1-based. Convert it to 0-based for Java.
+        int adjustedStart = start - 1;
+
+        if (adjustedStart >= input.length()) {
+            // Start position is beyond the string length, e.g. SUBSTRING("abc", 4)
+            return "";
+        }
+
+        Integer length;
+
+        if (operand3 != null) {
+            length = MathFunctionUtils.asInt(operand3, row, context);
+
+            if (length == null) {
+                return null;
+            }
+        } else {
+            length = null;
+        }
+
+        if (length == null) {
+            // Length is not specified, just cut from the start
+            return adjustedStart > 0 ? input.substring(adjustedStart) : input;
+        } else if (length < 0) {
+            // Negative lengths are not allowed
+            throw QueryException.dataException("SUBSTRING \"length\" operand cannot be negative");
+        } else if (length == 0) {
+            // Zero length always yields empty string
+            return "";
+        } else if (adjustedStart + length > input.length()) {
+            // Length is outside of input limits, ignore
+            return adjustedStart > 0 ? input.substring(adjustedStart) : input;
+        } else {
+            // Length is within input limits, use it
+            return input.substring(adjustedStart, adjustedStart + length);
+        }
     }
 
     @Override
     public QueryDataType getType() {
         return QueryDataType.VARCHAR;
+    }
+
+    @Override
+    public int getFactoryId() {
+        return SqlDataSerializerHook.F_ID;
+    }
+
+    @Override
+    public int getClassId() {
+        return SqlDataSerializerHook.EXPRESSION_SUBSTRING;
     }
 }

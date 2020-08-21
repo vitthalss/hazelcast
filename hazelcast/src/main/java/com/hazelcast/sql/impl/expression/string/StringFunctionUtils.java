@@ -17,14 +17,17 @@
 package com.hazelcast.sql.impl.expression.string;
 
 import com.hazelcast.sql.impl.QueryException;
+import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.ExpressionEvalContext;
+import com.hazelcast.sql.impl.row.Row;
 
 import java.util.Locale;
 
 /**
  * Utility methods for string functions.
  */
-public final class StringExpressionUtils {
-    private StringExpressionUtils() {
+public final class StringFunctionUtils {
+    private StringFunctionUtils() {
         // No-op.
     }
 
@@ -41,7 +44,7 @@ public final class StringExpressionUtils {
     }
 
     public static String concat(String first, String second) {
-        return (first != null ? first : "") + (second != null ? second : "");
+        return first != null && second != null ? first + second : null;
     }
 
     public static Integer position(String seek, String source, int position) {
@@ -66,40 +69,12 @@ public final class StringExpressionUtils {
         }
     }
 
-    public static String substring(String source, Integer startPos, Integer length) {
-        // TODO: Validate the implementation against ANSI.
-        if (source == null || startPos == null || length == null) {
-            return null;
-        }
-
-        int sourceLength = source.length();
-
-        if (startPos < 0) {
-            startPos += sourceLength + 1;
-        }
-
-        int endPos = startPos + length;
-
-        if (endPos < startPos) {
-            throw QueryException.error("End position is less than start position.");
-        }
-
-        if (startPos > sourceLength || endPos < 1) {
-            return "";
-        }
-
-        int startPos0 = Math.max(startPos, 1);
-        int endPos0 = Math.min(endPos, sourceLength + 1);
-
-        return source.substring(startPos0 - 1, endPos0 - 1);
-    }
-
     public static Integer charLength(String value) {
         return value != null ? value.length() : null;
     }
 
     public static Integer ascii(String value) {
-        return value == null ? null : value.isEmpty() ? 0 : value.codePointAt(0);
+        return value != null ? value.isEmpty() ? 0 : value.codePointAt(0) : null;
     }
 
     public static String upper(String value) {
@@ -128,7 +103,7 @@ public final class StringExpressionUtils {
         for (int i = 0; i < strLen; i++) {
             char c = value.charAt(i);
 
-            if (Character.isWhitespace(c)) {
+            if (!Character.isLetterOrDigit(c)) {
                 res.append(c);
 
                 capitalizeNext = true;
@@ -137,10 +112,20 @@ public final class StringExpressionUtils {
 
                 capitalizeNext = false;
             } else {
-                res.append(c);
+                res.append(Character.toLowerCase(c));
             }
         }
 
         return res.toString();
+    }
+
+    public static String asVarchar(Expression<?> expression, Row row, ExpressionEvalContext context) {
+        Object res = expression.eval(row, context);
+
+        if (res == null) {
+            return null;
+        }
+
+        return expression.getType().getConverter().asVarchar(res);
     }
 }

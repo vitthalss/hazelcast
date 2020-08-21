@@ -33,7 +33,7 @@ public final class SqlErrorCode {
     public static final int TIMEOUT = 1004;
 
     /** An error caused by concurrent migration of partition to other member. */
-    public static final int PARTITION_MIGRATED = 1005;
+    public static final int PARTITION_DISTRIBUTION_CHANGED = 1005;
 
     /** An error caused concurrent destroy of a map. */
     public static final int MAP_DESTROYED = 1006;
@@ -46,9 +46,6 @@ public final class SqlErrorCode {
 
     /** An error caused by a concurrent destroy of an index. */
     public static final int MAP_INDEX_NOT_EXISTS = 1009;
-
-    /** Partition is not owned by a member. */
-    public static final int PARTITION_NOT_OWNED = 1010;
 
     /** An error with data conversion or transformation. */
     public static final int DATA_EXCEPTION = 2000;

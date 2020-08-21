@@ -168,7 +168,7 @@ public class MapIndexScanExecIterator implements KeyValueIterator {
             assert !missingPartitions.isEmpty();
 
             throw QueryException.error(
-                SqlErrorCode.PARTITION_NOT_OWNED,
+                SqlErrorCode.PARTITION_DISTRIBUTION_CHANGED,
                 "Partitions are not owned by member: " + missingPartitions
             ).withInvalidate();
         }

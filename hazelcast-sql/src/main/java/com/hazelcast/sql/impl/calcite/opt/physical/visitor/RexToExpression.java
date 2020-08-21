@@ -80,6 +80,10 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import java.math.BigDecimal;
 import java.util.Calendar;
 
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.CHARACTER_LENGTH;
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.CHAR_LENGTH;
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.LENGTH;
+
 /**
  * Utility methods for REX to Hazelcast expression conversion.
  */
@@ -275,12 +279,19 @@ public final class RexToExpression {
             case CASE:
                 return CaseExpression.create(operands, resultType);
 
+            case LIKE:
+                Expression<?> escape = operands.length == 2 ? null : operands[2];
+
+                return LikeFunction.create(operands[0], operands[1], escape);
+
             case POSITION:
                 Expression<?> position = operands.length == 2 ? null : operands[2];
                 return PositionFunction.create(operands[0], operands[1], position);
 
             case OTHER:
-                if (operator == SqlStdOperatorTable.CONCAT) {
+                if (operator == HazelcastSqlOperatorTable.CONCAT) {
+                    assert operands.length == 2;
+
                     return ConcatFunction.create(operands[0], operands[1]);
                 }
 
@@ -293,10 +304,6 @@ public final class RexToExpression {
             case TIMESTAMP_ADD:
                 // TODO
                 return null;
-
-            case LIKE:
-                Expression<?> escape = operands.length == 2 ? null : operands[2];
-                return LikeFunction.create(operands[0], operands[1], escape);
 
             case OTHER_FUNCTION:
                 SqlFunction function = (SqlFunction) operator;
@@ -359,21 +366,24 @@ public final class RexToExpression {
 
                 // Strings.
 
-                if (function == SqlStdOperatorTable.CHAR_LENGTH || function == SqlStdOperatorTable.CHARACTER_LENGTH
-                        || function == HazelcastSqlOperatorTable.LENGTH) {
+                if (function == CHAR_LENGTH || function == CHARACTER_LENGTH || function == LENGTH) {
                     return CharLengthFunction.create(operands[0]);
-                } else if (function == SqlStdOperatorTable.UPPER) {
+                } else if (function == HazelcastSqlOperatorTable.UPPER) {
                     return UpperFunction.create(operands[0]);
-                } else if (function == SqlStdOperatorTable.LOWER) {
+                } else if (function == HazelcastSqlOperatorTable.LOWER) {
                     return LowerFunction.create(operands[0]);
-                } else if (function == SqlStdOperatorTable.INITCAP) {
+                } else if (function == HazelcastSqlOperatorTable.INITCAP) {
                     return InitcapFunction.create(operands[0]);
-                } else if (function == SqlStdOperatorTable.ASCII) {
+                } else if (function == HazelcastSqlOperatorTable.ASCII) {
                     return AsciiFunction.create(operands[0]);
+                } else if (function == HazelcastSqlOperatorTable.SUBSTRING) {
+                    Expression<?> input = operands[0];
+                    Expression<?> start = operands[1];
+                    Expression<?> length = operands.length > 2 ? operands[2] : null;
+
+                    return SubstringFunction.create(input, start, length);
                 } else if (function == SqlStdOperatorTable.REPLACE) {
                     return ReplaceFunction.create(operands[0], operands[1], operands[2]);
-                } else if (function == SqlStdOperatorTable.SUBSTRING) {
-                    return SubstringFunction.create(operands[0], operands[1], operands[2]);
                 }
 
                 // Dates.

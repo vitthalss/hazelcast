@@ -69,27 +69,27 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         // of Apache Calcite.
         SUPPORTED_KINDS = new HashSet<>();
 
+        // Predicates
+        SUPPORTED_KINDS.add(SqlKind.AND);
+        SUPPORTED_KINDS.add(SqlKind.OR);
+        SUPPORTED_KINDS.add(SqlKind.NOT);
+
         // Arithmetics
         SUPPORTED_KINDS.add(SqlKind.PLUS);
         SUPPORTED_KINDS.add(SqlKind.MINUS);
         SUPPORTED_KINDS.add(SqlKind.TIMES);
         SUPPORTED_KINDS.add(SqlKind.DIVIDE);
-        SUPPORTED_KINDS.add(SqlKind.MOD);
-        SUPPORTED_KINDS.add(SqlKind.PLUS_PREFIX);
         SUPPORTED_KINDS.add(SqlKind.MINUS_PREFIX);
-
-        // Boolean logic predicates
-        SUPPORTED_KINDS.add(SqlKind.AND);
-        SUPPORTED_KINDS.add(SqlKind.OR);
-        SUPPORTED_KINDS.add(SqlKind.NOT);
+        SUPPORTED_KINDS.add(SqlKind.PLUS_PREFIX);
+        SUPPORTED_KINDS.add(SqlKind.MOD);
 
         // "IS" predicates
-        SUPPORTED_KINDS.add(SqlKind.IS_NULL);
-        SUPPORTED_KINDS.add(SqlKind.IS_NOT_NULL);
-        SUPPORTED_KINDS.add(SqlKind.IS_FALSE);
-        SUPPORTED_KINDS.add(SqlKind.IS_NOT_FALSE);
         SUPPORTED_KINDS.add(SqlKind.IS_TRUE);
         SUPPORTED_KINDS.add(SqlKind.IS_NOT_TRUE);
+        SUPPORTED_KINDS.add(SqlKind.IS_FALSE);
+        SUPPORTED_KINDS.add(SqlKind.IS_NOT_FALSE);
+        SUPPORTED_KINDS.add(SqlKind.IS_NULL);
+        SUPPORTED_KINDS.add(SqlKind.IS_NOT_NULL);
 
         // Comparisons predicates
         SUPPORTED_KINDS.add(SqlKind.EQUALS);
@@ -130,9 +130,6 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         // Supported operators
         SUPPORTED_OPERATORS = new HashSet<>();
 
-        // Concat
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CONCAT);
-
         // Math
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.COS);
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.SIN);
@@ -157,15 +154,16 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.TRUNCATE);
 
         // Strings
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CHAR_LENGTH);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CHARACTER_LENGTH);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.ASCII);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.INITCAP);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.CHAR_LENGTH);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.CHARACTER_LENGTH);
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.LENGTH);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.UPPER);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.LOWER);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.INITCAP);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.ASCII);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.LOWER);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.UPPER);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.CONCAT);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.SUBSTRING);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.REPLACE);
-        SUPPORTED_OPERATORS.add(SqlStdOperatorTable.SUBSTRING);
 
         // Dates
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.CURRENT_DATE);

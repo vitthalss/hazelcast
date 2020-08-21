@@ -50,7 +50,7 @@ public class ReplaceFunction extends TriExpression<String> {
         String search = Eval.asVarchar(operand2, row, context);
         String replacement = Eval.asVarchar(operand3, row, context);
 
-        return StringExpressionUtils.replace(source, search, replacement);
+        return StringFunctionUtils.replace(source, search, replacement);
     }
 
     @Override
