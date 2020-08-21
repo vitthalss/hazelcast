@@ -84,6 +84,10 @@ import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.
 import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.CHAR_LENGTH;
 import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.LENGTH;
 
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.CHARACTER_LENGTH;
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.CHAR_LENGTH;
+import static com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable.LENGTH;
+
 /**
  * Utility methods for REX to Hazelcast expression conversion.
  */
