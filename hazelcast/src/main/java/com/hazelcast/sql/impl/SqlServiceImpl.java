@@ -25,7 +25,7 @@ import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.exception.ServiceNotFoundException;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.spi.impl.NodeEngineImpl;
-import com.hazelcast.sql.SqlQuery;
+import com.hazelcast.sql.SqlStatement;
 import com.hazelcast.sql.SqlResult;
 import com.hazelcast.sql.SqlService;
 import com.hazelcast.sql.impl.explain.QueryExplainResult;
@@ -93,7 +93,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
         int executorPoolSize = config.getExecutorPoolSize();
         int operationPoolSize = config.getOperationPoolSize();
-        long queryTimeout = config.getQueryTimeoutMillis();
+        long queryTimeout = config.getStatementTimeoutMillis();
         long maxMemory = config.getMaxMemory();
 
         if (executorPoolSize == SqlConfig.DEFAULT_EXECUTOR_POOL_SIZE) {
@@ -192,21 +192,21 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     @Nonnull
     @Override
-    public SqlResult query(@Nonnull SqlQuery query) {
-        Preconditions.checkNotNull(query, "Query cannot be null");
+    public SqlResult execute(@Nonnull SqlStatement statement) {
+        Preconditions.checkNotNull(statement, "Query cannot be null");
 
         try {
             if (nodeEngine.getLocalMember().isLiteMember()) {
                 throw QueryException.error("SQL queries cannot be executed on lite members");
             }
 
-            long timeout = query.getTimeoutMillis();
+            long timeout = statement.getTimeoutMillis();
 
-            if (timeout == SqlQuery.TIMEOUT_NOT_SET) {
+            if (timeout == SqlStatement.TIMEOUT_NOT_SET) {
                 timeout = queryTimeout;
             }
 
-            return query0(query.getSql(), query.getParameters(), timeout, query.getCursorBufferSize());
+            return query0(statement.getSql(), statement.getParameters(), timeout, statement.getCursorBufferSize());
         } catch (Exception e) {
             throw QueryUtils.toPublicException(e, nodeServiceProvider.getLocalMemberId());
         }

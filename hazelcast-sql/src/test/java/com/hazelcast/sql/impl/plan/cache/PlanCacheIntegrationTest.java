@@ -221,7 +221,7 @@ public class PlanCacheIntegrationTest extends PlanCacheTestSupport {
     }
 
     private Plan getPlan(HazelcastInstance instance, String sql) {
-        try (SqlResult result = instance.getSql().query(sql)) {
+        try (SqlResult result = instance.getSql().execute(sql)) {
             SqlResultImpl result0 = (SqlResultImpl) result;
 
             return result0.getPlan();
@@ -230,7 +230,7 @@ public class PlanCacheIntegrationTest extends PlanCacheTestSupport {
 
     @SuppressWarnings("StatementWithEmptyBody")
     private void executeWithException(HazelcastInstance instance, String sql) {
-        try (SqlResult result = instance.getSql().query(sql)) {
+        try (SqlResult result = instance.getSql().execute(sql)) {
             for (SqlRow ignore : result) {
                 // No-op.
             }
