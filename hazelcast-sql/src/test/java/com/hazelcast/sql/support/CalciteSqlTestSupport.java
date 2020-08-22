@@ -59,7 +59,7 @@ public class CalciteSqlTestSupport extends SqlTestSupport {
     }
 
     protected SqlResult executeQuery(HazelcastInstance target, String sql) {
-        return target.getSql().query(sql);
+        return target.getSql().execute(sql);
     }
 
     protected SqlResultImpl executeQueryEx(HazelcastInstance target, String sql) {

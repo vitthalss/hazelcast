@@ -913,7 +913,7 @@ public class TpcHTest extends CalciteSqlTestSupport {
             rowCount = 100;
         }
 
-        SqlResultImpl res = (SqlResultImpl) member.getSql().query(sql, args);
+        SqlResultImpl res = (SqlResultImpl) member.getSql().execute(sql, args);
         Plan plan = res.getPlan();
 
         System.out.println(">>> Explain:");

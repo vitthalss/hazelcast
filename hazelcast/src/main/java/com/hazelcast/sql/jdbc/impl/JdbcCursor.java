@@ -16,8 +16,8 @@
 
 package com.hazelcast.sql.jdbc.impl;
 
-import com.hazelcast.sql.SqlQuery;
 import com.hazelcast.sql.SqlRow;
+import com.hazelcast.sql.SqlStatement;
 import com.hazelcast.sql.impl.client.SqlClientResult;
 
 import java.util.Iterator;
@@ -44,7 +44,7 @@ public class JdbcCursor {
     public void setPageSize(int pageSize) {
         assert pageSize >= 0;
 
-        cursor.setCursorBufferSize(pageSize == 0 ? SqlQuery.DEFAULT_CURSOR_BUFFER_SIZE : pageSize);
+        cursor.setCursorBufferSize(pageSize == 0 ? SqlStatement.DEFAULT_CURSOR_BUFFER_SIZE : pageSize);
     }
 
     public boolean hasNextRow() {

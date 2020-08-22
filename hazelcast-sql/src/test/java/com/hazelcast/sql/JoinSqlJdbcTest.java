@@ -21,8 +21,8 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.sql.impl.SqlRowImpl;
 import com.hazelcast.sql.impl.row.HeapRow;
-import com.hazelcast.sql.support.ModelGenerator;
 import com.hazelcast.sql.support.CalciteSqlTestSupport;
+import com.hazelcast.sql.support.ModelGenerator;
 import com.hazelcast.test.HazelcastSerialClassRunner;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
@@ -46,7 +46,7 @@ import static junit.framework.TestCase.assertEquals;
 @Category({QuickTest.class, ParallelJVMTest.class})
 public class JoinSqlJdbcTest extends CalciteSqlTestSupport {
     /** Make sure that we fetch several pages. */
-    private static final int PERSON_CNT = SqlQuery.DEFAULT_CURSOR_BUFFER_SIZE * 2;
+    private static final int PERSON_CNT = SqlStatement.DEFAULT_CURSOR_BUFFER_SIZE * 2;
 
     private static HazelcastInstance client;
 

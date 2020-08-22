@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.jdbc;
 
-import com.hazelcast.sql.SqlQuery;
+import com.hazelcast.sql.SqlStatement;
 import com.hazelcast.sql.jdbc.impl.JdbcGateway;
 import com.hazelcast.sql.jdbc.impl.JdbcUtils;
 
@@ -65,7 +65,7 @@ public class HazelcastJdbcConnection implements Connection {
 
     // TODO: Should be propagated from connection properties.
     /** Page size. */
-    private int pageSize = SqlQuery.DEFAULT_CURSOR_BUFFER_SIZE;
+    private int pageSize = SqlStatement.DEFAULT_CURSOR_BUFFER_SIZE;
 
     HazelcastJdbcConnection(JdbcGateway gateway) {
         this.gateway = gateway;

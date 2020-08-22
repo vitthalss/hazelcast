@@ -28,10 +28,10 @@ import com.hazelcast.nio.serialization.IdentifiedDataSerializable;
 import com.hazelcast.partition.Partition;
 import com.hazelcast.partition.PartitionService;
 import com.hazelcast.spi.impl.NodeEngineImpl;
-import com.hazelcast.sql.SqlException;
-import com.hazelcast.sql.SqlQuery;
+import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlResult;
 import com.hazelcast.sql.SqlRow;
+import com.hazelcast.sql.SqlStatement;
 import com.hazelcast.sql.impl.exec.CreateExecPlanNodeVisitorHook;
 import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.operation.QueryOperationHandlerImpl;
@@ -229,8 +229,8 @@ public class SqlTestSupport extends HazelcastTestSupport {
         return rows;
     }
 
-    public SqlException executeWithException(HazelcastInstance member, String sql, Object... params) {
-        SqlQuery query = new SqlQuery(sql);
+    public HazelcastSqlException executeWithException(HazelcastInstance member, String sql, Object... params) {
+        SqlStatement query = new SqlStatement(sql);
 
         if (params != null) {
             for (Object param : params) {
@@ -242,12 +242,12 @@ public class SqlTestSupport extends HazelcastTestSupport {
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
-    public SqlException executeWithException(HazelcastInstance member, SqlQuery query) {
-        try (SqlResult res = member.getSql().query(query)) {
+    public HazelcastSqlException executeWithException(HazelcastInstance member, SqlStatement query) {
+        try (SqlResult res = member.getSql().execute(query)) {
             for (SqlRow ignore : res) {
                 // No-op.
             }
-        } catch (SqlException e) {
+        } catch (HazelcastSqlException e) {
             return e;
         }
 
