@@ -25,7 +25,6 @@ import java.util.Map;
 
 class ClusterInfoCollector implements MetricsCollector {
 
-
     @Override
     public Map<PhoneHomeMetrics, String> computeMetrics(Node hazelcastNode) {
         Map<PhoneHomeMetrics, String> parameters = new HashMap<>();
@@ -33,14 +32,12 @@ class ClusterInfoCollector implements MetricsCollector {
         int clusterSize = clusterService.getMembers().size();
         long clusterUpTime = clusterService.getClusterClock().getClusterUpTime();
         RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
-
         parameters.put(PhoneHomeMetrics.UUID_OF_CLUSTER, hazelcastNode.getThisUuid().toString());
         parameters.put(PhoneHomeMetrics.CLUSTER_ID, clusterService.getClusterId().toString());
         parameters.put(PhoneHomeMetrics.CLUSTER_SIZE, MetricsCollector.convertToLetter(clusterSize));
         parameters.put(PhoneHomeMetrics.TIME_TAKEN_TO_CLUSTER_UP, Long.toString(clusterUpTime));
         parameters.put(PhoneHomeMetrics.UPTIME_OF_RUNTIME_MXBEAN, Long.toString(runtimeMxBean.getUptime()));
         parameters.put(PhoneHomeMetrics.RUNTIME_MXBEAN_VM_NAME, runtimeMxBean.getVmName());
-
         return parameters;
     }
 }

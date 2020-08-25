@@ -19,10 +19,7 @@ import com.hazelcast.instance.impl.Node;
 import com.hazelcast.logging.ILogger;
 import com.hazelcast.spi.properties.ClusterProperty;
 
-import java.io.BufferedInputStream;
-import java.io.InputStream;
-import java.net.URL;
-import java.net.URLConnection;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,8 +27,6 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import static com.hazelcast.internal.nio.IOUtil.closeResource;
-import static com.hazelcast.internal.util.EmptyStatement.ignore;
 import static java.lang.System.getenv;
 
 /**
@@ -39,28 +34,28 @@ import static java.lang.System.getenv;
  */
 public class PhoneHome {
 
-    private static final int TIMEOUT = 1000;
-
     private static final String FALSE = "false";
     private static final String DEFAULT_BASE_PHONE_HOME_URL = "http://phonehome.hazelcast.com/ping";
+    private static final MetricsCollector CLOUD_INFO_COLLECTOR = new CloudInfoCollector();
 
     volatile ScheduledFuture<?> phoneHomeFuture;
     private final ILogger logger;
     private final String basePhoneHomeUrl;
 
     private final Node hazelcastNode;
-    private final List<MetricsCollector> metricsCollectorList = Arrays.asList(new BuildInfoCollector(),
-            new ClusterInfoCollector(), new ClientInfoCollector(), new MapInfoCollector(),
-            new OSInfoCollector(), new DistributedObjectCounterCollector(), new CacheInfoCollector());
+    private final List<MetricsCollector> metricsCollectorList = new ArrayList<>(Arrays.asList(new BuildInfoCollector(),
+            new ClusterInfoCollector(), new ClientInfoCollector(), new MapInfoCollector(), new OSInfoCollector(),
+            new DistributedObjectCounterCollector(), new CacheInfoCollector()));
 
     public PhoneHome(Node node) {
-        this(node, DEFAULT_BASE_PHONE_HOME_URL);
+        this(node, DEFAULT_BASE_PHONE_HOME_URL, CLOUD_INFO_COLLECTOR);
     }
 
-    PhoneHome(Node node, String baseurl) {
+    PhoneHome(Node node, String baseUrl, MetricsCollector... additionalCollectors) {
         hazelcastNode = node;
         logger = hazelcastNode.getLogger(com.hazelcast.internal.util.phonehome.PhoneHome.class);
-        basePhoneHomeUrl = baseurl;
+        basePhoneHomeUrl = baseUrl;
+        metricsCollectorList.addAll(Arrays.asList(additionalCollectors));
     }
 
     public void check() {
@@ -85,7 +80,6 @@ public class PhoneHome {
         }
     }
 
-
     /**
      * Performs a phone request for {@code node} and returns the generated request
      * parameters. If {@code pretend} is {@code true}, only returns the parameters
@@ -96,17 +90,14 @@ public class PhoneHome {
      */
     public Map<String, String> phoneHome(boolean pretend) {
         PhoneHomeParameterCreator parameterCreator = createParameters();
-
         if (!pretend) {
             String urlStr = basePhoneHomeUrl + parameterCreator.build();
-            fetchWebService(urlStr);
+            MetricsCollector.fetchWebService(urlStr);
         }
-
         return parameterCreator.getParameters();
     }
 
     public PhoneHomeParameterCreator createParameters() {
-
         PhoneHomeParameterCreator parameterCreator = new PhoneHomeParameterCreator();
         for (MetricsCollector metricsCollector : metricsCollectorList) {
             try {
@@ -116,21 +107,5 @@ public class PhoneHome {
             }
         }
         return parameterCreator;
-    }
-
-    private void fetchWebService(String urlStr) {
-        InputStream in = null;
-        try {
-            URL url = new URL(urlStr);
-            URLConnection conn = url.openConnection();
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0");
-            conn.setConnectTimeout(TIMEOUT * 2);
-            conn.setReadTimeout(TIMEOUT * 2);
-            in = new BufferedInputStream(conn.getInputStream());
-        } catch (Exception ignored) {
-            ignore(ignored);
-        } finally {
-            closeResource(in);
-        }
     }
 }

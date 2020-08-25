@@ -74,7 +74,20 @@ public enum PhoneHomeMetrics {
     COUNT_OF_REPLICATED_MAPS("rpct"),
     COUNT_OF_CARDINALITY_ESTIMATORS("cect"),
     COUNT_OF_PN_COUNTERS("pncct"),
-    COUNT_OF_FLAKE_ID_GENERATORS("figct");
+    COUNT_OF_FLAKE_ID_GENERATORS("figct"),
+
+    //CLOUD METRICS
+    /*
+     *  it is a notation of the cloud env, if its G means it mean GCP , A means AWS , Z means Azure
+     */
+    CLOUD("cld"),
+    /*
+     *  it is a notation of the docker container env, if its
+     *   K means the member runs in Kubernetes,
+     *   D means it runs in docker but not on kubernetes ,
+     *   N means it doesn't run in docker
+     */
+    DOCKER("dck");
 
     private final String query;
 

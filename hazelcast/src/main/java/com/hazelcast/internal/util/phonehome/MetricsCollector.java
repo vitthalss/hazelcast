@@ -17,10 +17,16 @@ package com.hazelcast.internal.util.phonehome;
 
 import com.hazelcast.instance.impl.Node;
 
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Map;
+
+import static com.hazelcast.internal.util.EmptyStatement.ignore;
 
 interface MetricsCollector {
 
+    int TIMEOUT = 2000;
+    int RESPONSE_OK = 200;
     int A_INTERVAL = 5;
     int B_INTERVAL = 10;
     int C_INTERVAL = 20;
@@ -57,5 +63,26 @@ interface MetricsCollector {
             letter = "I";
         }
         return letter;
+    }
+
+    static boolean fetchWebService(String urlStr) {
+        HttpURLConnection conn = null;
+        boolean response;
+        try {
+            URL url = new URL(urlStr);
+            conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(TIMEOUT);
+            conn.setReadTimeout(TIMEOUT);
+            conn.connect();
+            response = conn.getResponseCode() == RESPONSE_OK;
+        } catch (Exception ignored) {
+            ignore(ignored);
+            return false;
+        } finally {
+            if (conn != null) {
+                conn.disconnect();
+            }
+        }
+        return response;
     }
 }
