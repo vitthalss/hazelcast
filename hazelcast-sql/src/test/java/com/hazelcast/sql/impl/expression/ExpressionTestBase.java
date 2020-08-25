@@ -1043,9 +1043,19 @@ public abstract class ExpressionTestBase extends SqlTestSupport {
             fields.add(new TableField(entry.getKey(), entry.getValue(), false));
         }
 
-        PartitionedMapTable table =
-                new PartitionedMapTable(SCHEMA_NAME_REPLICATED, "t", "t", fields, new ConstantTableStatistics(100), null, null,
-                        null, null, emptyList(), PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE, false);
+        PartitionedMapTable table = new PartitionedMapTable(
+            QueryUtils.SCHEMA_NAME_PARTITIONED,
+            "t",
+            "t",
+            fields,
+            new ConstantTableStatistics(100),
+            null,
+            null,
+            null,
+            null,
+            emptyList(),
+            PartitionedMapTable.DISTRIBUTION_FIELD_ORDINAL_NONE,
+            false);
 
         HazelcastTable hazelcastTable = new HazelcastTable(table, new HazelcastTableStatistic(100));
         return OptimizerContext.create(new HazelcastSchema(singletonMap("t", hazelcastTable)),

@@ -176,7 +176,7 @@ public abstract class OptimizerTestSupport extends SqlTestSupport {
             boolean nativeMemoryEnabled
     ) {
         PartitionedMapTable table = new PartitionedMapTable(
-                SCHEMA_NAME_REPLICATED,
+                SCHEMA_NAME_PARTITIONED,
                 name,
                 name,
                 fields,

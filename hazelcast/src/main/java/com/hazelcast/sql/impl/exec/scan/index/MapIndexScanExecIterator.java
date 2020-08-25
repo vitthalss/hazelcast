@@ -19,6 +19,7 @@ package com.hazelcast.sql.impl.exec.scan.index;
 import com.hazelcast.internal.serialization.Data;
 import com.hazelcast.internal.util.collection.PartitionIdSet;
 import com.hazelcast.map.impl.MapContainer;
+import com.hazelcast.query.impl.Indexes;
 import com.hazelcast.query.impl.InternalIndex;
 import com.hazelcast.query.impl.QueryableEntry;
 import com.hazelcast.sql.impl.SqlErrorCode;
@@ -118,7 +119,11 @@ public class MapIndexScanExecIterator implements KeyValueIterator {
         PartitionIdSet expectedPartitions
     ) {
         // Find the index
-        InternalIndex index = map.getIndexes().getIndex(indexName);
+        Indexes indexes = map.getIndexes();
+
+        assert indexes.isGlobal();
+
+        InternalIndex index = indexes.getIndex(indexName);
 
         if (index == null) {
             throw QueryException.error(
@@ -127,12 +132,12 @@ public class MapIndexScanExecIterator implements KeyValueIterator {
             ).withInvalidate();
         }
 
-        // Make sure that required partitions are indexes
+        // Make sure that required partitions are indexed
         validatePartitions(index, expectedPartitions);
 
         if (indexFilter == null) {
             // No filter => this is a full scan (e.g. for HD)
-            return index.getRecordIterator();
+            return index.getSqlRecordIterator();
         }
 
         int actualComponentCount = index.getComponents().length;

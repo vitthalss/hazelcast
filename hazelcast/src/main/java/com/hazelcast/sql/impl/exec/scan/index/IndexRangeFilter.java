@@ -31,12 +31,21 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 
+/**
+ * Filter the is used for range requests. Could have either lower bound, upper bound or both.
+ */
 @SuppressWarnings("rawtypes")
 public class IndexRangeFilter implements IndexFilter, IdentifiedDataSerializable {
-
+    /** Lower bound, null if no bound. */
     private IndexFilterValue from;
+
+    /** Lower bound inclusiveness. */
     private boolean fromInclusive;
+
+    /** Upper bound, null if no bound. */
     private IndexFilterValue to;
+
+    /** Upper bound inclusiveness. */
     private boolean toInclusive;
 
     public IndexRangeFilter() {
@@ -44,6 +53,8 @@ public class IndexRangeFilter implements IndexFilter, IdentifiedDataSerializable
     }
 
     public IndexRangeFilter(IndexFilterValue from, boolean fromInclusive, IndexFilterValue to, boolean toInclusive) {
+        assert from != null || to != null;
+
         this.from = from;
         this.fromInclusive = fromInclusive;
         this.to = to;
@@ -53,43 +64,62 @@ public class IndexRangeFilter implements IndexFilter, IdentifiedDataSerializable
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     @Override
     public Iterator<QueryableEntry> getEntries(InternalIndex index, ExpressionEvalContext evalContext) {
-        if (from != null && to == null) {
-            // Left bound only
-            Comparable fromValue = from.getValue(evalContext);
-            Comparison fromComparison = fromInclusive ? Comparison.GREATER_OR_EQUAL : Comparison.GREATER;
+        if (from != null) {
+            if (to != null) {
+                // Lower and upper bounds
+                Comparable fromValue = from.getValue(evalContext);
 
-            if (fromValue == null || fromValue == AbstractIndex.NULL) {
-                return Collections.emptyIterator();
+                if (isNull(fromValue)) {
+                    return Collections.emptyIterator();
+                }
+
+                Comparable toValue = to.getValue(evalContext);
+
+                if (isNull(toValue)) {
+                    return Collections.emptyIterator();
+                }
+
+                return index.getSqlRecordIterator(fromValue, fromInclusive, toValue, toInclusive);
+            } else {
+                // Lower bound only
+                Comparable fromValue = from.getValue(evalContext);
+                Comparison fromComparison = fromInclusive ? Comparison.GREATER_OR_EQUAL : Comparison.GREATER;
+
+                if (isNull(fromValue)) {
+                    return Collections.emptyIterator();
+                }
+
+                return index.getSqlRecordIterator(fromComparison, fromValue);
             }
+        } else {
+            assert to != null;
 
-            return index.getRecordIterator(fromComparison, fromValue);
-        } else if (from == null && to != null) {
-            // Right bound only
+            // Upper bound only
             Comparable toValue = to.getValue(evalContext);
             Comparison toComparison = toInclusive ? Comparison.LESS_OR_EQUAL : Comparison.LESS;
 
-            if (toValue == null || toValue == AbstractIndex.NULL) {
+            if (isNull(toValue)) {
                 return Collections.emptyIterator();
             }
 
-            return index.getRecordIterator(toComparison, toValue);
-        } else {
-            assert from != null;
-
-            Comparable fromValue = from.getValue(evalContext);
-
-            if (fromValue == null || fromValue == AbstractIndex.NULL) {
-                return Collections.emptyIterator();
-            }
-
-            Comparable toValue = to.getValue(evalContext);
-
-            if (toValue == null || toValue == AbstractIndex.NULL) {
-                return Collections.emptyIterator();
-            }
-
-            return index.getRecordIterator(fromValue, fromInclusive, toValue, toInclusive);
+            return index.getSqlRecordIterator(toComparison, toValue);
         }
+    }
+
+    /**
+     * Check if the value is null, and hence its usage with any comparison operator cannot produce any row.
+     *
+     * @param value value
+     * @return {@code} true if the value is null
+     */
+    private static boolean isNull(Object value) {
+        // AbstractIndex.NULL is only returned for the "IS NULL" filter.
+        // For composite index the AbstractIndex.NULL is wrapped into a composite object.
+        // For non-composite index, we never produce the range filter for "IS NULL".
+        // Hence, AbstractIndex.NULL is not possible here.
+        assert value != AbstractIndex.NULL;
+
+        return value == null;
     }
 
     @Override

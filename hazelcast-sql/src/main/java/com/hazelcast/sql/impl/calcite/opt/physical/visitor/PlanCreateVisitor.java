@@ -17,6 +17,7 @@
 package com.hazelcast.sql.impl.calcite.opt.physical.visitor;
 
 import com.hazelcast.internal.util.collection.PartitionIdSet;
+import com.hazelcast.spi.properties.ClusterProperty;
 import com.hazelcast.sql.SqlColumnMetadata;
 import com.hazelcast.sql.SqlRowMetadata;
 import com.hazelcast.sql.impl.QueryException;
@@ -277,9 +278,11 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
         AbstractMapTable table = rel.getMap();
 
         if (((PartitionedMapTable) table).isHd()) {
-            throw QueryException.error("Cannot query IMap " + table.getName()
-                    + " with InMemoryFormat.NATIVE because it does not have indexes "
-                    + "(please add at least one index to query this IMap)");
+            throw QueryException.error("Cannot query the IMap \"" + table.getName()
+                + "\" with InMemoryFormat.NATIVE because it does not have global indexes "
+                + "(please make sure that the IMap has at least one index, "
+                + "and the property \"" + ClusterProperty.GLOBAL_HD_INDEX_ENABLED.getName()
+                + "\" is set to \"true\")");
         }
 
         HazelcastTable hazelcastTable = rel.getTableUnwrapped();
@@ -346,6 +349,33 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
             schemaBefore.getTypes(),
             hazelcastTable.getProjects(),
             convertFilter(schemaBefore, hazelcastTable.getFilter())
+        );
+
+        pushUpstream(scanNode);
+
+        objectIds.add(table.getObjectKey());
+    }
+
+    @Override
+    public void onMapIndexScan(MapIndexScanPhysicalRel rel) {
+        HazelcastTable hazelcastTable = rel.getTableUnwrapped();
+        AbstractMapTable table = rel.getMap();
+
+        PlanNodeSchema schemaBefore = getScanSchemaBeforeProject(table);
+
+        MapIndexScanPlanNode scanNode = new MapIndexScanPlanNode(
+            pollId(rel),
+            table.getName(),
+            table.getKeyDescriptor(),
+            table.getValueDescriptor(),
+            getScanFieldPaths(table),
+            schemaBefore.getTypes(),
+            hazelcastTable.getProjects(),
+            rel.getIndex().getName(),
+            rel.getIndex().getComponentsCount(),
+            rel.getIndexFilter(),
+            rel.getConverterTypes(),
+            convertFilter(schemaBefore, rel.getRemainderExp())
         );
 
         pushUpstream(scanNode);

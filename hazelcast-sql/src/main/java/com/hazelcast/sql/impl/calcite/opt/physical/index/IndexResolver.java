@@ -39,6 +39,11 @@ import com.hazelcast.sql.impl.expression.Expression;
 import com.hazelcast.sql.impl.plan.node.PlanNodeFieldTypeProvider;
 import com.hazelcast.sql.impl.schema.map.MapTableIndex;
 import com.hazelcast.sql.impl.type.QueryDataType;
+import com.hazelcast.sql.impl.type.QueryDataTypeFamily;
+import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
+import org.apache.calcite.plan.RelOptTable;
+import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
@@ -78,19 +83,30 @@ public final class IndexResolver {
         // No-op.
     }
 
+    /**
+     * The main entry point for index planning.
+     * <p>
+     * Analyzes the filter of the input scan operator, and produces zero, one or more {@link MapIndexScanPhysicalRel}
+     * operators.
+     *
+     * @param scan scan operator to be analyzed
+     * @param distribution distribution that will be passed to created index scan rels
+     * @param indexes indexes available on the map being scanned
+     * @return zero, one or more index scan rels
+     */
     public static List<RelNode> createIndexScans(
         MapScanLogicalRel scan,
         DistributionTrait distribution,
         List<MapTableIndex> indexes
     ) {
-        // Early return if there is no filter.
+        // If there is no filter, no index can help speed up the query, return.
         RexNode filter = scan.getTableUnwrapped().getFilter();
 
         if (filter == null) {
             return Collections.emptyList();
         }
 
-        // Filter out unsupported indexes.
+        // Filter out unsupported indexes. Only SORTED and HASH indexes are supported.
         List<MapTableIndex> supportedIndexes = new ArrayList<>(indexes.size());
         Set<Integer> allIndexedFieldOrdinals = new HashSet<>();
 
@@ -107,10 +123,15 @@ public final class IndexResolver {
             return Collections.emptyList();
         }
 
-        // Convert expression into CNF
+        // Convert expression into CNF. Examples:
+        // - {a=1 AND b=2} is converted into {a=1}, {b=2}
+        // - {a=1 OR b=2} is unchanged
         List<RexNode> conjunctions = createConjunctiveFilter(filter);
 
-        // Prepare candidates from conjunctive expressions.
+        // Create a map from a column to a list of expressions that could be used by indexes.
+        // For example, for the expression {a>1 AND a<3 AND b=5 AND c>d}, three candidates will be created:
+        // a -> {>1}, {<3}
+        // b -> {=5}
         Map<Integer, List<IndexComponentCandidate>> candidates = prepareSingleColumnCandidates(
             conjunctions,
             OptUtils.getCluster(scan).getParameterMetadata(),
@@ -121,10 +142,11 @@ public final class IndexResolver {
             return Collections.emptyList();
         }
 
-        // Create index relational operators based on candidates.
         List<RelNode> rels = new ArrayList<>(supportedIndexes.size());
 
         for (MapTableIndex index : supportedIndexes) {
+            // Create index scan based on candidates, if possible. Candidates could be merged into more complex
+            // filters whenever possible.
             RelNode rel = createIndexScan(scan, distribution, index, conjunctions, candidates);
 
             if (rel != null) {
@@ -136,7 +158,7 @@ public final class IndexResolver {
     }
 
     /**
-     * Creates an object for convenient access to part of the predicate in the CNF.
+     * Decompose the original scan filter into CNF components.
      */
     private static List<RexNode> createConjunctiveFilter(RexNode filter) {
         List<RexNode> conjunctions = new ArrayList<>(1);
@@ -150,30 +172,35 @@ public final class IndexResolver {
      * Creates a map from the scan column ordinal to expressions that could be potentially used by indexes created over
      * this column.
      *
-     * @param nodes                   CNF nodes
-     * @param allIndexedFieldOrdinals Ordinals of all columns that have some indexes. Helps to filter out candidates that
+     * @param expressions                   CNF nodes
+     * @param allIndexedFieldOrdinals ordinals of all columns that have some indexes. Helps to filter out candidates that
      *                                definitely cannot be used earlier.
      */
     private static Map<Integer, List<IndexComponentCandidate>> prepareSingleColumnCandidates(
-        List<RexNode> nodes,
+        List<RexNode> expressions,
         QueryParameterMetadata parameterMetadata,
         Set<Integer> allIndexedFieldOrdinals
     ) {
         Map<Integer, List<IndexComponentCandidate>> res = new HashMap<>();
 
-        for (RexNode node : nodes) {
-            IndexComponentCandidate candidate = prepareSingleColumnCandidate(node, parameterMetadata);
+        // Iterate over each CNF component of the expression.
+        for (RexNode expression : expressions) {
+            // Try creating a candidate for the expression. The candidate is created iff the expression could be used
+            // by some index implementation (SORTED, HASH)
+            IndexComponentCandidate candidate = prepareSingleColumnCandidate(expression, parameterMetadata);
 
             if (candidate == null) {
-                // Expression cannot be used for indexes
+                // Expression cannot be used by any index implementation, skip
                 continue;
             }
 
             if (!allIndexedFieldOrdinals.contains(candidate.getColumnIndex())) {
-                // Expression could be used for indexes, but there are no matching indexes
+                // Expression could be used by some index implementation, but the map doesn't have indexes using this column
+                // Therefore, the expression could not be used, skip
                 continue;
             }
 
+            // Group candidates by column. E.g. {a>1 AND a<3} is grouped into a single map entry: a->{>1},{<3}
             res.computeIfAbsent(candidate.getColumnIndex(), (k) -> new ArrayList<>()).add(candidate);
         }
 
@@ -183,11 +210,10 @@ public final class IndexResolver {
     /**
      * Prepares an expression candidate for the given RexNode.
      * <p>
-     * We consider two types of expressions: comparison predicates and OR condition. We try to interpret OR as IN, otherwise
-     * it is ignored.
+     * See method body for the details of supported expressions.
      *
-     * @param exp calcite expression
-     * @return candidate or {@code null} if the expression cannot be used with indexes
+     * @param exp expression
+     * @return candidate or {@code null} if the expression cannot be used by any index implementation
      */
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private static IndexComponentCandidate prepareSingleColumnCandidate(
@@ -197,31 +223,45 @@ public final class IndexResolver {
         SqlKind kind = exp.getKind();
 
         switch (kind) {
-            case INPUT_REF:
-                // Special case for boolean columns: SELECT * FROM t WHERE f_boolean
-                return prepareSingleColumnCandidateBooleanIsTrueFalse(exp, exp, SqlKind.IS_TRUE);
-
             case IS_TRUE:
             case IS_FALSE:
             case IS_NOT_TRUE:
             case IS_NOT_FALSE:
+                // Special case for boolean columns: SELECT * FROM t WHERE f_boolean IS (NOT) TRUE/FALSE.
+                // Given that boolean column have only 3 values (true, false, null), any such expression could be converted
+                // to either EQUALS or IN predicates. Examples:
+                // {f_boolean IS TRUE} -> EQUALS(TRUE)
+                // {f_boolean IS NOT TRUE} -> IN(EQUALS(FALSE), EQUALS(NULL))
                 return prepareSingleColumnCandidateBooleanIsTrueFalse(
                     exp,
-                    removeCastIfPossible(((RexCall) exp).getOperands().get(0), false),
+                    removeCastIfPossible(((RexCall) exp).getOperands().get(0)),
                     kind
                 );
 
-            case NOT:
+            case INPUT_REF:
+                // Special case for boolean columns: SELECT * FROM t WHERE f_boolean
+                // Equivalent to SELECT * FROM t WHERE f_boolean IS TRUE
                 return prepareSingleColumnCandidateBooleanIsTrueFalse(
                     exp,
-                    removeCastIfPossible(((RexCall) exp).getOperands().get(0), false),
+                    exp,
+                    SqlKind.IS_TRUE
+                );
+
+            case NOT:
+                // Special case for boolean columns: SELECT * FROM t WHERE NOT f_boolean
+                // Equivalent to SELECT * FROM t WHERE f_boolean IS FALSE
+                return prepareSingleColumnCandidateBooleanIsTrueFalse(
+                    exp,
+                    removeCastIfPossible(((RexCall) exp).getOperands().get(0)),
                     SqlKind.IS_FALSE
                 );
 
             case IS_NULL:
+                // Handle SELECT * FROM WHERE column IS NULL.
+                // Internally it is converted into EQUALS(NULL) filter
                 return prepareSingleColumnCandidateIsNull(
                     exp,
-                    removeCastIfPossible(((RexCall) exp).getOperands().get(0), true)
+                    removeCastIfPossible(((RexCall) exp).getOperands().get(0))
                 );
 
             case GREATER_THAN:
@@ -229,6 +269,8 @@ public final class IndexResolver {
             case LESS_THAN:
             case LESS_THAN_OR_EQUAL:
             case EQUALS:
+                // Handle comparison predicates.
+                // Converted to either EQUALS or RANGE filter
                 BiTuple<RexNode, RexNode> operands = extractComparisonOperands(exp);
 
                 return prepareSingleColumnCandidateComparison(
@@ -240,6 +282,11 @@ public final class IndexResolver {
                 );
 
             case OR:
+                // Handle OR/IN predicates. If OR condition refer to only a single column and all comparisons are equality
+                // comparisons, then IN filter is created. Otherwise null is returned. Examples:
+                // {a=1 OR a=2} -> IN(EQUALS(1), EQUALS(2))
+                // {a=1 OR a>2} -> null
+                // {a=1 OR b=2} -> null
                 return prepareSingleColumnCandidateOr(
                     exp,
                     ((RexCall) exp).getOperands(),
@@ -255,10 +302,14 @@ public final class IndexResolver {
      * Prepare a candidate for {@code IS (NOT) TRUE/FALSE} expression.
      * <p>
      * The fundamental observation is that boolean column may have only three values - TRUE/FALSE/NULL. Therefore, every
-     * such expression could be converted to equivalent equals or IN predicate.
+     * such expression could be converted to equivalent equals or IN predicate:
+     * - IS TRUE -> EQUALS(TRUE)
+     * - IS FALSE -> EQUALS(FALSE)
+     * - IS NOT TRUE -> IN(EQUALS(FALSE), EQUALS(NULL))
+     * - IS NOT FALSE -> IN(EQUALS(TRUE), EQUALS(NULL))
      *
-     * @param exp expression
-     * @param operand operand with CAST unwrapped
+     * @param exp original expression, e.g. {col IS TRUE}
+     * @param operand  operand, e.g. {col}; CAST must be unwrapped before the method is invoked
      * @param kind expression type
      * @return candidate or {@code null}
      */
@@ -268,11 +319,12 @@ public final class IndexResolver {
         SqlKind kind
     ) {
         if (operand.getKind() != SqlKind.INPUT_REF) {
+            // The operand is not a column, e.g. {'true' IS TRUE}, index cannot be used
             return null;
         }
 
         if (operand.getType().getSqlTypeName() != SqlTypeName.BOOLEAN) {
-            // Only boolean columns could be used with this optimization
+            // The column is not of BOOLEAN type. We should never hit this branch normally. Added here only for safety.
             return null;
         }
 
@@ -323,8 +375,18 @@ public final class IndexResolver {
         return new IndexComponentCandidate(exp, columnIndex, filter);
     }
 
+    /**
+     * Try creating a candidate filter for the "IS NULL" expression.
+     * <p>
+     * Returns the filter EQUALS(null) with "allowNulls-true".
+     *
+     * @param exp original expression, e.g. {col IS NULL}
+     * @param operand operand, e.g. {col}; CAST must be unwrapped before the method is invoked
+     * @return candidate or {@code null}
+     */
     private static IndexComponentCandidate prepareSingleColumnCandidateIsNull(RexNode exp, RexNode operand) {
         if (operand.getKind() != SqlKind.INPUT_REF) {
+            // The operand is not a column, e.g. {'literal' IS NULL}, index cannot be used
             return null;
         }
 
@@ -332,6 +394,7 @@ public final class IndexResolver {
 
         QueryDataType type = SqlToQueryType.map(operand.getType().getSqlTypeName());
 
+        // Create a value with "allowNulls=true"
         IndexFilterValue filterValue = new IndexFilterValue(
             singletonList(ConstantExpression.create(null, type)),
             singletonList(true)
@@ -346,6 +409,16 @@ public final class IndexResolver {
         );
     }
 
+    /**
+     * Try creating a candidate filter for comparison operator.
+     *
+     * @param exp the original expression
+     * @param kind expression kine (=, >, <, >=, <=)
+     * @param operand1 the first operand (CAST must be unwrapped before the method is invoked)
+     * @param operand2 the second operand (CAST must be unwrapped before the method is invoked)
+     * @param parameterMetadata parameter metadata for expressions like {a>?}
+     * @return candidate or {@code null}
+     */
     private static IndexComponentCandidate prepareSingleColumnCandidateComparison(
         RexNode exp,
         SqlKind kind,
@@ -353,7 +426,8 @@ public final class IndexResolver {
         RexNode operand2,
         QueryParameterMetadata parameterMetadata
     ) {
-        // Normalize operand positions, so that the column is always goes first
+        // Normalize operand positions, so that the column is always goes first.
+        // The condition (kind) is changed accordingly (e.g. ">" to "<").
         if (operand1.getKind() != SqlKind.INPUT_REF && operand2.getKind() == SqlKind.INPUT_REF) {
             kind = inverseIndexConditionKind(kind);
 
@@ -362,27 +436,32 @@ public final class IndexResolver {
             operand2 = tmp;
         }
 
-        // Exit if the first operand is not a column
         if (operand1.getKind() != SqlKind.INPUT_REF) {
+            // No columns in the expression, index cannot be used. E.g. {'a' > 'b'}
             return null;
         }
 
         int columnIndex = ((RexInputRef) operand1).getIndex();
 
         if (!IndexRexVisitor.isValid(operand2)) {
-            // The second operand cannot be used for index filter
+            // The second operand cannot be used for index filter because its value possibly row-dependent.
+            // E.g. {column_a > column_b}.
             return null;
         }
 
+        // Convert the second operand into Hazelcast expression. The expression will be evaluated once before index scan is
+        // initiated, to construct the proper filter for index lookup.
         Expression<?> filterValue = convertToExpression(operand2, parameterMetadata);
 
         if (filterValue == null) {
-            // Operand cannot be converted to expression. Do not throw an exception here, just do not use the faulty condition
-            // for index. The proper exception will be thrown on later stages when attempting to convert Calcite rel tree to
-            // Hazelcast plan.
+            // The second operand cannot be converted to expression. Do not throw an exception here, just do not use the faulty
+            // condition for index. The proper exception will be thrown on later stages when attempting to convert Calcite rel
+            // tree to Hazelcast plan.
             return null;
         }
 
+        // Create the value that will be passed to filters. Not that "allowNulls=false" here, because any NULL in the comparison
+        // operator never returns "TRUE" and hence always returns an empty result set.
         IndexFilterValue filterValue0 = new IndexFilterValue(
             singletonList(filterValue),
             singletonList(false)
@@ -434,6 +513,17 @@ public final class IndexResolver {
         }
     }
 
+    /**
+     * Prepare candidate for OR expression if possible.
+     * <p>
+     * We support only equality conditions on the same columns. Ranges and conditions on different columns (aka "index joins")
+     * are not supported.
+     *
+     * @param exp the OR expression
+     * @param nodes components of the OR expression
+     * @param parameterMetadata parameter metadata
+     * @return candidate or {code null}
+     */
     private static IndexComponentCandidate prepareSingleColumnCandidateOr(
         RexNode exp,
         List<RexNode> nodes,
@@ -447,11 +537,10 @@ public final class IndexResolver {
             IndexComponentCandidate candidate = prepareSingleColumnCandidate(node, parameterMetadata);
 
             if (candidate == null) {
-                // Cannot resolve further, stop
+                // The component of the OR expression cannot be used by any index implementation
                 return null;
             }
 
-            // Work only with "=" expressions.
             IndexFilter candidateFilter = candidate.getFilter();
 
             if (!(candidateFilter instanceof IndexEqualsFilter || candidateFilter instanceof IndexInFilter)) {
@@ -466,7 +555,7 @@ public final class IndexResolver {
                 return null;
             }
 
-            // Flatten
+            // Flatten. E.g. ((a=1 OR a=2) OR a=3) is parsed into IN(1, 2) and OR(3), that is then flatten into IN(1, 2, 3)
             if (candidateFilter instanceof IndexEqualsFilter) {
                 filters.add(candidateFilter);
             } else {
@@ -488,7 +577,12 @@ public final class IndexResolver {
     /**
      * Create index scan for the given index if possible.
      *
-     * @return Index scan or {@code null}.
+     * @param scan the original map scan
+     * @param distribution the original map distribution
+     * @param index index to be considered
+     * @param conjunctions CNF components of the original map filter
+     * @param candidates resolved candidates
+     * @return index scan or {@code null}.
      */
     public static RelNode createIndexScan(
         MapScanLogicalRel scan,
@@ -499,6 +593,7 @@ public final class IndexResolver {
     ) {
         List<IndexComponentFilter> filters = new ArrayList<>(index.getFieldOrdinals().size());
 
+        // Iterate over every index component from the beginning and try to form a filter to it
         for (int i = 0; i < index.getFieldOrdinals().size(); i++) {
             int fieldOrdinal = index.getFieldOrdinals().get(i);
             QueryDataType fieldConverterType = index.getFieldConverterTypes().get(i);
@@ -506,10 +601,16 @@ public final class IndexResolver {
             List<IndexComponentCandidate> fieldCandidates = candidates.get(fieldOrdinal);
 
             if (fieldCandidates == null) {
-                // No candidates available for the given column, stop.
+                // No candidates available for the given component, stop.
+                // Consider the index {a, b, c}. If there is a condition "WHERE a=1 AND c=3", only "a=1" could be
+                // used for index filter.
                 break;
             }
 
+            // Create the filter for the given index component if possible.
+            // Separate candidates are possible merged into a single complex filter at this stage.
+            // Consider the index {a}, and the condition "WHERE a>1 AND a<5". In this case two distinct range candidates
+            // {>1} and {<5} are combined into a single RANGE filter {>1 AND <5}
             IndexComponentFilter filter = selectComponentFilter(
                 index.getType(),
                 fieldCandidates,
@@ -524,8 +625,10 @@ public final class IndexResolver {
             filters.add(filter);
 
             if (!(filter.getFilter() instanceof IndexEqualsFilter)) {
-                // For composite indexes, non-equals condition must always be the last part of the request.
-                // If we found non-equals, then we must stop.
+                // For composite indexes, non-equals condition must always be the last part of the request, otherwise we stop.
+                // Consider an index SORTED{a,b} and the condition "WHERE a>1 AND b=1". We cannot use both {a>1} and {b=1}
+                // filters here, because there is no single index request that could return such entries. Therefore, we use only
+                // {a>1} filter.
                 break;
             }
         }
@@ -569,7 +672,7 @@ public final class IndexResolver {
         // Prepare traits
         RelTraitSet traitSet = OptUtils.toPhysicalConvention(scan.getTraitSet(), distribution);
 
-        // Create the index scan
+        // Prepare table
         HazelcastRelOptTable originalRelTable = (HazelcastRelOptTable) scan.getTable();
         HazelcastTable originalHazelcastTable = OptUtils.getHazelcastTable(scan);
 
@@ -579,12 +682,14 @@ public final class IndexResolver {
             scan.getCluster().getTypeFactory()
         );
 
+        // Try composing the final filter out of the isolated component filters if possible
         IndexFilter filter = composeFilter(filters, index.getType(), index.getComponentsCount());
 
         if (filter == null) {
             return null;
         }
 
+        // Construct the scan
         return new MapIndexScanPhysicalRel(
             scan.getCluster(),
             traitSet,
@@ -597,6 +702,14 @@ public final class IndexResolver {
         );
     }
 
+    /**
+     * Create an index scan without any filter. Used by HD maps only.
+     *
+     * @param scan the original scan operator
+     * @param distribution the original distribution
+     * @param indexes available indexes
+     * @return index scan or {@code null}
+     */
     public static RelNode createFullIndexScan(
         MapScanLogicalRel scan,
         DistributionTrait distribution,
@@ -723,14 +836,20 @@ public final class IndexResolver {
      * @return final filter or {@code null} if the filter could not be built for the given index type
      */
     private static IndexFilter composeFilter(List<IndexFilter> filters, IndexType indexType, int indexComponentsCount) {
+        assert !filters.isEmpty();
 
-        if (filters.size() == 1 && indexComponentsCount == 1) {
+        if (indexComponentsCount == 1) {
+            // Non-composite index. Just pick the first filter
+            assert filters.size() == 1;
+
             IndexFilter res = filters.get(0);
 
             assert !(res instanceof IndexRangeFilter) || indexType == IndexType.SORTED;
 
             return res;
         } else {
+            // At this point component filters has the form "1=EQUALS, 2=EQUALS, ..., N=EQUALS/RANGE/IN".
+            // Compose the final filter based on the type of the last resolved filter.
             IndexFilter lastFilter = filters.get(filters.size() - 1);
 
             if (lastFilter instanceof IndexEqualsFilter) {
@@ -757,6 +876,14 @@ public final class IndexResolver {
      * filter, with missing components filled with negative/positive infinities for the left and right bounds respectively.
      * <p>
      * If the range filter is required, and the target index type is not {@link IndexType#SORTED}, the result is {@code null}.
+     * <p>
+     * Examples:
+     * <ul>
+     *     <li>SORTED(a, b), {a=1, b=2} => EQUALS(1), EQUALS(2) </li>
+     *     <li>HASH(a, b), {a=1, b=2} => EQUALS(1), EQUALS(2) </li>
+     *     <li>SORTED(a, b), {a=1} => EQUALS(1), RANGE(INF) </li>
+     *     <li>HASH(a, b), {a=1} => null </li>
+     * </ul>
      *
      * @return composite filter or {@code null}
      */
@@ -812,7 +939,6 @@ public final class IndexResolver {
      * @param indexComponentsCount the number of index components
      * @return composite IN filter
      */
-    // TODO: Currently IN filter loses collation!
     private static IndexFilter composeInFilter(
         List<IndexFilter> filters,
         IndexInFilter lastFilter,
@@ -1037,8 +1163,8 @@ public final class IndexResolver {
         RexNode operand1 = node0.getOperands().get(0);
         RexNode operand2 = node0.getOperands().get(1);
 
-        RexNode normalizedOperand1 = removeCastIfPossible(operand1, false);
-        RexNode normalizedOperand2 = removeCastIfPossible(operand2, false);
+        RexNode normalizedOperand1 = removeCastIfPossible(operand1);
+        RexNode normalizedOperand2 = removeCastIfPossible(operand2);
 
         return BiTuple.of(normalizedOperand1, normalizedOperand2);
     }
@@ -1054,11 +1180,10 @@ public final class IndexResolver {
      * downcast the other side of the comparison expression. See {@link TypeConverters}.
      *
      * @param node original node, possibly CAST
-     * @param force whether to remove CAST forcefully even for conversion that is otherwise invalid wrt the storage (used for
-     *              {@code IS NULL} operator)
      * @return original node if there is nothing to unwrap, or the operand of the CAST
      */
-    private static RexNode removeCastIfPossible(RexNode node, boolean force) {
+    @SuppressWarnings("checkstyle:NestedIfDepth")
+    private static RexNode removeCastIfPossible(RexNode node) {
         if (node.getKind() == SqlKind.CAST) {
             RexCall node0 = (RexCall) node;
 
@@ -1068,19 +1193,21 @@ public final class IndexResolver {
                 RelDataType fromType = from.getType();
                 RelDataType toType = node0.getType();
 
-                if (force) {
-                    // Forced unwrap for IS NULL expression
-                    return from;
-                }
-
                 if (fromType.equals(toType)) {
                     // Redundant conversion => unwrap
                     return from;
                 }
 
-                if (fromType.getSqlTypeName().getFamily() == NUMERIC && toType.getSqlTypeName().getFamily() == NUMERIC) {
-                    // Converting between numeric types => unwrap
-                    return from;
+                QueryDataTypeFamily fromFamily = SqlToQueryType.map(fromType.getSqlTypeName()).getTypeFamily();
+                QueryDataTypeFamily toFamily = SqlToQueryType.map(toType.getSqlTypeName()).getTypeFamily();
+
+                if (QueryDataTypeUtils.isNumeric(fromFamily) && QueryDataTypeUtils.isNumeric(toFamily)) {
+                    // Converting between numeric types
+                    if (toFamily.getPrecedence() > fromFamily.getPrecedence()) {
+                        // Only conversion from smaller type to bigger type could be removed safely. Otherwise the
+                        // overflow error is possible, so we cannot remove the CAST.
+                        return from;
+                    }
                 }
             }
         }

@@ -56,6 +56,11 @@ public abstract class PhysicalRelVisitorAdapter implements PhysicalRelVisitor {
     }
 
     @Override
+    public void onMapIndexScan(MapIndexScanPhysicalRel rel) {
+        onNode(rel);
+    }
+
+    @Override
     public void onReplicatedMapScan(ReplicatedMapScanPhysicalRel rel) {
         onNode(rel);
     }

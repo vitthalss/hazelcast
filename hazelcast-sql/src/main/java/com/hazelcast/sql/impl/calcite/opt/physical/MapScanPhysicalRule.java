@@ -33,6 +33,12 @@ import java.util.Collections;
 import java.util.List;
 
 import static com.hazelcast.sql.impl.calcite.opt.physical.index.IndexResolver.createFullIndexScan;
+import org.apache.calcite.rel.RelNode;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.hazelcast.sql.impl.calcite.opt.physical.index.IndexResolver.createFullIndexScan;
 
 /**
  * Convert logical map scan to either replicated or partitioned physical scan.

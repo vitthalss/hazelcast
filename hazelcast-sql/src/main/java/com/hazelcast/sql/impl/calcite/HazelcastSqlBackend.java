@@ -136,11 +136,11 @@ public class HazelcastSqlBackend implements SqlBackend {
     }
 
     private PhysicalRel optimize(
-            OptimizerContext context,
-            RelNode rel,
-            QueryParameterMetadata parameterMetadata
+        OptimizerContext context,
+        RelNode rel,
+        QueryParameterMetadata parameterMetadata
     ) {
-        // Make parameter metadata available to planner.
+        // Make metadata available to planner
         context.setParameterMetadata(parameterMetadata);
 
         // Logical part.

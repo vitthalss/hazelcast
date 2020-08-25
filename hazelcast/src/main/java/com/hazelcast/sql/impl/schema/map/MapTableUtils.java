@@ -33,6 +33,10 @@ import com.hazelcast.partition.strategy.DeclarativePartitioningStrategy;
 import com.hazelcast.query.impl.CompositeConverter;
 import com.hazelcast.query.impl.Index;
 import com.hazelcast.query.impl.TypeConverters;
+import com.hazelcast.query.impl.CompositeConverter;
+import com.hazelcast.query.impl.Index;
+import com.hazelcast.query.impl.InternalIndex;
+import com.hazelcast.query.impl.TypeConverters;
 import com.hazelcast.spi.impl.NodeEngine;
 import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
@@ -51,6 +55,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import com.hazelcast.sql.impl.extract.QueryPath;
+import com.hazelcast.sql.impl.schema.TableField;
+import com.hazelcast.sql.impl.type.QueryDataType;
+import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static com.hazelcast.spi.properties.ClusterProperty.GLOBAL_HD_INDEX_ENABLED;
 
 /**
  * Utility methods for schema resolution.
@@ -90,15 +106,22 @@ public final class MapTableUtils {
     }
 
     public static List<MapTableIndex> getPartitionedMapIndexes(MapContainer mapContainer, List<TableField> fields) {
-        Map<QueryPath, Integer> pathToOrdinalMap = mapPathsToOrdinals(fields);
+        boolean hd = mapContainer.getMapConfig().getInMemoryFormat() == InMemoryFormat.NATIVE;
+        boolean globalIndexEnabled = nodeEngine.getProperties().getBoolean(GLOBAL_HD_INDEX_ENABLED);
 
-        List<Index> indexes = mapContainer.getIndexList();
-
-        if (indexes.isEmpty()) {
+        if (hd && !globalIndexEnabled) {
             return Collections.emptyList();
         }
 
-        List<MapTableIndex> res = new ArrayList<>(indexes.size());
+        Map<QueryPath, Integer> pathToOrdinalMap = mapPathsToOrdinals(fields);
+
+        InternalIndex[] indexes = mapContainer.getIndexes().getIndexes();
+
+        if (indexes == null || indexes.length == 0) {
+            return Collections.emptyList();
+        }
+
+        List<MapTableIndex> res = new ArrayList<>(indexes.length);
 
         for (Index index : indexes) {
             IndexConfig indexConfig = index.getConfig();

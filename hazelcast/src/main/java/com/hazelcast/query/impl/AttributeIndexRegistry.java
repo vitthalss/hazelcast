@@ -238,47 +238,28 @@ public class AttributeIndexRegistry {
         }
 
         @Override
-        public Iterator<QueryableEntry> getRecordIterator() {
-            return delegate.getRecordIterator();
+        public Iterator<QueryableEntry> getSqlRecordIterator() {
+            throw new UnsupportedOperationException("Should not be called");
         }
 
         @Override
-        public Iterator<QueryableEntry> getRecordIterator(Comparable value) {
-            Comparable from = new CompositeValue(width, value, NEGATIVE_INFINITY);
-            Comparable to = new CompositeValue(width, value, POSITIVE_INFINITY);
-            return delegate.getRecordIterator(from, false, to, false);
+        public Iterator<QueryableEntry> getSqlRecordIterator(Comparable value) {
+            throw new UnsupportedOperationException("Should not be called");
         }
 
         @Override
-        public Iterator<QueryableEntry> getRecordIterator(Comparison comparison, Comparable value) {
-            switch (comparison) {
-                case LESS:
-                    CompositeValue lessFrom = new CompositeValue(width, NULL, POSITIVE_INFINITY);
-                    CompositeValue lessTo = new CompositeValue(width, value, NEGATIVE_INFINITY);
-                    return delegate.getRecordIterator(lessFrom, false, lessTo, false);
-                case GREATER:
-                    return delegate.getRecordIterator(GREATER, new CompositeValue(width, value, POSITIVE_INFINITY));
-                case LESS_OR_EQUAL:
-                    CompositeValue greaterOrEqualFrom = new CompositeValue(width, NULL, POSITIVE_INFINITY);
-                    CompositeValue greaterOrEqualTo = new CompositeValue(width, value, POSITIVE_INFINITY);
-                    return delegate.getRecordIterator(greaterOrEqualFrom, false, greaterOrEqualTo, false);
-                case GREATER_OR_EQUAL:
-                    return delegate.getRecordIterator(GREATER_OR_EQUAL, new CompositeValue(width, value, NEGATIVE_INFINITY));
-                default:
-                    throw new IllegalStateException("unexpected comparison: " + comparison);
-            }
+        public Iterator<QueryableEntry> getSqlRecordIterator(Comparison comparison, Comparable value) {
+            throw new UnsupportedOperationException("Should not be called");
         }
 
         @Override
-        public Iterator<QueryableEntry> getRecordIterator(
+        public Iterator<QueryableEntry> getSqlRecordIterator(
             Comparable from,
             boolean fromInclusive,
             Comparable to,
             boolean toInclusive
         ) {
-            Comparable compositeFrom = new CompositeValue(width, from, fromInclusive ? NEGATIVE_INFINITY : POSITIVE_INFINITY);
-            Comparable compositeTo = new CompositeValue(width, to, toInclusive ? POSITIVE_INFINITY : NEGATIVE_INFINITY);
-            return delegate.getRecordIterator(compositeFrom, false, compositeTo, false);
+            throw new UnsupportedOperationException("Should not be called");
         }
 
         @Override

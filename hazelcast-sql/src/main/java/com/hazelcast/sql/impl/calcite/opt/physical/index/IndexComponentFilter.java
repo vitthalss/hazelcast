@@ -62,4 +62,9 @@ public class IndexComponentFilter {
     public QueryDataType getConverterType() {
         return converterType;
     }
+
+    @Override
+    public String toString() {
+        return "IndexComponentFilter {filter=" + filter + ", expressions=" + expressions + ", converter=" + converterType + '}';
+    }
 }

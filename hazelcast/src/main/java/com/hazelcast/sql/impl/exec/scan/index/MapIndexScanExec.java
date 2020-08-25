@@ -55,7 +55,6 @@ public class MapIndexScanExec extends MapScanExec {
         IndexFilter indexFilter,
         List<QueryDataType> converterTypes
     ) {
-        // TODO: How to deal with passed partitions? Should we check that they are still owned during setup?
         super(
             id,
             map,

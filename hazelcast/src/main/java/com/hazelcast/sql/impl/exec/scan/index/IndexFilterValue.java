@@ -32,7 +32,17 @@ import java.io.IOException;
 import java.util.List;
 
 /**
- * Value that is used for filter lookup operations.
+ * Value that is used for index lookups.
+ * <p>
+ * In the general case the value is composite. Every component stands for the respective component of the filter.
+ * <p>
+ * In addition, every component has "allowNull" flag that defines what to do in the case of NULL values. When
+ * set to {@code false}, the observed NULL yields an empty result set immediately, e.g. for comparison
+ * predicates. When set to {@code true}, the index is queried for null values, e.g. for {@code IS NULL}
+ * predicate.
+ * <p>
+ * For example, for the composite filter {a, b} and the condition "WHERE a=1 AND b=2", the filter would be
+ * {1/false, 2/false}. While for the condition "WHERE a=1 AND b IS NULL", the filter would be {1/false, null/true}.
  */
 @SuppressWarnings("rawtypes")
 public class IndexFilterValue implements IdentifiedDataSerializable {
@@ -59,6 +69,8 @@ public class IndexFilterValue implements IdentifiedDataSerializable {
                 Comparable componentValue = getComponentValue(i, evalContext);
 
                 if (componentValue == null) {
+                    // One component returned NULL. It means that the filter will never return any entry, so there is no point
+                    // to perform further evaluation. E.g. "WHERE a=NULL" or "WHERE a>1 AND a<NULL"
                     return null;
                 }
 
@@ -69,10 +81,20 @@ public class IndexFilterValue implements IdentifiedDataSerializable {
         }
     }
 
+    /**
+     * Evaluate the value of the component at the given index.
+     *
+     * @param index index
+     * @param evalContext evaluation context
+     * @return evaluated value or {@code null} if the evaluation should be stopped, because the parent index condition will
+     *     never return any entry
+     */
     private Comparable getComponentValue(int index, ExpressionEvalContext evalContext) {
         Object value = components.get(index).eval(NoColumnAccessRow.INSTANCE, evalContext);
 
         if (value == null && allowNulls.get(index)) {
+            // The evaluated value is NULL, but NULLs are allowed here (e.g. for "WHERE a IS NULL"). Return the special
+            // NULL marker that will be used for the index lookup.
             value = AbstractIndex.NULL;
         }
 

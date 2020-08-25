@@ -46,6 +46,7 @@ import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
 import com.hazelcast.sql.impl.plan.node.EmptyPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
 import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
@@ -526,6 +527,42 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             node.getFetch(),
             node.getOffset()
         );
+
+        push(res);
+    }
+
+    @Override
+    public void onMapIndexScanNode(MapIndexScanPlanNode node) {
+        Exec res;
+
+        if (localParts.isEmpty()) {
+            res = new EmptyExec(node.getId());
+        } else {
+            String mapName = node.getMapName();
+
+            MapContainer map = nodeServiceProvider.getMap(mapName);
+
+            if (map == null) {
+                res = new EmptyExec(node.getId());
+            } else {
+                res = new MapIndexScanExec(
+                    node.getId(),
+                    map,
+                    localParts,
+                    node.getKeyDescriptor(),
+                    node.getValueDescriptor(),
+                    node.getFieldPaths(),
+                    node.getFieldTypes(),
+                    node.getProjects(),
+                    node.getFilter(),
+                    serializationService,
+                    node.getIndexName(),
+                    node.getIndexComponentCount(),
+                    node.getIndexFilter(),
+                    node.getConverterTypes()
+                );
+            }
+        }
 
         push(res);
     }
