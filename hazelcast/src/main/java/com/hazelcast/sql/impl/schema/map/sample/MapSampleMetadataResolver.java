@@ -31,6 +31,7 @@ import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;
 import com.hazelcast.sql.impl.schema.TableField;
+import com.hazelcast.sql.impl.schema.map.JetMapMetadataResolver;
 import com.hazelcast.sql.impl.schema.map.MapTableField;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
@@ -70,6 +71,7 @@ public final class MapSampleMetadataResolver {
      */
     public static MapSampleMetadata resolve(
         InternalSerializationService ss,
+        JetMapMetadataResolver jetMapMetadataResolver,
         Object target,
         boolean key
     ) {
@@ -83,14 +85,14 @@ public final class MapSampleMetadataResolver {
                 Data data = (Data) target;
 
                 if (data.isPortable()) {
-                    return resolvePortable(ss.getPortableContext().lookupClassDefinition(data), key);
+                    return resolvePortable(ss.getPortableContext().lookupClassDefinition(data), key, jetMapMetadataResolver);
                 } else if (data.isJson()) {
-                    return resolveJson(ss.toObject(data), key);
+                    return resolveJson(ss.toObject(data), key, jetMapMetadataResolver);
                 } else {
-                    return resolveClass(ss.toObject(data).getClass(), key);
+                    return resolveClass(ss.toObject(data).getClass(), key, jetMapMetadataResolver);
                 }
             } else {
-                return resolveClass(target.getClass(), key);
+                return resolveClass(target.getClass(), key, jetMapMetadataResolver);
             }
         } catch (Exception e) {
             throw QueryException.error("Failed to resolve " + (key ? "key" : "value") + " metadata: " + e.getMessage(), e);
@@ -104,7 +106,11 @@ public final class MapSampleMetadataResolver {
      * @param isKey Whether this is a key.
      * @return Metadata.
      */
-    private static MapSampleMetadata resolvePortable(ClassDefinition clazz, boolean isKey) {
+    private static MapSampleMetadata resolvePortable(
+        ClassDefinition clazz,
+        boolean isKey,
+        JetMapMetadataResolver jetMapMetadataResolver
+    ) {
         Map<String, TableField> fields = new TreeMap<>();
 
         // Add regular fields.
@@ -121,7 +127,11 @@ public final class MapSampleMetadataResolver {
         QueryPath topPath = isKey ? QueryPath.KEY_PATH : QueryPath.VALUE_PATH;
         fields.put(topName, new MapTableField(topName, QueryDataType.OBJECT, !fields.isEmpty(), topPath));
 
-        return new MapSampleMetadata(GenericQueryTargetDescriptor.DEFAULT, new LinkedHashMap<>(fields));
+        return new MapSampleMetadata(
+            GenericQueryTargetDescriptor.DEFAULT,
+            jetMapMetadataResolver.resolvePortable(clazz, isKey),
+            new LinkedHashMap<>(fields)
+        );
     }
 
     @SuppressWarnings("checkstyle:ReturnCount")
@@ -159,7 +169,11 @@ public final class MapSampleMetadataResolver {
         }
     }
 
-    private static MapSampleMetadata resolveJson(HazelcastJsonValue json, boolean isKey) {
+    private static MapSampleMetadata resolveJson(
+        HazelcastJsonValue json,
+        boolean isKey,
+        JetMapMetadataResolver jetMapMetadataResolver
+    ) {
         Map<String, TableField> fields = new TreeMap<>();
         Set<String> pathsRequiringConversion = new HashSet<>();
 
@@ -185,6 +199,7 @@ public final class MapSampleMetadataResolver {
 
         return new MapSampleMetadata(
                 new GenericQueryTargetDescriptor(pathsRequiringConversion),
+                jetMapMetadataResolver.resolveJson(isKey),
                 new LinkedHashMap<>(fields)
         );
     }
@@ -205,7 +220,7 @@ public final class MapSampleMetadataResolver {
     private static boolean doesRequireConversion(QueryDataType type) {
         switch (type.getTypeFamily()) {
             case BOOLEAN:
-            // case BIGINT: 1.0 is being stored as 1 leading effectively to reading value of type Long
+                // case BIGINT: 1.0 is being stored as 1 leading effectively to reading value of type Long
             case VARCHAR:
                 return false;
             default:
@@ -213,7 +228,11 @@ public final class MapSampleMetadataResolver {
         }
     }
 
-    private static MapSampleMetadata resolveClass(Class<?> clazz, boolean isKey) {
+    private static MapSampleMetadata resolveClass(
+        Class<?> clazz,
+        boolean isKey,
+        JetMapMetadataResolver jetMapMetadataResolver
+    ) {
         Map<String, TableField> fields = new TreeMap<>();
 
         // Extract fields from non-primitive type.
@@ -263,7 +282,11 @@ public final class MapSampleMetadataResolver {
         QueryPath topPath = isKey ? QueryPath.KEY_PATH : QueryPath.VALUE_PATH;
         fields.put(topName, new MapTableField(topName, topType, !fields.isEmpty(), topPath));
 
-        return new MapSampleMetadata(GenericQueryTargetDescriptor.DEFAULT, new LinkedHashMap<>(fields));
+        return new MapSampleMetadata(
+            GenericQueryTargetDescriptor.DEFAULT,
+            jetMapMetadataResolver.resolveClass(clazz, isKey),
+            new LinkedHashMap<>(fields)
+        );
     }
 
     private static String extractAttributeNameFromMethod(Class<?> clazz, Method method) {

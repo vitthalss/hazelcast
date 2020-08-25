@@ -28,6 +28,7 @@ import com.hazelcast.sql.impl.optimizer.OptimizationTask;
 import com.hazelcast.sql.impl.optimizer.SqlPlan;
 import com.hazelcast.sql.impl.schema.SqlCatalog;
 import com.hazelcast.sql.impl.schema.TableResolver;
+import com.hazelcast.sql.impl.schema.map.JetMapMetadataResolver;
 import com.hazelcast.sql.impl.schema.map.PartitionedMapTableResolver;
 import com.hazelcast.sql.impl.schema.map.ReplicatedMapTableResolver;
 
@@ -46,8 +47,8 @@ public class CalciteSqlTestSupport extends SqlTestSupport {
         NodeEngine nodeEngine = nodeEngine(target);
 
         List<TableResolver> tableResolvers = Arrays.asList(
-            new PartitionedMapTableResolver(nodeEngine),
-            new ReplicatedMapTableResolver(nodeEngine)
+            new PartitionedMapTableResolver(nodeEngine, JetMapMetadataResolver.NO_OP),
+            new ReplicatedMapTableResolver(nodeEngine, JetMapMetadataResolver.NO_OP)
         );
 
         List<List<String>> searchPaths = QueryUtils.prepareSearchPaths(emptyList(), tableResolvers);

@@ -44,8 +44,8 @@ public class ReplicatedMapTableResolver extends AbstractMapTableResolver {
     private static final List<List<String>> SEARCH_PATHS =
         Collections.singletonList(Arrays.asList(QueryUtils.CATALOG, SCHEMA_NAME_REPLICATED));
 
-    public ReplicatedMapTableResolver(NodeEngine nodeEngine) {
-        super(nodeEngine, SEARCH_PATHS);
+    public ReplicatedMapTableResolver(NodeEngine nodeEngine, JetMapMetadataResolver jetMapMetadataResolver) {
+        super(nodeEngine, jetMapMetadataResolver, SEARCH_PATHS);
     }
 
     @Override @Nonnull
@@ -86,8 +86,8 @@ public class ReplicatedMapTableResolver extends AbstractMapTableResolver {
 
                 InternalSerializationService ss = (InternalSerializationService) nodeEngine.getSerializationService();
 
-                MapSampleMetadata keyMetadata = MapSampleMetadataResolver.resolve(ss, key, true);
-                MapSampleMetadata valueMetadata = MapSampleMetadataResolver.resolve(ss, value, false);
+                MapSampleMetadata keyMetadata = MapSampleMetadataResolver.resolve(ss, jetMapMetadataResolver, key, true);
+                MapSampleMetadata valueMetadata = MapSampleMetadataResolver.resolve(ss, jetMapMetadataResolver, value, false);
                 List<TableField> fields = mergeMapFields(keyMetadata.getFields(), valueMetadata.getFields());
 
                 long estimatedRowCount = stores.size() * nodeEngine.getPartitionService().getPartitionCount();
@@ -100,8 +100,8 @@ public class ReplicatedMapTableResolver extends AbstractMapTableResolver {
                         new ConstantTableStatistics(estimatedRowCount),
                         keyMetadata.getDescriptor(),
                         valueMetadata.getDescriptor(),
-                        null,
-                        null
+                        keyMetadata.getJetMetadata(),
+                        valueMetadata.getJetMetadata()
                 );
             }
 

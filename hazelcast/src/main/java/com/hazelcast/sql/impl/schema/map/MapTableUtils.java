@@ -61,7 +61,11 @@ public final class MapTableUtils {
         // No-op.
     }
 
-    public static long estimatePartitionedMapRowCount(NodeEngine nodeEngine, MapServiceContext context, String mapName) {
+    public static long estimatePartitionedMapRowCount(
+        NodeEngine nodeEngine,
+        MapServiceContext context,
+        String mapName
+    ) {
         long entryCount = 0L;
 
         PartitionIdSet ownerPartitions = context.getOwnedPartitions();
@@ -195,7 +199,12 @@ public final class MapTableUtils {
 
     @SuppressWarnings("rawtypes")
     @Nullable
-    public static ResolveResult resolvePartitionedMap(InternalSerializationService ss, MapServiceContext context, String name) {
+    public static ResolveResult resolvePartitionedMap(
+        InternalSerializationService ss,
+        JetMapMetadataResolver jetMapMetadataResolver,
+        MapServiceContext context,
+        String name
+    ) {
         MapContainer mapContainer = context.getMapContainer(name);
 
         // Handle concurrent map destroy.
@@ -220,21 +229,26 @@ public final class MapTableUtils {
             Entry<Data, Record> entry = recordStoreIterator.next();
 
             MapSampleMetadata keyMetadata = MapSampleMetadataResolver.resolve(
-                    ss,
-                    entry.getKey(),
-                    true
+                ss,
+                jetMapMetadataResolver,
+                entry.getKey(),
+                true
             );
 
             MapSampleMetadata valueMetadata = MapSampleMetadataResolver.resolve(
-                    ss,
-                    entry.getValue().getValue(),
-                    false
+                ss,
+                jetMapMetadataResolver,
+                entry.getValue().getValue(),
+                false
             );
 
             return new ResolveResult(
-                    mergeMapFields(keyMetadata.getFields(), valueMetadata.getFields()),
-                    keyMetadata.getDescriptor(),
-                    valueMetadata.getDescriptor());
+                mergeMapFields(keyMetadata.getFields(), valueMetadata.getFields()),
+                keyMetadata.getDescriptor(),
+                valueMetadata.getDescriptor(),
+                keyMetadata.getJetMetadata(),
+                valueMetadata.getJetMetadata()
+            );
         }
 
         // no sample entry found on local member
@@ -338,18 +352,24 @@ public final class MapTableUtils {
     }
 
     public static final class ResolveResult {
+
         private final List<TableField> fields;
         private final QueryTargetDescriptor keyDescriptor;
         private final QueryTargetDescriptor valueDescriptor;
+        private final Object keyJetMetadata;
+        private final Object valueJetMetadata;
 
         public ResolveResult(
                 List<TableField> fields,
                 QueryTargetDescriptor keyDescriptor,
-                QueryTargetDescriptor valueDescriptor
+                QueryTargetDescriptor valueDescriptor,
+                Object keyJetMetadata, Object valueJetMetadata
         ) {
             this.fields = fields;
             this.keyDescriptor = keyDescriptor;
             this.valueDescriptor = valueDescriptor;
+            this.keyJetMetadata = keyJetMetadata;
+            this.valueJetMetadata = valueJetMetadata;
         }
 
         public List<TableField> getFields() {
@@ -362,6 +382,14 @@ public final class MapTableUtils {
 
         public QueryTargetDescriptor getValueDescriptor() {
             return valueDescriptor;
+        }
+
+        public Object getKeyJetMetadata() {
+            return keyJetMetadata;
+        }
+
+        public Object getValueJetMetadata() {
+            return valueJetMetadata;
         }
     }
 }

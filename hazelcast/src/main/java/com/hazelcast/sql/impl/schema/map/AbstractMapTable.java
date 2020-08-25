@@ -18,7 +18,6 @@ package com.hazelcast.sql.impl.schema.map;
 
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
-import com.hazelcast.sql.impl.inject.UpsertTargetDescriptor;
 import com.hazelcast.sql.impl.schema.ConstantTableStatistics;
 import com.hazelcast.sql.impl.schema.Table;
 import com.hazelcast.sql.impl.schema.TableField;
@@ -38,8 +37,8 @@ public abstract class AbstractMapTable extends Table {
     private final String mapName;
     private final QueryTargetDescriptor keyDescriptor;
     private final QueryTargetDescriptor valueDescriptor;
-    private final UpsertTargetDescriptor keyUpsertDescriptor;
-    private final UpsertTargetDescriptor valueUpsertDescriptor;
+    private final Object keyJetMetadata;
+    private final Object valueJetMetadata;
     private final QueryException exception;
 
     /**
@@ -54,16 +53,16 @@ public abstract class AbstractMapTable extends Table {
         TableStatistics statistics,
         QueryTargetDescriptor keyDescriptor,
         QueryTargetDescriptor valueDescriptor,
-        UpsertTargetDescriptor keyUpsertDescriptor,
-        UpsertTargetDescriptor valueUpsertDescriptor
+        Object keyJetMetadata,
+        Object valueJetMetadata
     ) {
         super(schemaName, tableName, fields, statistics);
 
         this.mapName = requireNonNull(mapName);
         this.keyDescriptor = keyDescriptor;
         this.valueDescriptor = valueDescriptor;
-        this.keyUpsertDescriptor = keyUpsertDescriptor;
-        this.valueUpsertDescriptor = valueUpsertDescriptor;
+        this.keyJetMetadata = keyJetMetadata;
+        this.valueJetMetadata = valueJetMetadata;
 
         exception = null;
     }
@@ -74,8 +73,8 @@ public abstract class AbstractMapTable extends Table {
         this.mapName = name;
         this.keyDescriptor = null;
         this.valueDescriptor = null;
-        this.keyUpsertDescriptor = null;
-        this.valueUpsertDescriptor = null;
+        this.keyJetMetadata = null;
+        this.valueJetMetadata = null;
 
         this.exception = exception;
     }
@@ -114,12 +113,12 @@ public abstract class AbstractMapTable extends Table {
         return valueDescriptor;
     }
 
-    public UpsertTargetDescriptor getKeyUpsertDescriptor() {
-        return keyUpsertDescriptor;
+    public Object getKeyJetMetadata() {
+        return keyJetMetadata;
     }
 
-    public UpsertTargetDescriptor getValueUpsertDescriptor() {
-        return valueUpsertDescriptor;
+    public Object getValueJetMetadata() {
+        return valueJetMetadata;
     }
 
     public QueryException getException() {

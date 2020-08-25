@@ -18,7 +18,6 @@ package com.hazelcast.sql.impl.schema.map;
 
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
-import com.hazelcast.sql.impl.inject.UpsertTargetDescriptor;
 import com.hazelcast.sql.impl.plan.cache.PlanObjectKey;
 import com.hazelcast.sql.impl.plan.cache.ReplicatedMapPlanObjectKey;
 import com.hazelcast.sql.impl.schema.TableField;
@@ -38,11 +37,11 @@ public class ReplicatedMapTable extends AbstractMapTable {
             TableStatistics statistics,
             QueryTargetDescriptor keyDescriptor,
             QueryTargetDescriptor valueDescriptor,
-            UpsertTargetDescriptor keyUpsertDescriptor,
-            UpsertTargetDescriptor valueUpsertDescriptor
+            Object keyJetMetadata,
+            Object valueJetMetadata
     ) {
         super(schemaName, tableName, mapName, fields, statistics, keyDescriptor, valueDescriptor,
-                keyUpsertDescriptor, valueUpsertDescriptor);
+                keyJetMetadata, valueJetMetadata);
     }
 
     public ReplicatedMapTable(String name, QueryException exception) {

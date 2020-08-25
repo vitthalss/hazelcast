@@ -18,7 +18,6 @@ package com.hazelcast.sql.impl.schema.map;
 
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.extract.QueryTargetDescriptor;
-import com.hazelcast.sql.impl.inject.UpsertTargetDescriptor;
 import com.hazelcast.sql.impl.plan.cache.PartitionedMapPlanObjectKey;
 import com.hazelcast.sql.impl.plan.cache.PlanObjectKey;
 import com.hazelcast.sql.impl.schema.TableField;
@@ -46,8 +45,8 @@ public class PartitionedMapTable extends AbstractMapTable {
             TableStatistics statistics,
             QueryTargetDescriptor keyDescriptor,
             QueryTargetDescriptor valueDescriptor,
-            UpsertTargetDescriptor keyUpsertDescriptor,
-            UpsertTargetDescriptor valueUpsertDescriptor,
+            Object keyJetMetadata,
+            Object valueJetMetadata,
             List<MapTableIndex> indexes,
             int distributionFieldOrdinal,
             boolean hd
@@ -60,8 +59,8 @@ public class PartitionedMapTable extends AbstractMapTable {
             statistics,
             keyDescriptor,
             valueDescriptor,
-            keyUpsertDescriptor,
-            valueUpsertDescriptor
+            keyJetMetadata,
+            valueJetMetadata
         );
 
         this.indexes = indexes;

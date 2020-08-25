@@ -40,6 +40,7 @@ import com.hazelcast.sql.impl.plan.cache.PlanCacheChecker;
 import com.hazelcast.sql.impl.plan.cache.PlanCacheKey;
 import com.hazelcast.sql.impl.schema.SqlCatalog;
 import com.hazelcast.sql.impl.schema.TableResolver;
+import com.hazelcast.sql.impl.schema.map.JetMapMetadataResolver;
 import com.hazelcast.sql.impl.schema.map.PartitionedMapTableResolver;
 import com.hazelcast.sql.impl.schema.map.ReplicatedMapTableResolver;
 import com.hazelcast.sql.impl.state.QueryState;
@@ -129,9 +130,6 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
         String instanceName = nodeEngine.getHazelcastInstance().getName();
         InternalSerializationService serializationService = (InternalSerializationService) nodeEngine.getSerializationService();
-
-        this.tableResolvers = createTableResolvers(nodeEngine, jetSqlService);
-
         PlanCacheChecker planCacheChecker = new PlanCacheChecker(
             nodeEngine,
             planCache,
@@ -349,11 +347,18 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
     ) {
         List<TableResolver> res = new ArrayList<>();
 
+        JetMapMetadataResolver jetMetadataResolver;
+
         if (jetSqlService != null) {
             res.addAll(jetSqlService.tableResolvers());
+
+            jetMetadataResolver = jetSqlService.mapMetadataResolver();
+        } else {
+            jetMetadataResolver = JetMapMetadataResolver.NO_OP;
         }
-        res.add(new PartitionedMapTableResolver(nodeEngine));
-        res.add(new ReplicatedMapTableResolver(nodeEngine));
+
+        res.add(new PartitionedMapTableResolver(nodeEngine, jetMetadataResolver));
+        res.add(new ReplicatedMapTableResolver(nodeEngine, jetMetadataResolver));
 
         return res;
     }

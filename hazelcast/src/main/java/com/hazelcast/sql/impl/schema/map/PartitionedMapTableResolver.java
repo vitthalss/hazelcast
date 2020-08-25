@@ -45,8 +45,8 @@ public class PartitionedMapTableResolver extends AbstractMapTableResolver {
     private static final List<List<String>> SEARCH_PATHS =
         Collections.singletonList(Arrays.asList(QueryUtils.CATALOG, SCHEMA_NAME_PARTITIONED));
 
-    public PartitionedMapTableResolver(NodeEngine nodeEngine) {
-        super(nodeEngine, SEARCH_PATHS);
+    public PartitionedMapTableResolver(NodeEngine nodeEngine, JetMapMetadataResolver jetMapMetadataResolver) {
+        super(nodeEngine, jetMapMetadataResolver, SEARCH_PATHS);
     }
 
     @Override @Nonnull
@@ -89,7 +89,7 @@ public class PartitionedMapTableResolver extends AbstractMapTableResolver {
         return res;
     }
 
-    @SuppressWarnings({"checkstyle:MethodLength", "checkstyle:CyclomaticComplexity", "checkstyle:NPathComplexity"})
+    @SuppressWarnings({"rawtypes", "checkstyle:MethodLength", "checkstyle:CyclomaticComplexity", "checkstyle:NPathComplexity"})
     private PartitionedMapTable createTable(
         MapServiceContext context,
         String name
@@ -106,7 +106,7 @@ public class PartitionedMapTableResolver extends AbstractMapTableResolver {
 
             InternalSerializationService ss = (InternalSerializationService) nodeEngine.getSerializationService();
 
-            ResolveResult resolved = MapTableUtils.resolvePartitionedMap(ss, context, name);
+            ResolveResult resolved = MapTableUtils.resolvePartitionedMap(ss, jetMapMetadataResolver, context, name);
             if (resolved == null) {
                 return emptyMap(name);
             }
@@ -129,8 +129,8 @@ public class PartitionedMapTableResolver extends AbstractMapTableResolver {
                 new ConstantTableStatistics(estimatedRowCount),
                 resolved.getKeyDescriptor(),
                 resolved.getValueDescriptor(),
-                null,
-                null,
+                resolved.getKeyJetMetadata(),
+                resolved.getValueJetMetadata(),
                 indexes,
                 distributionFieldOrdinal,
                 config.getInMemoryFormat() == InMemoryFormat.NATIVE
