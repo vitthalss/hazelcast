@@ -22,6 +22,7 @@ import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable;
 import com.hazelcast.sql.impl.expression.CastExpression;
 import com.hazelcast.sql.impl.expression.ConstantExpression;
 import com.hazelcast.sql.impl.expression.Expression;
+import com.hazelcast.sql.impl.expression.SymbolExpression;
 import com.hazelcast.sql.impl.expression.datetime.CurrentDateFunction;
 import com.hazelcast.sql.impl.expression.datetime.CurrentTimestampFunction;
 import com.hazelcast.sql.impl.expression.datetime.DatePartFunction;

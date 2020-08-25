@@ -22,6 +22,7 @@ import com.hazelcast.sql.impl.calcite.validate.types.HazelcastTypeSystem;
 import com.hazelcast.sql.impl.schema.Table;
 import com.hazelcast.sql.impl.schema.map.AbstractMapTable;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.calcite.avatica.util.TimeUnitRange;
 import org.apache.calcite.runtime.CalciteContextException;
 import org.apache.calcite.runtime.Resources;
 import org.apache.calcite.sql.SqlBasicTypeNameSpec;
@@ -299,7 +300,6 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
             case INTERVAL_MINUTE:
             case INTERVAL_MINUTE_SECOND:
             case INTERVAL_SECOND:
-            case SYMBOL:
                 return null;
 
             case SYMBOL:
@@ -309,7 +309,11 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
                     return null;
                 }
 
-                throw error(literal, RESOURCE.custom(symbolValue + " literal is not supported"));
+                if (symbolValue instanceof TimeUnitRange) {
+                    return null;
+                }
+
+                return null;
 
             default:
                 throw error(literal, RESOURCE.custom(typeName + " literals are not supported"));
