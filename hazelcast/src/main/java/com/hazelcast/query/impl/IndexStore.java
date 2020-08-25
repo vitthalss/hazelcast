@@ -126,14 +126,6 @@ public interface IndexStore {
      */
     Set<QueryableEntry> evaluate(Predicate predicate, TypeConverter converter);
 
-    Iterator<QueryableEntry> getRecordIterator();
-
-    Iterator<QueryableEntry> getRecordIterator(Comparable value);
-
-    Iterator<QueryableEntry> getRecordIterator(Comparison comparison, Comparable value);
-
-    Iterator<QueryableEntry> getRecordIterator(Comparable from, boolean fromInclusive, Comparable to, boolean toInclusive);
-
     /**
      * @return iterator over all index entries
      */

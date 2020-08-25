@@ -17,6 +17,7 @@
 package com.hazelcast.sql.impl.schema.map;
 
 import com.hazelcast.cluster.memberselector.MemberSelectors;
+import com.hazelcast.config.InMemoryFormat;
 import com.hazelcast.config.IndexConfig;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.core.TypeConverter;
@@ -30,9 +31,6 @@ import com.hazelcast.map.impl.record.Record;
 import com.hazelcast.map.impl.recordstore.RecordStore;
 import com.hazelcast.partition.PartitioningStrategy;
 import com.hazelcast.partition.strategy.DeclarativePartitioningStrategy;
-import com.hazelcast.query.impl.CompositeConverter;
-import com.hazelcast.query.impl.Index;
-import com.hazelcast.query.impl.TypeConverters;
 import com.hazelcast.query.impl.CompositeConverter;
 import com.hazelcast.query.impl.Index;
 import com.hazelcast.query.impl.InternalIndex;
@@ -55,16 +53,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import com.hazelcast.sql.impl.extract.QueryPath;
-import com.hazelcast.sql.impl.schema.TableField;
-import com.hazelcast.sql.impl.type.QueryDataType;
-import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static com.hazelcast.spi.properties.ClusterProperty.GLOBAL_HD_INDEX_ENABLED;
 
@@ -105,7 +93,11 @@ public final class MapTableUtils {
         return entryCount * memberCount;
     }
 
-    public static List<MapTableIndex> getPartitionedMapIndexes(MapContainer mapContainer, List<TableField> fields) {
+    public static List<MapTableIndex> getPartitionedMapIndexes(
+        NodeEngine nodeEngine,
+        MapContainer mapContainer,
+        List<TableField> fields
+    ) {
         boolean hd = mapContainer.getMapConfig().getInMemoryFormat() == InMemoryFormat.NATIVE;
         boolean globalIndexEnabled = nodeEngine.getProperties().getBoolean(GLOBAL_HD_INDEX_ENABLED);
 

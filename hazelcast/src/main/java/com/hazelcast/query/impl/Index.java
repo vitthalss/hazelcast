@@ -111,14 +111,6 @@ public interface Index {
      */
     Set<QueryableEntry> evaluate(Predicate predicate);
 
-    Iterator<QueryableEntry> getRecordIterator();
-
-    Iterator<QueryableEntry> getRecordIterator(Comparable value);
-
-    Iterator<QueryableEntry> getRecordIterator(Comparison comparison, Comparable value);
-
-    Iterator<QueryableEntry> getRecordIterator(Comparable from, boolean fromInclusive, Comparable to, boolean toInclusive);
-
     /**
      * @return iterator over all index entries
      */

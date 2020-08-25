@@ -44,9 +44,6 @@ import com.hazelcast.sql.impl.type.QueryDataTypeUtils;
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.plan.RelTraitSet;
-import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelFieldCollation;
@@ -72,7 +69,6 @@ import java.util.Set;
 import static com.hazelcast.query.impl.CompositeValue.NEGATIVE_INFINITY;
 import static com.hazelcast.query.impl.CompositeValue.POSITIVE_INFINITY;
 import static java.util.Collections.singletonList;
-import static org.apache.calcite.sql.type.SqlTypeFamily.NUMERIC;
 
 /**
  * Helper class to resolve indexes.

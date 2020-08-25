@@ -23,7 +23,6 @@ import com.hazelcast.replicatedmap.impl.ReplicatedMapProxy;
 import com.hazelcast.sql.impl.NodeServiceProvider;
 import com.hazelcast.sql.impl.exec.agg.AggregateExec;
 import com.hazelcast.sql.impl.exec.fetch.FetchExec;
-import com.hazelcast.sql.impl.exec.scan.index.MapIndexScanExec;
 import com.hazelcast.sql.impl.exec.io.BroadcastSendExec;
 import com.hazelcast.sql.impl.exec.io.InboundHandler;
 import com.hazelcast.sql.impl.exec.io.Inbox;
@@ -41,17 +40,17 @@ import com.hazelcast.sql.impl.exec.join.NestedLoopJoinExec;
 import com.hazelcast.sql.impl.exec.root.RootExec;
 import com.hazelcast.sql.impl.exec.scan.MapScanExec;
 import com.hazelcast.sql.impl.exec.scan.ReplicatedMapScanExec;
+import com.hazelcast.sql.impl.exec.scan.index.MapIndexScanExec;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperation;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragment;
 import com.hazelcast.sql.impl.operation.QueryExecuteOperationFragmentMapping;
 import com.hazelcast.sql.impl.operation.QueryOperationHandler;
-import com.hazelcast.sql.impl.plan.node.EmptyPlanNode;
-import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
-import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.AggregatePlanNode;
+import com.hazelcast.sql.impl.plan.node.EmptyPlanNode;
 import com.hazelcast.sql.impl.plan.node.FetchPlanNode;
 import com.hazelcast.sql.impl.plan.node.FilterPlanNode;
 import com.hazelcast.sql.impl.plan.node.MapIndexScanPlanNode;
+import com.hazelcast.sql.impl.plan.node.MapScanPlanNode;
 import com.hazelcast.sql.impl.plan.node.MaterializedInputPlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNode;
 import com.hazelcast.sql.impl.plan.node.PlanNodeVisitor;
@@ -527,42 +526,6 @@ public class CreateExecPlanNodeVisitor implements PlanNodeVisitor {
             node.getFetch(),
             node.getOffset()
         );
-
-        push(res);
-    }
-
-    @Override
-    public void onMapIndexScanNode(MapIndexScanPlanNode node) {
-        Exec res;
-
-        if (localParts.isEmpty()) {
-            res = new EmptyExec(node.getId());
-        } else {
-            String mapName = node.getMapName();
-
-            MapContainer map = nodeServiceProvider.getMap(mapName);
-
-            if (map == null) {
-                res = new EmptyExec(node.getId());
-            } else {
-                res = new MapIndexScanExec(
-                    node.getId(),
-                    map,
-                    localParts,
-                    node.getKeyDescriptor(),
-                    node.getValueDescriptor(),
-                    node.getFieldPaths(),
-                    node.getFieldTypes(),
-                    node.getProjects(),
-                    node.getFilter(),
-                    serializationService,
-                    node.getIndexName(),
-                    node.getIndexComponentCount(),
-                    node.getIndexFilter(),
-                    node.getConverterTypes()
-                );
-            }
-        }
 
         push(res);
     }

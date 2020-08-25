@@ -357,33 +357,6 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
     }
 
     @Override
-    public void onMapIndexScan(MapIndexScanPhysicalRel rel) {
-        HazelcastTable hazelcastTable = rel.getTableUnwrapped();
-        AbstractMapTable table = rel.getMap();
-
-        PlanNodeSchema schemaBefore = getScanSchemaBeforeProject(table);
-
-        MapIndexScanPlanNode scanNode = new MapIndexScanPlanNode(
-            pollId(rel),
-            table.getName(),
-            table.getKeyDescriptor(),
-            table.getValueDescriptor(),
-            getScanFieldPaths(table),
-            schemaBefore.getTypes(),
-            hazelcastTable.getProjects(),
-            rel.getIndex().getName(),
-            rel.getIndex().getComponentsCount(),
-            rel.getIndexFilter(),
-            rel.getConverterTypes(),
-            convertFilter(schemaBefore, rel.getRemainderExp())
-        );
-
-        pushUpstream(scanNode);
-
-        objectIds.add(table.getObjectKey());
-    }
-
-    @Override
     public void onSort(SortPhysicalRel rel) {
         PlanNode upstreamNode = pollSingleUpstream();
         PlanNodeSchema upstreamNodeSchema = upstreamNode.getSchema();
