@@ -39,6 +39,7 @@ import org.apache.calcite.sql.SqlSelect;
 import org.apache.calcite.sql.SqlUserDefinedTypeNameSpec;
 import org.apache.calcite.sql.SqlUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.fun.SqlTrimFunction;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.sql.util.SqlVisitor;
 import org.apache.calcite.sql.validate.SqlValidatorCatalogReader;
@@ -124,6 +125,7 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_KINDS.add(SqlKind.EXTRACT);
         SUPPORTED_KINDS.add(SqlKind.FLOOR);
         SUPPORTED_KINDS.add(SqlKind.LIKE);
+        SUPPORTED_KINDS.add(SqlKind.TRIM);
         SUPPORTED_KINDS.add(SqlKind.POSITION);
         SUPPORTED_KINDS.add(SqlKind.TIMESTAMP_ADD);
 
@@ -163,6 +165,9 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.UPPER);
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.CONCAT);
         SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.SUBSTRING);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.LTRIM);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.RTRIM);
+        SUPPORTED_OPERATORS.add(HazelcastSqlOperatorTable.BTRIM);
         SUPPORTED_OPERATORS.add(SqlStdOperatorTable.REPLACE);
 
         // Dates
@@ -296,6 +301,15 @@ public final class UnsupportedOperationVisitor implements SqlVisitor<Void> {
             case INTERVAL_SECOND:
             case SYMBOL:
                 return null;
+
+            case SYMBOL:
+                Object symbolValue = literal.getValue();
+
+                if (symbolValue instanceof SqlTrimFunction.Flag) {
+                    return null;
+                }
+
+                throw error(literal, RESOURCE.custom(symbolValue + " literal is not supported"));
 
             default:
                 throw error(literal, RESOURCE.custom(typeName + " literals are not supported"));

@@ -26,6 +26,7 @@ import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlLikeOperato
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlMonotonicBinaryOperator;
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlStringFunction;
 import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlSubstringFunction;
+import com.hazelcast.sql.impl.calcite.validate.operators.HazelcastSqlTrimFunction;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastInferTypes;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastOperandTypes;
 import com.hazelcast.sql.impl.calcite.validate.types.HazelcastReturnTypes;
@@ -399,6 +400,23 @@ public final class HazelcastSqlOperatorTable extends ReflectiveSqlOperatorTable 
 
     public static final SqlFunction SUBSTRING = new HazelcastSqlSubstringFunction();
 
+    public static final SqlFunction TRIM = new HazelcastSqlTrimFunction();
+
+    public static final SqlFunction RTRIM = new HazelcastSqlStringFunction(
+        "RTRIM",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
+    public static final SqlFunction LTRIM = new HazelcastSqlStringFunction(
+        "LTRIM",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
+    public static final SqlFunction BTRIM = new HazelcastSqlStringFunction(
+        "BTRIM",
+        ReturnTypes.ARG0_NULLABLE
+    );
+
     //#endregion
 
     //#region Other custom functions and operators.
@@ -423,5 +441,4 @@ public final class HazelcastSqlOperatorTable extends ReflectiveSqlOperatorTable 
     public static HazelcastSqlOperatorTable instance() {
         return INSTANCE;
     }
-
 }

@@ -59,6 +59,7 @@ import com.hazelcast.sql.impl.expression.string.InitcapFunction;
 import com.hazelcast.sql.impl.expression.string.LikeFunction;
 import com.hazelcast.sql.impl.expression.string.LowerFunction;
 import com.hazelcast.sql.impl.expression.string.SubstringFunction;
+import com.hazelcast.sql.impl.expression.string.TrimFunction;
 import com.hazelcast.sql.impl.expression.string.UpperFunction;
 import com.hazelcast.sql.impl.extract.GenericQueryTargetDescriptor;
 import com.hazelcast.sql.impl.extract.QueryPath;
@@ -168,8 +169,9 @@ public class SqlDataSerializerHook implements DataSerializerHook {
     public static final int EXPRESSION_CONCAT = 58;
     public static final int EXPRESSION_LIKE = 59;
     public static final int EXPRESSION_SUBSTRING = 60;
+    public static final int EXPRESSION_TRIM = 61;
 
-    public static final int EXPRESSION_CASE = 61;
+    public static final int EXPRESSION_CASE = 62;
 
     public static final int LEN = EXPRESSION_CASE + 1;
 
@@ -257,6 +259,7 @@ public class SqlDataSerializerHook implements DataSerializerHook {
         constructors[EXPRESSION_CONCAT] = arg -> new ConcatFunction();
         constructors[EXPRESSION_LIKE] = arg -> new LikeFunction();
         constructors[EXPRESSION_SUBSTRING] = arg -> new SubstringFunction();
+        constructors[EXPRESSION_TRIM] = arg -> new TrimFunction();
 
         constructors[EXPRESSION_CASE] = arg -> new CaseExpression<>();
 

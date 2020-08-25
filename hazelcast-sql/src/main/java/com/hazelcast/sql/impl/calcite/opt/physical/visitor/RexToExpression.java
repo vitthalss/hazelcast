@@ -64,6 +64,7 @@ import com.hazelcast.sql.impl.expression.string.LowerFunction;
 import com.hazelcast.sql.impl.expression.string.PositionFunction;
 import com.hazelcast.sql.impl.expression.string.ReplaceFunction;
 import com.hazelcast.sql.impl.expression.string.SubstringFunction;
+import com.hazelcast.sql.impl.expression.string.TrimFunction;
 import com.hazelcast.sql.impl.expression.string.UpperFunction;
 import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.SqlDaySecondInterval;
@@ -75,6 +76,7 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.fun.SqlTrimFunction;
 import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.math.BigDecimal;
@@ -288,6 +290,19 @@ public final class RexToExpression {
                 Expression<?> position = operands.length == 2 ? null : operands[2];
                 return PositionFunction.create(operands[0], operands[1], position);
 
+            case TRIM:
+                assert operands.length == 3;
+                assert operands[0] instanceof SymbolExpression;
+
+                SqlTrimFunction.Flag trimFlag = ((SymbolExpression) operands[0]).getSymbol();
+
+                return TrimFunction.create(
+                    operands[2],
+                    operands[1],
+                    trimFlag.getLeft() == 1,
+                    trimFlag.getRight() == 1
+                );
+
             case OTHER:
                 if (operator == HazelcastSqlOperatorTable.CONCAT) {
                     assert operands.length == 2;
@@ -382,6 +397,12 @@ public final class RexToExpression {
                     Expression<?> length = operands.length > 2 ? operands[2] : null;
 
                     return SubstringFunction.create(input, start, length);
+                } else if (function == HazelcastSqlOperatorTable.LTRIM) {
+                    return TrimFunction.create(operands[0], null, true, false);
+                } else if (function == HazelcastSqlOperatorTable.RTRIM) {
+                    return TrimFunction.create(operands[0], null, false, true);
+                } else if (function == HazelcastSqlOperatorTable.BTRIM) {
+                    return TrimFunction.create(operands[0], null, true, true);
                 } else if (function == SqlStdOperatorTable.REPLACE) {
                     return ReplaceFunction.create(operands[0], operands[1], operands[2]);
                 }
@@ -569,7 +590,7 @@ public final class RexToExpression {
             return new DatePartUnitConstantExpression(unit);
         }
 
-        throw QueryException.error("Unsupported literal symbol: " + literal);
+        return SymbolExpression.create(literal.getValue());
     }
 
 }
