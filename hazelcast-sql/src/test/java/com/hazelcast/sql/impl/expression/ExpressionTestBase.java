@@ -16,10 +16,8 @@
 
 package com.hazelcast.sql.impl.expression;
 
-import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.internal.util.BiTuple;
 import com.hazelcast.internal.util.RuntimeAvailableProcessors;
-import com.hazelcast.map.IMap;
 import com.hazelcast.sql.HazelcastSqlException;
 import com.hazelcast.sql.SqlResult;
 import com.hazelcast.sql.SqlRow;
@@ -48,7 +46,6 @@ import com.hazelcast.sql.impl.type.QueryDataType;
 import com.hazelcast.sql.impl.type.converter.Converter;
 import com.hazelcast.sql.impl.type.converter.Converters;
 import com.hazelcast.sql.impl.type.converter.StringConverter;
-import com.hazelcast.test.TestHazelcastInstanceFactory;
 import com.hazelcast.test.TestStringUtils;
 import org.apache.calcite.avatica.util.TimeUnit;
 import org.apache.calcite.rel.RelNode;
@@ -1155,20 +1152,6 @@ public abstract class ExpressionTestBase extends SqlTestSupport {
             args[i] = operandTransform.apply(operands[i]);
         }
         return String.format(format, args);
-    }
-
-    protected SqlService createEndToEndRecords() {
-        TestHazelcastInstanceFactory factory = createHazelcastInstanceFactory(2);
-        HazelcastInstance instance = factory.newHazelcastInstance(smallInstanceConfig());
-        IMap<Integer, Record> records = factory.newHazelcastInstance(smallInstanceConfig()).getMap("records");
-
-        for (int i = 0; i < 1000; ++i) {
-            records.put(i, new Record("str" + i, 1000 + i, 2000.1 + i, new BigDecimal((3000 + i) + ".5"), i >= 500));
-        }
-        records.put(5000, new Record(null, -100, -100500, new BigDecimal(9001), null));
-        records.put(6000, new Record(null, -200, -200500, null, null));
-
-        return instance.getSql();
     }
 
     protected SqlResult query(SqlService sql, String query, Object... args) {
