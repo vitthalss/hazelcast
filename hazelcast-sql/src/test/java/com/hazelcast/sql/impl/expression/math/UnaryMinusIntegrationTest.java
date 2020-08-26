@@ -16,7 +16,7 @@
 
 package com.hazelcast.sql.impl.expression.math;
 
-import com.hazelcast.sql.impl.expression.ExpressionEndToEndTestBase;
+import com.hazelcast.sql.impl.expression.ExpressionIntegrationTestBase;
 import com.hazelcast.test.HazelcastParallelClassRunner;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
@@ -35,7 +35,7 @@ import static com.hazelcast.sql.SqlColumnType.SMALLINT;
 
 @RunWith(HazelcastParallelClassRunner.class)
 @Category({QuickTest.class, ParallelJVMTest.class})
-public class UnaryMinusEndToEndTest extends ExpressionEndToEndTestBase {
+public class UnaryMinusIntegrationTest extends ExpressionIntegrationTestBase {
 
     @Test
     public void testBoolean() {
@@ -118,7 +118,11 @@ public class UnaryMinusEndToEndTest extends ExpressionEndToEndTestBase {
     }
 
     @Test
-    public void testObject() {
+    public void testUnsupported() {
+        assertParsingError("-dateCol", "Cannot apply '-' to arguments of type '-<DATE>'");
+        assertParsingError("-timeCol", "Cannot apply '-' to arguments of type '-<TIME>'");
+        assertParsingError("-dateTimeCol", "Cannot apply '-' to arguments of type '-<TIMESTAMP>'");
+        assertParsingError("-offsetDateTimeCol", "Cannot apply '-' to arguments of type '-<TIMESTAMP_WITH_TIME_ZONE>'");
         assertParsingError("-object", "Cannot apply '-' to arguments of type '-<OBJECT>'");
     }
 

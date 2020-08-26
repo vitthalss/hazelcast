@@ -22,13 +22,13 @@ import com.hazelcast.map.IMap;
 import com.hazelcast.replicatedmap.ReplicatedMap;
 import com.hazelcast.sql.SqlResult;
 import com.hazelcast.sql.SqlRow;
+import com.hazelcast.sql.SqlTestInstanceFactory;
 import com.hazelcast.sql.impl.QueryException;
 import com.hazelcast.sql.impl.SqlResultImpl;
 import com.hazelcast.sql.impl.exec.FaultyExec;
 import com.hazelcast.sql.impl.exec.scan.MapScanExec;
 import com.hazelcast.sql.impl.plan.Plan;
 import com.hazelcast.test.HazelcastParallelClassRunner;
-import com.hazelcast.test.TestHazelcastInstanceFactory;
 import com.hazelcast.test.annotation.ParallelJVMTest;
 import com.hazelcast.test.annotation.QuickTest;
 import org.junit.After;
@@ -46,7 +46,7 @@ import static org.junit.Assert.fail;
 @Category({QuickTest.class, ParallelJVMTest.class})
 public class PlanCacheIntegrationTest extends PlanCacheTestSupport {
 
-    private final TestHazelcastInstanceFactory factory = new TestHazelcastInstanceFactory(2);
+    private final SqlTestInstanceFactory factory = SqlTestInstanceFactory.create();
 
     @After
     public void after() {
