@@ -80,7 +80,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
     private final long queryTimeout;
     private final long maxMemory;
 
-    private JetSqlService jetSqlService;
+    private JetSqlCoreBackend jetSqlCoreBackend;
     private List<TableResolver> tableResolvers;
     private SqlOptimizer optimizer;
     private volatile SqlInternalService internalService;
@@ -117,16 +117,16 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     public void start() {
         try {
-            jetSqlService = nodeEngine.getService(JetSqlService.SERVICE_NAME);
+            jetSqlCoreBackend = nodeEngine.getService(JetSqlCoreBackend.SERVICE_NAME);
         } catch (HazelcastException e) {
             if (!(e.getCause() instanceof ServiceNotFoundException)) {
                 throw e;
             }
         }
 
-        tableResolvers = createTableResolvers(nodeEngine, jetSqlService);
+        tableResolvers = createTableResolvers(nodeEngine, jetSqlCoreBackend);
 
-        optimizer = createOptimizer(nodeEngine, jetSqlService);
+        optimizer = createOptimizer(nodeEngine, jetSqlCoreBackend);
 
         String instanceName = nodeEngine.getHazelcastInstance().getName();
         InternalSerializationService serializationService = (InternalSerializationService) nodeEngine.getSerializationService();
@@ -151,8 +151,8 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     public void reset() {
         planCache.clear();
-        if (jetSqlService != null) {
-            jetSqlService.reset();
+        if (jetSqlCoreBackend != null) {
+            jetSqlCoreBackend.reset();
         }
         if (internalService != null) {
             internalService.reset();
@@ -161,8 +161,8 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     public void shutdown() {
         planCache.clear();
-        if (jetSqlService != null) {
-            jetSqlService.shutdown(true);
+        if (jetSqlCoreBackend != null) {
+            jetSqlCoreBackend.shutdown(true);
         }
         if (internalService != null) {
             internalService.shutdown();
@@ -292,7 +292,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
     }
 
     private SqlResult executeJet(SqlPlan plan, List<Object> params, long timeout, int pageSize) {
-        return jetSqlService.execute(plan, params, timeout, pageSize);
+        return jetSqlCoreBackend.execute(plan, params, timeout, pageSize);
     }
 
     /**
@@ -302,7 +302,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
      * @return Optimizer.
      */
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private SqlOptimizer createOptimizer(NodeEngine nodeEngine, JetSqlService jetSqlService) {
+    private SqlOptimizer createOptimizer(NodeEngine nodeEngine, JetSqlCoreBackend jetSqlCoreBackend) {
         // 1. Resolve class name.
         String className = System.getProperty(OPTIMIZER_CLASS_PROPERTY_NAME, SQL_MODULE_OPTIMIZER_CLASS);
 
@@ -326,7 +326,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
         try {
             constructor = clazz.getConstructor(
                 NodeEngine.class,
-                JetSqlService.class
+                JetSqlCoreBackend.class
             );
         } catch (ReflectiveOperationException e) {
             throw new HazelcastException("Failed to get the constructor for the optimizer class "
@@ -335,7 +335,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
         // 4. Finally, get the instance.
         try {
-            return constructor.newInstance(nodeEngine, jetSqlService);
+            return constructor.newInstance(nodeEngine, jetSqlCoreBackend);
         } catch (ReflectiveOperationException e) {
             throw new HazelcastException("Failed to instantiate the optimizer class " + className + ": " + e.getMessage(), e);
         }
@@ -343,16 +343,16 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
 
     private static List<TableResolver> createTableResolvers(
         NodeEngine nodeEngine,
-        @Nullable JetSqlService jetSqlService
+        @Nullable JetSqlCoreBackend jetSqlCoreBackend
     ) {
         List<TableResolver> res = new ArrayList<>();
 
         JetMapMetadataResolver jetMetadataResolver;
 
-        if (jetSqlService != null) {
-            res.addAll(jetSqlService.tableResolvers());
+        if (jetSqlCoreBackend != null) {
+            res.addAll(jetSqlCoreBackend.tableResolvers());
 
-            jetMetadataResolver = jetSqlService.mapMetadataResolver();
+            jetMetadataResolver = jetSqlCoreBackend.mapMetadataResolver();
         } else {
             jetMetadataResolver = JetMapMetadataResolver.NO_OP;
         }
