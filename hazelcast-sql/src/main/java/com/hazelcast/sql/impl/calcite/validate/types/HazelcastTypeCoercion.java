@@ -16,8 +16,6 @@
 
 package com.hazelcast.sql.impl.calcite.validate.types;
 
-import com.hazelcast.sql.impl.QueryException;
-import com.hazelcast.sql.impl.SqlErrorCode;
 import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlOperatorTable;
 import com.hazelcast.sql.impl.calcite.validate.HazelcastSqlValidator;
 import org.apache.calcite.rel.type.RelDataType;
@@ -108,21 +106,9 @@ public final class HazelcastTypeCoercion extends TypeCoercionImpl {
         }
 
         // Infer types.
-
         RelDataType[] types = inferTypes(binding.getScope(), binding.operands(), false);
         if (types == null) {
             return false;
-        }
-
-        // Disallow comparisons for temporal types
-        for (int i = 0; i < types.length - 1; ++i) {
-            RelDataType type = types[i];
-
-            if (HazelcastTypeSystem.isTemporal(type)) {
-                throw QueryException.error(
-                    SqlErrorCode.PARSING, "Cannot apply comparison operation to " + type.getFullTypeString()
-                );
-            }
         }
 
         // Do the coercion.
