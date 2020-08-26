@@ -56,7 +56,7 @@ public class ReplicatedMapTable extends AbstractMapTable {
 
         return new ReplicatedMapPlanObjectKey(
             getSchemaName(),
-            getName(),
+            getMapName(),
             getFields(),
             getConflictingSchemas(),
             getKeyDescriptor(),

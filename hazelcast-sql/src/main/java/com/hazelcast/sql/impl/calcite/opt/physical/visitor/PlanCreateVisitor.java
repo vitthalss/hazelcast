@@ -332,7 +332,7 @@ public class PlanCreateVisitor implements PhysicalRelVisitor {
 
         ReplicatedMapScanPlanNode scanNode = new ReplicatedMapScanPlanNode(
             pollId(rel),
-            table.getName(),
+            table.getMapName(),
             table.getKeyDescriptor(),
             table.getValueDescriptor(),
             getScanFieldPaths(table),
