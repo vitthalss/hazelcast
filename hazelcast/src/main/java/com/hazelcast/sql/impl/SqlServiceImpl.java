@@ -221,13 +221,7 @@ public class SqlServiceImpl implements SqlService, Consumer<Packet> {
             throw QueryException.error("SQL statement cannot be empty.");
         }
 
-        List<Object> params0;
-
-        if (params == null || params.isEmpty()) {
-            params0 = Collections.emptyList();
-        } else {
-            params0 = new ArrayList<>(params);
-        }
+        List<Object> params0 = new ArrayList<>(params);
 
         if (timeout < 0) {
             throw QueryException.error("Timeout cannot be negative: " + timeout);

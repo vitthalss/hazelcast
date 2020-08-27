@@ -39,7 +39,7 @@ import org.apache.calcite.rex.RexVisitor;
 import java.util.List;
 
 /**
- * Visitor which converts REX nodes to a Hazelcast expressions.
+ * Visitor that converts REX nodes to Hazelcast expressions.
  */
 public final class RexToExpressionVisitor implements RexVisitor<Expression<?>> {
 
@@ -72,7 +72,6 @@ public final class RexToExpressionVisitor implements RexVisitor<Expression<?>> {
     @Override
     public Expression<?> visitCall(RexCall call) {
         // Convert the operands.
-
         List<RexNode> rexOperands = call.getOperands();
         Expression<?>[] expressionOperands;
 
@@ -87,7 +86,6 @@ public final class RexToExpressionVisitor implements RexVisitor<Expression<?>> {
         }
 
         // Convert the call.
-
         return RexToExpression.convertCall(call, expressionOperands);
     }
 
@@ -131,5 +129,4 @@ public final class RexToExpressionVisitor implements RexVisitor<Expression<?>> {
     public Expression<?> visitPatternFieldRef(RexPatternFieldRef fieldRef) {
         throw new UnsupportedOperationException();
     }
-
 }

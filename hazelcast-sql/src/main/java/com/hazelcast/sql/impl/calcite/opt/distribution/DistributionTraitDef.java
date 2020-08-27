@@ -36,6 +36,9 @@ import static com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType.P
 import static com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType.REPLICATED;
 import static com.hazelcast.sql.impl.calcite.opt.distribution.DistributionType.ROOT;
 
+/**
+ * Distribution trait definition.
+ */
 public class DistributionTraitDef extends RelTraitDef<DistributionTrait> {
     /** Partitioned trait with unknown partitioning columns. */
     private final DistributionTrait traitPartitionedUnknown;

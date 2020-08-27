@@ -229,6 +229,10 @@ public class SqlTestSupport extends HazelcastTestSupport {
         return rows;
     }
 
+    public static void clearPlanCache(HazelcastInstance member) {
+        ((SqlServiceImpl) member.getSql()).getPlanCache().clear();
+    }
+
     public HazelcastSqlException executeWithException(HazelcastInstance member, String sql, Object... params) {
         SqlStatement query = new SqlStatement(sql);
 
@@ -348,10 +352,6 @@ public class SqlTestSupport extends HazelcastTestSupport {
         }
 
         return res;
-    }
-
-    public static void clearPlanCache(HazelcastInstance member) {
-        ((SqlServiceImpl) member.getSql()).getPlanCache().clear();
     }
 
     protected static MapIndexScanPlanNode findFirstIndexNode(SqlResult result) {

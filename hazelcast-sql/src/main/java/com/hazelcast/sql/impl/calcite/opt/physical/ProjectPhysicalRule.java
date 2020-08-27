@@ -103,6 +103,7 @@ public final class ProjectPhysicalRule extends RelOptRule {
             }
         }
 
+        // TODO: VO: What is this for?
 //        if (res.isEmpty()) {
 //            // If there were no physical inputs, then just propagate the default distribution.
 //            RelTraitSet finalTraitSet = createPhysicalTraitSet(convertedInput, candDistFields, candCollationFields);

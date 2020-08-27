@@ -32,10 +32,10 @@ public final class SqlErrorCode {
     /** Query was cancelled due to timeout. */
     public static final int TIMEOUT = 1004;
 
-    /** An error caused by concurrent migration of partition to other member. */
+    /** Partition distribution has changed. */
     public static final int PARTITION_DISTRIBUTION_CHANGED = 1005;
 
-    /** An error caused concurrent destroy of a map. */
+    /** An error caused by a concurrent destroy of a map. */
     public static final int MAP_DESTROYED = 1006;
 
     /** Map loading is not finished yet. */

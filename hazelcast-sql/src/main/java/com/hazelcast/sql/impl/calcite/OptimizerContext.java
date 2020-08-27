@@ -47,7 +47,6 @@ import org.apache.calcite.rel.metadata.ChainedRelMetadataProvider;
 import org.apache.calcite.rel.metadata.DefaultRelMetadataProvider;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataProvider;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.tools.RuleSet;
 
 import javax.annotation.Nonnull;
@@ -164,7 +163,7 @@ public final class OptimizerContext {
     }
 
     private static Prepare.CatalogReader createCatalogReader(
-        RelDataTypeFactory typeFactory,
+        HazelcastTypeFactory typeFactory,
         CalciteConnectionConfig config,
         HazelcastSchema rootSchema,
         List<List<String>> searchPaths
@@ -179,10 +178,7 @@ public final class OptimizerContext {
         );
     }
 
-    private static VolcanoPlanner createPlanner(
-        CalciteConnectionConfig config,
-        DistributionTraitDef distributionTraitDef
-    ) {
+    private static VolcanoPlanner createPlanner(CalciteConnectionConfig config, DistributionTraitDef distributionTraitDef) {
         VolcanoPlanner planner = new VolcanoPlanner(
             CostFactory.INSTANCE,
             Contexts.of(config)
@@ -198,13 +194,12 @@ public final class OptimizerContext {
 
     private static HazelcastRelOptCluster createCluster(
         VolcanoPlanner planner,
-        RelDataTypeFactory typeFactory,
+        HazelcastTypeFactory typeFactory,
         DistributionTraitDef distributionTraitDef
     ) {
-        HazelcastRexBuilder rexBuilder = new HazelcastRexBuilder(typeFactory);
         HazelcastRelOptCluster cluster = HazelcastRelOptCluster.create(
             planner,
-            rexBuilder,
+            new HazelcastRexBuilder(typeFactory),
             distributionTraitDef
         );
 

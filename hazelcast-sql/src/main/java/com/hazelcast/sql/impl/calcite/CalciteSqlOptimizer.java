@@ -92,7 +92,6 @@ import javax.annotation.Nullable;
  * <p>
  * [1] Efficiency In The Columbia Database Query Optimizer (1998), chapters 2 and 3
  */
-@SuppressWarnings("checkstyle:ClassDataAbstractionCoupling")
 public class CalciteSqlOptimizer implements SqlOptimizer {
 
     private final NodeEngine nodeEngine;
