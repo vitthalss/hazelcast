@@ -156,8 +156,6 @@ public interface Index {
      */
     Set<QueryableEntry> getRecords(Comparable[] values);
 
-
-
     /**
      * Produces a result set by performing a range query on this index with the
      * range defined by the passed arguments.

@@ -151,11 +151,12 @@ public class Plan implements CacheablePlan {
         return inboundEdgeMemberCountMap;
     }
 
+    public SqlRowMetadata getRowMetadata() {
+        return rowMetadata;
+    }
+
     public QueryParameterMetadata getParameterMetadata() {
         return parameterMetadata;
     }
 
-    public SqlRowMetadata getRowMetadata() {
-        return rowMetadata;
-    }
 }

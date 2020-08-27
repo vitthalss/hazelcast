@@ -24,7 +24,6 @@ import com.hazelcast.sql.impl.QueryId;
 import com.hazelcast.sql.impl.QueryResultProducer;
 import com.hazelcast.sql.impl.plan.cache.CachedPlanInvalidationCallback;
 import com.hazelcast.sql.impl.plan.Plan;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -74,7 +73,7 @@ public final class QueryState implements QueryStateCallback {
         CachedPlanInvalidationCallback initiatorPlanInvalidationCallback,
         SqlRowMetadata initiatorRowMetadata,
         QueryResultProducer initiatorRowSource,
-        @NotNull ClockProvider clockProvider
+        ClockProvider clockProvider
     ) {
         // Set common state.
         this.queryId = queryId;

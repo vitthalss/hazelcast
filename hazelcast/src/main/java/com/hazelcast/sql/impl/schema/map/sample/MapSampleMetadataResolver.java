@@ -294,9 +294,10 @@ public final class MapSampleMetadataResolver {
             return null;
         }
 
+        String methodName = method.getName();
+
         String fieldNameWithWrongCase;
 
-        String methodName = method.getName();
         if (methodName.startsWith(METHOD_PREFIX_GET) && methodName.length() > METHOD_PREFIX_GET.length()) {
             fieldNameWithWrongCase = methodName.substring(METHOD_PREFIX_GET.length());
         } else if (methodName.startsWith(METHOD_PREFIX_IS) && methodName.length() > METHOD_PREFIX_IS.length()) {
